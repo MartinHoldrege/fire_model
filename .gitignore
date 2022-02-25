@@ -1,3 +1,8 @@
+# data files
+*.tif
+*.xml
+*.SLD
+
 # History files
 .Rhistory
 .Rapp.history
