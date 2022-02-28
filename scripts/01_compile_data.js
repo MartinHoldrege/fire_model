@@ -1,6 +1,3 @@
-/**** Start of imports. If edited, may not auto-convert in the playground. ****/
-var imageCollection = ee.ImageCollection("NASA/ORNL/DAYMET_V4");
-/***** End of imports. If edited, may not auto-convert in the playground. *****/
 /*
 Martin Holdrege
 
@@ -208,6 +205,7 @@ var daymet = ee.ImageCollection("NASA/ORNL/DAYMET_V4")
 // inside a map() call if the string is a client side string,
 // so doing the select here
 var daymetP = daymet.select('prcp');
+
 var daymetT = daymet.select(['tmax', 'tmin']);
 
 // make a list with years
@@ -221,7 +219,8 @@ var climYearlyList = years.map(function(y) {
   var filteredT = daymetT.filter(ee.Filter.calendarRange(y, y, 'year'));
   var precip = filteredP.sum(); // total ppt for the year
   var temp = filteredT.mean(); // mean of min/max temp for the year
-  var out = ee.Image(precip).addBands(temp);
+   // casting to float, so datatype same as temp. otherwise can't export to drive
+  var out = ee.Image(precip).float().addBands(temp);
   return out;
 });
 
@@ -247,7 +246,7 @@ var createSeasonClimFun = function(startMonth, endMonth) {
       .filter(ee.Filter.calendarRange(startMonth, endMonth, 'month'));
     var precip = filteredP.sum(); // total ppt for the year
     var temp = filteredT.mean(); // mean of min/max temp for the year
-    var out = ee.Image(precip).addBands(temp);
+    var out = ee.Image(precip).float().addBands(temp);
   return out;
   };
   return outFun;
@@ -274,7 +273,8 @@ var climSpringList = years.map(calcSpringClim);
 // avg spring ppt and temp across years
 var climSpringAvg = ee.ImageCollection(climSpringList)
   .mean();
-  
+
+print('summer climate', climSummerAvg)
 /************************************************
  * 
  * Export data
@@ -288,7 +288,7 @@ var crs = 'EPSG:4326';
 
 var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
   .addBands(rapMed.select('SHR').rename('shrCover')); //Shrub cover
-  
+
 // export to drive (for now using low resolution)
 Export.image.toDrive({
   image: rapOut,
@@ -320,3 +320,4 @@ for (var i = 0; i < climList.length; i++) {
     fileFormat: 'GeoTIFF'
   });
 }
+
