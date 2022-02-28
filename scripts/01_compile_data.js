@@ -4,16 +4,10 @@ Martin Holdrege
 Script started 2/25/2022
 
 Purpose--compile fire probability rasters, and rasters of predictor variables (climate,
-annual herbacious cover/biomass, perennial herbacious cover/biomass, and shrub biomass).
+annual herbacious biomass, perennial herbacious biomass, and shrub cover).
 Then output this data all in the same projection/scale, for the same grid cells, to be 
 used to create a relationship between fire and and the predictor variabls, for use
-in the cheatgrass/fire module of STEPWAT 2
-
-TO DO: annual and perennial grasses/forb biomass can be calculated from RAP (see below)
-For shrubs should use the shrub biomass layer. 
-Note when ouputing the rasters--scale to resolution of the climate data
-and use an equal area projection (I think this could be better
-so analyses don't weight some grid-cells more)
+in the cheatgrass/fire module of STEPWAT2
 */
 
 // User defined variables -------------------------------------
@@ -276,13 +270,18 @@ var climSpringAvg = ee.ImageCollection(climSpringList)
   .mean();
 
 // print('summer climate', climSummerAvg);
+
 /************************************************
  * 
  * Export data
  * 
+ * Patrick-etal-mask in the file names, just means that this output data was masked
+ * to the extend of the patrick fire probability dataset. 
+ * 
  ************************************************
  */
  
+
 var crs = 'EPSG:4326';
 
 // rap data
@@ -293,7 +292,7 @@ var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
 // export to drive 
 Export.image.toDrive({
   image: rapOut,
-  description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm_v1',
+  description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm_Patrick-etal-mask_v1',
   folder: 'gee',
   maxPixels: 1e13, 
   scale: resolution,
@@ -304,7 +303,7 @@ Export.image.toDrive({
 
 // daymet data
 
-var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_v1';
+var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_Patrick-etal-mask_v1';
 
 var climList = [climYearlyAvg, climSummerAvg, climSpringAvg];
 var climDescription = ['climYearlyAvg', 'climSummerAvg', 'climSpringAvg'];
