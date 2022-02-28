@@ -19,15 +19,23 @@ and use an equal area projection (I think this could be better
 so analyses don't weight some grid-cells more)
 */
 
+// User defined variables -------------------------------------
+
+// date range
+//var startYear = 1986;
+var startYear = 2018; // short time period for testing
+var endYear = 2019;
+var startDate = ee.Date.fromYMD(startYear, 1, 1);
+var endDate = ee.Date.fromYMD(endYear, 12, 31); 
+
+var resolution = 10000; // this is the resolution of the daymet product (i.e. which
+// is corser than the other dataset used)
+
 // visualization params ----------------------------------------
 var fireVis = {min: 0, max: 100, palette: ['white', 'red']};
 var coverVis = {min: 0, max: 100, palette: ['white', 'green']}; 
 
-// date range
-var startYear = 1986;
-var endYear = 2019;
-var startDate = ee.Date.fromYMD(startYear, 1, 1);
-var endDate = ee.Date.fromYMD(endYear, 12, 31); 
+
 
 // read in data -------------------------------------------------
 
@@ -39,7 +47,7 @@ var path = 'projects/gee-guest/assets/cheatgrass_fire/';
 // modelled fire probability 1985-2019
 var fire1 = ee.Image(path + 'fire_probability/LT_Wildfire_Prob_85to19_v1-0');
 Map.addLayer(ee.Image(0), {palette: ['white']}, 'blank bankground', false);
-Map.addLayer(fire1, fireVis, 'fire probability');
+Map.addLayer(fire1, fireVis, 'fire probability', false);
 
 // bounding box of the fire data (copied from the metadata of the fire dataset)
 var region = ee.Geometry({
@@ -195,6 +203,7 @@ var daymet = ee.ImageCollection("NASA/ORNL/DAYMET_V4")
     return image.updateMask(mask);
   });
 
+
 // Not sure if there is a problem with speed using using select (string), 
 // inside a map() call if the string is a client side string,
 // so doing the select here
@@ -206,9 +215,12 @@ var years = ee.List.sequence(startYear, endYear);
 
 //  avg temp, and total ppt for each year
 var climYearlyList = years.map(function(y) {
-  var climateFiltered = daymet.filter(ee.Filter.calendarRange(y, y, 'year'));
-  var precip = daymetP.sum(); // total ppt for the year
-  var temp = daymetT.mean(); // mean of min/max temp for the year
+  // Precip for each day of year for the given year
+  var filteredP = daymetP.filter(ee.Filter.calendarRange(y, y, 'year'));
+  // Temp for each day of year for the given year
+  var filteredT = daymetT.filter(ee.Filter.calendarRange(y, y, 'year'));
+  var precip = filteredP.sum(); // total ppt for the year
+  var temp = filteredT.mean(); // mean of min/max temp for the year
   var out = ee.Image(precip).addBands(temp);
   return out;
 });
@@ -219,27 +231,30 @@ var climYearlyAvg = ee.ImageCollection(climYearlyList)
   .mean();
 
 Map.addLayer(climYearlyAvg.select('prcp'),
-  {min: 0, max: 700, pallete: ['white', 'blue']}, 'Annual ppt');
+  {min: 50, max: 700, palette: ['white', 'blue']}, 'Annual ppt', false);
   
-  
+ Map.addLayer(climYearlyAvg.select('tmax'),
+  {min: 3, max: 30, palette: ['blue', 'red']}, 'Annual tmax'); 
 // Summer temp and precip ******************************
 
 // This function builds a function that calculates seasonal climate for a given
 // month range
 var createSeasonClimFun = function(startMonth, endMonth) {
   var outFun = function(y) {
-    var climateFiltered = daymet.filter(ee.Filter.calendarRange(y, y, 'year'))
+    var filteredP = daymetP.filter(ee.Filter.calendarRange(y, y, 'year'))
       .filter(ee.Filter.calendarRange(startMonth, endMonth, 'month'));
-    var precip = daymetP.sum(); // total ppt for the year
-    var temp = daymetT.mean(); // mean of min/max temp for the year
+    var filteredT = daymetT.filter(ee.Filter.calendarRange(y, y, 'year'))
+      .filter(ee.Filter.calendarRange(startMonth, endMonth, 'month'));
+    var precip = filteredP.sum(); // total ppt for the year
+    var temp = filteredT.mean(); // mean of min/max temp for the year
     var out = ee.Image(precip).addBands(temp);
   return out;
   };
   return outFun;
 };
 
-// function to calculate summer climate (June-sept)
-var calcSummerClim = createSeasonClimFun(ee.Number(6), ee.Number(9));
+// function to calculate summer climate (June-Aug)
+var calcSummerClim = createSeasonClimFun(ee.Number(6), ee.Number(8));
 
 //  avg temp, and total ppt for each year
 var climSummerList = years.map(calcSummerClim);
@@ -250,13 +265,58 @@ var climSummerAvg = ee.ImageCollection(climSummerList)
   
 // Spring temp and precip ******************************
   
-// function to calculate springr climate (april - june)
-var calcSpringClim = createSeasonClimFun(ee.Number(4), ee.Number(6));
+// function to calculate springr climate (march - may)
+var calcSpringClim = createSeasonClimFun(ee.Number(3), ee.Number(5));
 
 //  avg temp, and total ppt for each year
 var climSpringList = years.map(calcSpringClim);
 
-// avg summer ppt and temp across years
-var climSummerAvg = ee.ImageCollection(climSpringList)
+// avg spring ppt and temp across years
+var climSpringAvg = ee.ImageCollection(climSpringList)
   .mean();
   
+/************************************************
+ * 
+ * Export data
+ * 
+ ************************************************
+ */
+ 
+var crs = 'EPSG:4326';
+
+// rap data
+
+var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
+  .addBands(rapMed.select('SHR').rename('shrCover')); //Shrub cover
+  
+// export to drive (for now using low resolution)
+Export.image.toDrive({
+  image: rapOut,
+  description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm_v1',
+  folder: 'gee',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
+
+// daymet data
+
+var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_v1';
+
+var climList = [climYearlyAvg, climSummerAvg, climSpringAvg];
+var climDescription = ['climYearlyAvg', 'climSummerAvg', 'climSpringAvg'];
+
+for (var i = 0; i < climList.length; i++) {
+  Export.image.toDrive({
+    image: climList[i],
+    description: 'daymet_' + climDescription[i] + s,
+    folder: 'gee',
+    maxPixels: 1e13, 
+    scale: resolution,
+    region: region,
+    crs: crs,
+    fileFormat: 'GeoTIFF'
+  });
+}
