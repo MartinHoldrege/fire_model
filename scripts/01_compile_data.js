@@ -19,19 +19,18 @@ so analyses don't weight some grid-cells more)
 // User defined variables -------------------------------------
 
 // date range
-//var startYear = 1986;
-var startYear = 2018; // short time period for testing
+var startYear = 1985;
+//var startYear = 2018; // short time period for testing
 var endYear = 2019;
 var startDate = ee.Date.fromYMD(startYear, 1, 1);
 var endDate = ee.Date.fromYMD(endYear, 12, 31); 
 
-var resolution = 10000; // this is the resolution of the daymet product (i.e. which
+var resolution = 1000; // this is the resolution of the daymet product (i.e. which
 // is corser than the other dataset used)
 
 // visualization params ----------------------------------------
 var fireVis = {min: 0, max: 100, palette: ['white', 'red']};
 var coverVis = {min: 0, max: 100, palette: ['white', 'green']}; 
-
 
 
 // read in data -------------------------------------------------
@@ -42,7 +41,9 @@ var path = 'projects/gee-guest/assets/cheatgrass_fire/';
 // fire probability
 // data from downloaded from: https://doi.org/10.5066/P9ZN7BN8
 // modelled fire probability 1985-2019
+
 var fire1 = ee.Image(path + 'fire_probability/LT_Wildfire_Prob_85to19_v1-0');
+
 Map.addLayer(ee.Image(0), {palette: ['white']}, 'blank bankground', false);
 Map.addLayer(fire1, fireVis, 'fire probability', false);
 
@@ -219,8 +220,8 @@ var climYearlyList = years.map(function(y) {
   var filteredT = daymetT.filter(ee.Filter.calendarRange(y, y, 'year'));
   var precip = filteredP.sum(); // total ppt for the year
   var temp = filteredT.mean(); // mean of min/max temp for the year
-   // casting to float, so datatype same as temp. otherwise can't export to drive
-  var out = ee.Image(precip).float().addBands(temp);
+   // casting to double so datatype of temp and precp same. otherwise can't export to drive
+  var out = ee.Image(precip).addBands(temp.toDouble());
   return out;
 });
 
@@ -246,7 +247,7 @@ var createSeasonClimFun = function(startMonth, endMonth) {
       .filter(ee.Filter.calendarRange(startMonth, endMonth, 'month'));
     var precip = filteredP.sum(); // total ppt for the year
     var temp = filteredT.mean(); // mean of min/max temp for the year
-    var out = ee.Image(precip).float().addBands(temp);
+    var out = ee.Image(precip).addBands(temp.toDouble());
   return out;
   };
   return outFun;
@@ -274,7 +275,7 @@ var climSpringList = years.map(calcSpringClim);
 var climSpringAvg = ee.ImageCollection(climSpringList)
   .mean();
 
-print('summer climate', climSummerAvg)
+// print('summer climate', climSummerAvg);
 /************************************************
  * 
  * Export data
@@ -289,7 +290,7 @@ var crs = 'EPSG:4326';
 var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
   .addBands(rapMed.select('SHR').rename('shrCover')); //Shrub cover
 
-// export to drive (for now using low resolution)
+// export to drive 
 Export.image.toDrive({
   image: rapOut,
   description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm_v1',
