@@ -1,3 +1,6 @@
+/**** Start of imports. If edited, may not auto-convert in the playground. ****/
+var imageCollection = ee.ImageCollection("NASA/ORNL/DAYMET_V4");
+/***** End of imports. If edited, may not auto-convert in the playground. *****/
 /*
 Martin Holdrege
 
@@ -21,8 +24,10 @@ var fireVis = {min: 0, max: 100, palette: ['white', 'red']};
 var coverVis = {min: 0, max: 100, palette: ['white', 'green']}; 
 
 // date range
-var startDate = '1986-01-01';
-var endDate = '2019-12-31'; // note sure from paper whether date range includes 2019 or not
+var startYear = 1986;
+var endYear = 2019;
+var startDate = ee.Date.fromYMD(startYear, 1, 1);
+var endDate = ee.Date.fromYMD(endYear, 12, 31); 
 
 // read in data -------------------------------------------------
 
@@ -35,14 +40,34 @@ var path = 'projects/gee-guest/assets/cheatgrass_fire/';
 var fire1 = ee.Image(path + 'fire_probability/LT_Wildfire_Prob_85to19_v1-0');
 Map.addLayer(ee.Image(0), {palette: ['white']}, 'blank bankground', false);
 Map.addLayer(fire1, fireVis, 'fire probability');
-print(fire1);
+
+// bounding box of the fire data (copied from the metadata of the fire dataset)
+var region = ee.Geometry({
+  'type': 'Polygon',
+  'coordinates':
+  [[[-121.87704, 47.84742], // NW corner
+  [-104.87570, 36.90701], // SE corner
+  [-110, 40]]],// just another point (inside the bounding box), so creates a triangle, so get get bounds
+  'proj': fire1.projection(),
+}).bounds();
+
+Map.addLayer(region, {}, 'region', false);
+
 
 // rap data 
 // rangeland analysis platform, for cover data
 var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-cover-v3')
-  .filterDate(startDate,  endDate);
+  .filterDate(startDate,  endDate)
+  .filterBounds(region);
 
-
+/************************************************
+ * 
+ * Prepare vegetation data
+ * 
+ ************************************************
+ */
+ 
+ 
 // rap cover data -------------------------------------------
 
 var mask = fire1.mask(); // 0's are areas where the fire data set is masked, 1's are unmasked
@@ -93,7 +118,8 @@ Map.addLayer(rapMed.select('SHR'), coverVis, 'Shrubs', false);
 
 var npp = ee.ImageCollection("projects/rangeland-analysis-platform/npp-partitioned-v3")
   .select(['afgNPP', 'pfgNPP'])
-  .filterDate(startDate,  endDate);
+  .filterDate(startDate,  endDate)
+  .filterBounds(region);
 var mat = ee.ImageCollection("projects/rangeland-analysis-platform/gridmet-MAT");
 
 
@@ -143,6 +169,7 @@ Map.addLayer(biomass.filterDate('2019').select('pfgAGB'),
 // mask and calculate median
 var bioMed = biomass.median()
   .updateMask(mask);
+  
 Map.addLayer(bioMed.select('pfgAGB'), 
   {min: 0, max: 4000, palette: bamakoReverse}, 
   'perennials median', false);
@@ -151,4 +178,85 @@ Map.addLayer(bioMed.select('afgAGB'),
   'annuals median', false);
 
 
+/************************************************
+ * 
+ * Prepare Daymet climate data
+ * 
+ ************************************************
+ */
 
+// Annual temp and precipitation ****************
+
+var daymet = ee.ImageCollection("NASA/ORNL/DAYMET_V4")
+  .filterBounds(region)
+  .filterDate(startDate, endDate)
+  // set mask
+  .map(function(image) {
+    return image.updateMask(mask);
+  });
+
+// Not sure if there is a problem with speed using using select (string), 
+// inside a map() call if the string is a client side string,
+// so doing the select here
+var daymetP = daymet.select('prcp');
+var daymetT = daymet.select(['tmax', 'tmin']);
+
+// make a list with years
+var years = ee.List.sequence(startYear, endYear);
+
+//  avg temp, and total ppt for each year
+var climYearlyList = years.map(function(y) {
+  var climateFiltered = daymet.filter(ee.Filter.calendarRange(y, y, 'year'));
+  var precip = daymetP.sum(); // total ppt for the year
+  var temp = daymetT.mean(); // mean of min/max temp for the year
+  var out = ee.Image(precip).addBands(temp);
+  return out;
+});
+
+
+// avg yearly ppt and temp across years
+var climYearlyAvg = ee.ImageCollection(climYearlyList)
+  .mean();
+
+Map.addLayer(climYearlyAvg.select('prcp'),
+  {min: 0, max: 700, pallete: ['white', 'blue']}, 'Annual ppt');
+  
+  
+// Summer temp and precip ******************************
+
+// This function builds a function that calculates seasonal climate for a given
+// month range
+var createSeasonClimFun = function(startMonth, endMonth) {
+  var outFun = function(y) {
+    var climateFiltered = daymet.filter(ee.Filter.calendarRange(y, y, 'year'))
+      .filter(ee.Filter.calendarRange(startMonth, endMonth, 'month'));
+    var precip = daymetP.sum(); // total ppt for the year
+    var temp = daymetT.mean(); // mean of min/max temp for the year
+    var out = ee.Image(precip).addBands(temp);
+  return out;
+  };
+  return outFun;
+};
+
+// function to calculate summer climate (June-sept)
+var calcSummerClim = createSeasonClimFun(ee.Number(6), ee.Number(9));
+
+//  avg temp, and total ppt for each year
+var climSummerList = years.map(calcSummerClim);
+
+// avg summer ppt and temp across years
+var climSummerAvg = ee.ImageCollection(climSummerList)
+  .mean();
+  
+// Spring temp and precip ******************************
+  
+// function to calculate springr climate (april - june)
+var calcSpringClim = createSeasonClimFun(ee.Number(4), ee.Number(6));
+
+//  avg temp, and total ppt for each year
+var climSpringList = years.map(calcSpringClim);
+
+// avg summer ppt and temp across years
+var climSummerAvg = ee.ImageCollection(climSpringList)
+  .mean();
+  
