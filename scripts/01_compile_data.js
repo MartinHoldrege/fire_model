@@ -321,3 +321,15 @@ for (var i = 0; i < climList.length; i++) {
   });
 }
 
+// fire probability (this is just so that have the dataset at the same resolution as others)
+
+Export.image.toDrive({
+  image: fire1,
+  description: 'LT_Wildfire_Prob_85to19_v1-0_' + resolution + 'm',
+  folder: 'gee',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
