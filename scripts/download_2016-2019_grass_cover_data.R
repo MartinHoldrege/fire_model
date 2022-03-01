@@ -9,6 +9,9 @@
 # Patrick et al made all the data available on ScienceBase, and so this
 # script downloads that data.
 
+# the 2016-2019 grass cover data set didn't end up being useful,
+# so currently this script isn't needed. 
+
 # dependencies ------------------------------------------------------------
 
 library(sbtools) # for downloading data from science base
