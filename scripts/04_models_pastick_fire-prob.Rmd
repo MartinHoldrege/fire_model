@@ -1,0 +1,204 @@
+---
+title: "Models of Pastick et al. (2021) fire probability"
+author: "Martin Holdrege"
+date: "`r lubridate::today()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Dependencies 
+
+Sourcing the script that creates a dataframe of historical
+fire probability (from Pastick et al), as well as biotic and climate
+predictors for those same grid-cells. 
+
+```{r warning=FALSE, message=FALSE, cache = TRUE}
+source("scripts/03_create_pastick_fire-prob_dataframe.R")
+```
+
+```{r warning=FALSE, message=FALSE}
+source("src/general_functions.R")
+source("src/fig_params.R")
+library(randomForest)
+library(tidyverse)
+```
+
+# Prep data
+
+```{r prep_data}
+
+df_past3 <- df_past2 %>% 
+  rename(fireProbPerc = fireProb) %>%  # fireProb is a %
+  mutate(fireProb = fireProbPerc/100) %>%  # actually probability (between 0 and 1)
+  # probability of fire in a given year
+  mutate(fireProbYr = calc_yearly_prob(fireProb, n = 35))
+
+# predictor variables
+pred_vars <- names(df_past3) %>% 
+  str_subset("^fireProb", negate = TRUE)
+
+```
+
+## training data
+
+Using a small sample for now to make model fitting quicker
+
+```{r}
+pred_vars <- names(df_past3) %>% 
+  str_subset("^fireProb", negate = TRUE)
+
+n = 10000
+train <- slice_sample(df_past3, n = n) %>% 
+  as.data.frame()
+```
+
+# Exploratory figs
+
+Plot each predictor variable against fireProbYr
+
+```{r fig.height=9, fig.width=8}
+
+par(mfrow = c(2, 2))
+for (var in pred_vars) {
+  form <- as.formula(paste0('fireProbYr ~', var))
+  mod <- lm(form, data = train)
+  plot(formula = form, data = train, ylab = lab_fireProb[['fireProbYr']],
+       xlab = var)
+  abline(mod)
+}
+  
+
+```
+
+# Random forest 
+
+
+## Fit Model
+
+
+```{r}
+# model formula with all predictor vars
+form_fireProb  <- as.formula(
+  paste('fireProb ~', paste(pred_vars, collapse = "+"))
+)
+
+# yearly, probability of fire
+form_fireProbYr  <- as.formula(
+  paste('fireProbYr ~', paste(pred_vars, collapse = "+"))
+)
+
+forms <- list(fireProb = form_fireProb,
+              fireProbYr = form_fireProbYr )
+
+mod_names <- names(forms)
+
+rf_mods <- map(forms, randomForest, ntree = 200, data = train)
+
+rf_mods
+
+```
+
+## Variable importance
+
+```{r results='hide', fig.keep='all'}
+
+# variable importance
+rf_import <- map(rf_mods, function(x) {
+  importance(x) %>% 
+    as_tibble(rownames = 'var') %>% 
+    arrange(desc(IncNodePurity)) 
+})
+
+map2(rf_mods, mod_names, function(x, y) {
+  print(varImpPlot(x = x, main = y))
+})
+
+```
+
+## Partial depencence plots
+
+9 most important variables
+
+```{r fig.height=9, fig.width = 8, cache = TRUE}
+
+
+for (j in seq_along(rf_mods)) {
+  vars <- rf_import[[j]]$var[1:9] # 9 most important variables
+  name <- mod_names[[j]]
+  print(name)
+  par(mfrow = c(3, 3))
+  for (i in seq_along(vars)) {
+    partialPlot(rf_mods[[j]], pred.data = train, x.var = vars[i], xlab = vars[i],
+                main = NULL, ylab = lab_fireProb[[name]])
+
+  }
+  mtext(name, outer = TRUE)
+}
+
+
+```
+
+## Examine Model fit
+
+```{r}
+name <- 'fireProbYr'
+hist(df_past3$fireProbYr, xlab = lab_fireProb[[name]],
+     main = 'Data from all grid-cells')
+
+train2 <- train
+train2$pred <- predict(rf_mods[[name]]) # this the oob prediction
+
+train2$resid <- train2[[name]] - train2$pred
+plot(train2[[name]], train2$pred, ylab = "Predicted", xlab = 'Observed',
+     main = lab_fireProb[[name]])
+abline(0, 1)
+plot(train2$pred, train2$resid,
+     ylab = "Predicted", xlab = 'Residual',
+     main = lab_fireProb[[name]])
+
+```
+
+# GLM
+
+## fitting model
+
+```{r}
+n_glm = 10000
+train_glm <- slice_sample(df_past3, n = n_glm) %>% 
+  as.data.frame()
+
+gau_glm1 <- glm(fireProbYr ~ afgAGB + I(afgAGB^2) + pfgAGB +  shrCover + prcpYearly +
+                  tmaxSummer + prcpSummer +afgAGB:prcpSummer +
+                  pfgAGB:prcpSummer, data = train_glm,
+                family = gaussian(link = 'logit'))
+
+
+summary(gau_glm1)
+
+# R squared
+var_explained(gau_glm1)
+```
+
+## Examine model fit
+
+```{r}
+train_glm2 <- train_glm
+train_glm2$pred <- predict(gau_glm1, type = 'response')
+
+train_glm2$resid <- train_glm2$pred - train_glm2$fireProbYr 
+
+plot(train_glm2$fireProbYr, train_glm2$pred, xlab = 'observed',
+     ylab = 'predicted')
+abline(0, 1)
+
+plot(train_glm2$pred, train_glm2$resid,  xlab = 'predicted', ylab = 'residual')
+abline(0, 0)
+```
+

@@ -3,6 +3,9 @@
 *.xml
 *.SLD
 
+# figures
+*.png
+
 # History files
 .Rhistory
 .Rapp.history

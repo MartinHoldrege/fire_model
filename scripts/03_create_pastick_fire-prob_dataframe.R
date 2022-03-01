@@ -14,12 +14,10 @@
 library(terra)
 library(tidyverse)
 theme_set(theme_classic())
-library(randomForest)
 # run if need to re-download the data
 # source('scripts/02_download_GEE_output_from_gdrive.R')
 
 # read in data ------------------------------------------------------------
-
 
 # *daymet data ------------------------------------------------------------
 
@@ -31,7 +29,7 @@ clim_paths <- paste0("data_processed/daymet/daymet_clim",  seasons,
 
 names(clim_paths) <- seasons
 
-rasts_clim1 <- map(clim_paths, rast) # list of rasters
+rasts_clim1 <- map(clim_paths, terra::rast) # list of rasters
 
 # * RAP -------------------------------------------------------------------
 
@@ -63,7 +61,7 @@ rasts_clim1$Yearly %>% names()
 
 # data frame of data based on the pastick et al papers fire data (hence
 # the 'pat' in the object name)
-df_pat1 <- tibble(
+df_past1 <- tibble(
   fireProb = as.vector(values(rast_fire1)),
   afgAGB = as.vector(values(rast_rap1$afgAGB)), # biomass of annuals
   pfgAGB = as.vector(values(rast_rap1$pfgAGB)), # biomass of perennials
@@ -76,7 +74,7 @@ for (season in names(rasts_clim1)) {
   # looping over layers (i.e. precip, tmax, tmin)
   for (lyr in names(rast)) {
     col_name <- paste0(lyr, season)
-    df_pat1[[col_name]] <- as.vector(values(rast[[lyr]]))
+    df_past1[[col_name]] <- as.vector(values(rast[[lyr]]))
   }
 }
 
