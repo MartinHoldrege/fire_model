@@ -59,7 +59,18 @@ train <- slice_sample(df_past3, n = n) %>%
   as.data.frame()
 ```
 
-# Exploratory figs
+# Exploratory figs & summary values
+
+
+```{r}
+df_past3 %>% 
+  pivot_longer(cols = everything(),
+               names_to = 'variable') %>% 
+  group_by(variable) %>% 
+  summarise(across(value, .fns = list(min = min, median = median, max = max))) %>% 
+  mutate(across(where(is.numeric), round, 2)) %>% 
+  knitr::kable(caption = 'summaries of variables')
+```
 
 Plot each predictor variable against fireProbYr
 
