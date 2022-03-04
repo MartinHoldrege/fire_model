@@ -126,6 +126,7 @@ var mat = ee.ImageCollection("projects/rangeland-analysis-platform/gridmet-MAT")
 // biomass conversion function
 // input: two band image (afgNPP, pfgNPP) from projects/rangeland-analysis-platform/npp-partitioned-v2
 // output: three band image, aboveground biomass (afgAGB, pfgAGB, herbaceousAGB)
+// MH--function updated so that it calculates biomass as g/m^2
 var biomassFunction = function(image) {
     
     var year = ee.Date(image.get('system:time_start')).format('YYYY');
@@ -133,8 +134,9 @@ var biomassFunction = function(image) {
     var fANPP = (matYear.multiply(0.0129)).add(0.171).rename('fANPP'); // fraction of NPP to allocate aboveground
     
     var agb = image.multiply(0.0001) // NPP scalar 
-                .multiply(2.20462) // KgC to lbsC
-                .multiply(4046.86) // m2 to acres
+                //.multiply(2.20462) // KgC to lbsC MH--i commented out these lines
+                //.multiply(4046.86) // m2 to acres MH--i commented out these lines
+                .multiply(1000) // MH--KgC to gC
                 .multiply(fANPP)  // fraction of NPP aboveground
                 .multiply(2.1276) // C to biomass
                 .rename(['afgAGB', 'pfgAGB'])
