@@ -277,8 +277,8 @@ var climSpringAvg = ee.ImageCollection(climSpringList)
  * 
  * Export data
  * 
- * Patrick-etal-mask in the file names, just means that this output data was masked
- * to the extend of the patrick fire probability dataset. 
+ * pastick-etal-mask in the file names, just means that this output data was masked
+ * to the extend of the pastick fire probability dataset. 
  * 
  ************************************************
  */
@@ -294,7 +294,7 @@ var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
 // export to drive 
 Export.image.toDrive({
   image: rapOut,
-  description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm_Patrick-etal-mask_v1',
+  description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm_pastick-etal-mask_v1',
   folder: 'gee',
   maxPixels: 1e13, 
   scale: resolution,
@@ -305,7 +305,7 @@ Export.image.toDrive({
 
 // daymet data
 
-var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_Patrick-etal-mask_v1';
+var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-mask_v1';
 
 var climList = [climYearlyAvg, climSummerAvg, climSpringAvg];
 var climDescription = ['climYearlyAvg', 'climSummerAvg', 'climSpringAvg'];

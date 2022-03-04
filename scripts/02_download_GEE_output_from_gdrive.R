@@ -12,27 +12,27 @@ library(googledrive)
 
 # get file paths drive --------------------------------------------------------
 
-# files masked to patrick et al fire probability data set
-files_daymet_patrick <- drive_ls(path = 'gee', 
-                                 pattern = '^daymet.*Patrick-etal')
+# files masked to pastick et al fire probability data set
+files_daymet_pastick <- drive_ls(path = 'gee', 
+                                 pattern = '^daymet.*pastick-etal')
+files_daymet_pastick
+files_rap_pastick <- drive_ls(path = 'gee', 
+                              pattern = 'RAP.*pastick-etal')
 
-files_rap_patrick <- drive_ls(path = 'gee', 
-                              pattern = 'RAP.*Patrick-etal')
-
-
+files_rap_pastick
 # download  ---------------------------------------------------------------
 
 # daymet data
-for (i in 1:nrow(files_daymet_patrick)) {
-  row <- files_daymet_patrick[i, ]
+for (i in 1:nrow(files_daymet_pastick)) {
+  row <- files_daymet_pastick[i, ]
   drive_download(file = row$id, 
                  path = file.path("data_processed/daymet", row$name),
                  overwrite = TRUE)
 }
 
 # RAP data
-for (i in 1:nrow(files_rap_patrick)) {
-  row <- files_rap_patrick[i, ]
+for (i in 1:nrow(files_rap_pastick)) {
+  row <- files_rap_pastick[i, ]
   drive_download(file = row$id, 
                  path = file.path("data_processed/RAP", row$name),
                  overwrite = TRUE)

@@ -25,7 +25,7 @@ theme_set(theme_classic())
 seasons <- c('Yearly', 'Summer', "Spring")
 
 clim_paths <- paste0("data_processed/daymet/daymet_clim",  seasons,
-                     "Avg_1985-2019_1000m_Patrick-etal-mask_v1.tif")
+                     "Avg_1985-2019_1000m_pastick-etal-mask_v1.tif")
 
 names(clim_paths) <- seasons
 
@@ -33,7 +33,7 @@ rasts_clim1 <- map(clim_paths, terra::rast) # list of rasters
 
 # * RAP -------------------------------------------------------------------
 
-rast_rap1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1985-2019_median_1000m_Patrick-etal-mask_v1.tif")
+rast_rap1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1985-2019_median_1000m_pastick-etal-mask_v1.tif")
 
 # * fire probability ------------------------------------------------------
 
