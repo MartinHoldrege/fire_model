@@ -69,12 +69,6 @@ var boundariesByYear = years.map(function(year) {
 
 var zero = ee.Image(0);
 
-// testing
-Map.addLayer(ee.FeatureCollection(boundariesByYear.get(2)), {}, '2nd layer', false)
-var test = ee.FeatureCollection(boundariesByYear.get(2));
-Map.addLayer(zero.paint(test, 1), {min: 0, max: 1, palette: ['white', 'black']}, 'test paint', false);
-// end testing
-
 var occurrenceByYear = boundariesByYear
   .map(function(fc) {
     // here cells are painted if the centroid falls within the polgyon boundary
