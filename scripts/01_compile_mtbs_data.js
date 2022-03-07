@@ -1,3 +1,11 @@
+/**
+ * Martin Holdrege
+ * 
+ * Purpose: Compile the Monitoring Trends in Burn Severity (MTBS) data
+ * into a raster dataset. Including a raster where, each cell is a count of the number
+ * fires that have occured over the last decades. 
+*/
+
 // User define Variables
 
 // date range
@@ -148,18 +156,23 @@ var percDict = ee.Dictionary.fromLists({
   
 //print(percDict);
 
-// create figure of percent burned area by year
+// figures ---------------------------------------------
+
+// create figure of percent burned area by year 
 var chart = ui.Chart.array.values({
   array: percDict.values(),
   axis: 0,
-  xLabels: percDict.keys()
+  xLabels: years
 }).setChartType('ScatterChart')
   .setOptions({
     title: '% of area burned per year',
     hAxis: {title: 'Year', format: '####'},
     vAxis: {title: '% total area'},
     legend: { position: "none" },
-    lineWidth: 1,
-    pointSize: 4
+    pointSize: 4,
+    trendlines: {0: {
+        color: 'CC0000'
+      }},
+    lineWidth: 1
   });
 print(chart);
