@@ -65,24 +65,50 @@ var boundariesByYear = years.map(function(year) {
   return out;
 });
 
-Map.addLayer(ee.FeatureCollection(boundariesByYear.get(1)))
-Map.addLayer(ee.FeatureCollection(boundariesByYear.get(2)))
+
 
 var zero = ee.Image(0);
+
+// testing
+Map.addLayer(ee.FeatureCollection(boundariesByYear.get(2)), {}, '2nd layer', false)
+var test = ee.FeatureCollection(boundariesByYear.get(2));
+Map.addLayer(zero.paint(test, 1), {min: 0, max: 1, palette: ['white', 'black']}, 'test paint', false);
+// end testing
 
 // CONTINUE here--the next step is to add an attribute of year to each
 // image in the image collection (i.e. startTime), so that layers have time associated with 
 // them--
 var occurrenceByYear = boundariesByYear
   .map(function(fc) {
-    return zero.paint(fc, 1)//.updateMask(mask); // if fire occured then convert cell to 1
+    return zero.paint(fc, 1); //.updateMask(mask); // if fire occured then convert cell to 1
   });
+
+// setting the start date feature, as Jan 1, of the given year
+var occurenceByYear = occurrenceByYear.zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
+  .map(function(x) {
+    var year = ee.List(x).get(1);
+    var startDate = ee.Date.fromYMD(year, 1, 1);
+    var image = ee.Image(ee.List(x).get(0))
+      .set('system:time_start', startDate);
+    return image;
+  });
+
 
 var occurrenceByYear = ee.ImageCollection(occurrenceByYear);
 
 Map.addLayer(ee.ImageCollection(occurrenceByYear), {palette: ['white', 'black']}, 'single year', false);
 
-// total fires/pixel--this isn't working yet. 
-var firesPerPixel = occurrenceByYear.sum()
-Map.addLayer(firesPerPixel, {palette: ['white', 'black']});
+var firesPerPixel = occurrenceByYear.sum();
+Map.addLayer(firesPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
+
+// mask data 
+
+var occurenceByYearM = occurenceByYear.map(function(x) {
+    return ee.Image(x).updateMask(mask);
+});
+
+var firesPerPixelM = firesPerPixel.updateMask(mask);
+
+// Visualize data pixels
+
 
