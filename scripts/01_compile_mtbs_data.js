@@ -7,7 +7,7 @@ var startYear = 1985;
 
 var endYear = 2019;
 
-
+var resolution = 1000;
 // read in data -------------------------------------------------
 
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
@@ -75,19 +75,20 @@ var test = ee.FeatureCollection(boundariesByYear.get(2));
 Map.addLayer(zero.paint(test, 1), {min: 0, max: 1, palette: ['white', 'black']}, 'test paint', false);
 // end testing
 
-// CONTINUE here--the next step is to add an attribute of year to each
-// image in the image collection (i.e. startTime), so that layers have time associated with 
-// them--
 var occurrenceByYear = boundariesByYear
   .map(function(fc) {
+    // here cells are painted if the centroid falls within the polgyon boundary
+    // (see: https://www.patreon.com/posts/vector-to-raster-51128079).
+    // use reduceToImage() if want to count any cells that touch polygon
     return zero.paint(fc, 1); //.updateMask(mask); // if fire occured then convert cell to 1
   });
 
 // setting the start date feature, as Jan 1, of the given year
-var occurenceByYear = occurrenceByYear.zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
+// combine two lists into one (each element of list is a list w/ 2 elements)
+var occurenceByYear = occurrenceByYear.zip(years)
   .map(function(x) {
     var year = ee.List(x).get(1);
-    var startDate = ee.Date.fromYMD(year, 1, 1);
+    var startDate = ee.Date.fromYMD(year, 1, 1); 
     var image = ee.Image(ee.List(x).get(0))
       .set('system:time_start', startDate);
     return image;
@@ -109,6 +110,62 @@ var occurenceByYearM = occurenceByYear.map(function(x) {
 
 var firesPerPixelM = firesPerPixel.updateMask(mask);
 
-// Visualize data pixels
+// Calculate burned area ------------------------------------------------------------
 
+var areaImage = mask.multiply(ee.Image.pixelArea());
+Map.addLayer(areaImage, {palette: ['white', 'black']}, 'area', false);
 
+// total area of interest (i.e. unmasked pixels)
+var calcTotalArea = function(area, key) {
+  var totalArea = ee.Number(
+    ee.Image(area).reduceRegion({
+      reducer: ee.Reducer.sum(),
+      geometry: region,
+      maxPixels: 1e12,
+      scale: resolution
+    }).get(key)
+    );
+  return totalArea;
+};
+    
+
+var totalArea = calcTotalArea(areaImage, 'b1'); // total (unmasked) area
+
+//print(occurenceByYear)
+// % of total area that burned each year
+var percAreaByYear = occurenceByYearM.map(function(image){
+  var area = ee.Image(image).gt(0).multiply(areaImage);
+  var out = calcTotalArea(area, 'constant')
+    .divide(totalArea)
+    .multiply(100); // convert to percent
+  return out;
+});
+
+var yearsString = years.map(function(x) {
+    var out = ee.String(x)
+      .replace('\\.\\d$', ''); 
+    return out;
+  });
+  
+// Combing year, and % of area burned into a dictionary
+var percDict = ee.Dictionary.fromLists({
+  keys: yearsString,
+  values: percAreaByYear});
+  
+//print(percDict);
+
+// create figure of percent burned area by year
+var chart = ui.Chart.array.values({
+  array: percDict.values(),
+  axis: 0,
+  xLabels: percDict.keys()
+}).setChartType('ScatterChart')
+  .setOptions({
+    title: '% of area burned per year',
+    hAxis: {title: 'Year', format: '####'},
+    vAxis: {title: '% total area'},
+    legend: { position: "none" },
+    lineWidth: 1,
+    pointSize: 4
+  });
+print(chart);
