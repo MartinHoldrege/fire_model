@@ -169,15 +169,42 @@ Map.addLayer(biomass.filterDate('2019').select('pfgAGB'),
 //print('biomass', biomass);
 
 // mask and calculate median
-var bioMed = biomass.median()
-  .updateMask(mask);
-  
+var bioMasked = biomass.map(function(x) {
+    return ee.Image(x).updateMask(mask);
+});
+var bioMed = bioMasked.median();
+
 Map.addLayer(bioMed.select('pfgAGB'), 
   {min: 0, max: 4000, palette: bamakoReverse}, 
   'perennials median', false);
 Map.addLayer(bioMed.select('afgAGB'), 
   {min: 0, max: 4000, palette: bamakoReverse}, 
   'annuals median', false);
+  
+// Examine RAP time series ----------------------------------------------
+
+var createChart = function(image, title, vAxis){
+  var out = ui.Chart.image.series(image, region, ee.Reducer.mean(), resolution)
+    .setOptions({
+      title: title,
+      vAxis: {title: vAxis},
+      hAxis: {title: 'year', format: 'YYYY'},
+      trendlines: {0: {
+        color: 'CC0000'
+      }}
+    });
+  return out;
+};
+
+// herbacious biomass charts
+var pfts = ['afgAGB', 'pfgAGB'];
+for (var i = 0; i < pfts.length; i++) {
+  var image = bioMasked.select(pfts[i]);
+  print(createChart(image, pfts[i], pfts[i]));
+}
+
+// shrub cover chart
+print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
 
 /************************************************
@@ -230,7 +257,7 @@ Map.addLayer(climYearlyAvg.select('prcp'),
   {min: 50, max: 700, palette: ['white', 'blue']}, 'Annual ppt', false);
   
  Map.addLayer(climYearlyAvg.select('tmax'),
-  {min: 3, max: 30, palette: ['blue', 'red']}, 'Annual tmax'); 
+  {min: 3, max: 30, palette: ['blue', 'red']}, 'Annual tmax', false); 
 // Summer temp and precip ******************************
 
 // This function builds a function that calculates seasonal climate for a given
@@ -283,7 +310,6 @@ var climSpringAvg = ee.ImageCollection(climSpringList)
  ************************************************
  */
  
-
 var crs = 'EPSG:4326';
 
 // rap data
@@ -335,3 +361,4 @@ Export.image.toDrive({
   crs: crs,
   fileFormat: 'GeoTIFF'
 });
+
