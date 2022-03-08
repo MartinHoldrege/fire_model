@@ -16,6 +16,7 @@ var startYear = 1985;
 var endYear = 2019;
 
 var resolution = 1000;
+
 // read in data -------------------------------------------------
 
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
@@ -44,21 +45,9 @@ var mtbs_boundaries = ee.FeatureCollection("projects/sat-io/open-datasets/MTBS/b
   
 Map.addLayer(mtbs_boundaries, {}, 'mtbs', false);
 
-// testing (remove later)
-var testDate = ee.Date(713775600000);
-print(testDate.millis());
-var test = mtbs_boundaries.filter(ee.Filter.eq('Ig_Date', testDate.millis()))
-  .filter(ee.Filter.eq('Map_ID', 7920));
-
-//Map.centerObject(test);
-Map.addLayer(test, {}, "test", false);
-print(ee.Number(testDate));
-// end testing
-
 // create list of dates
 
 var years = ee.List.sequence(startYear, endYear);
-
 
 // map over years
 
@@ -73,18 +62,24 @@ var boundariesByYear = years.map(function(year) {
   return out;
 });
 
-
-
 var zero = ee.Image(0);
 
 var occurrenceByYear = boundariesByYear
   .map(function(fc) {
-    // here cells are painted if the centroid falls within the polgyon boundary
-    // (see: https://www.patreon.com/posts/vector-to-raster-51128079).
-    // use reduceToImage() if want to count any cells that touch polygon
-    return zero.paint(fc, 1); //.updateMask(mask); // if fire occured then convert cell to 1
+    var fc2 = ee.FeatureCollection(fc)
+      .map(function(feature) {
+        return ee.Feature(feature).set('fire', 1);
+      }); // setting a dummy variable to reduceToImage
+    // Note reduceToImage will count any polygon that touches the fire polygon count as
+    // burned
+    var out = fc2.reduceToImage(['fire'], ee.Reducer.first())
+      .unmask(0); // so that non-fire pixels are 0
+   
+    // alternatively use paint() cells are painted if the centroid falls within the polgyon boundary
+    // return zero.paint(fc, 1); // if fire occured then convert cell to 1
+    return out;
   });
-
+print(occurrenceByYear);
 // setting the start date feature, as Jan 1, of the given year
 // combine two lists into one (each element of list is a list w/ 2 elements)
 var occurenceByYear = occurrenceByYear.zip(years)
@@ -99,15 +94,16 @@ var occurenceByYear = occurrenceByYear.zip(years)
 
 var occurrenceByYear = ee.ImageCollection(occurrenceByYear);
 
-Map.addLayer(ee.ImageCollection(occurrenceByYear), {palette: ['white', 'black']}, 'single year', false);
+Map.addLayer(occurrenceByYear, {palette: ['white', 'black']}, 'single year', false);
 
-var firesPerPixel = occurrenceByYear.sum();
+var firesPerPixel = occurrenceByYear.sum().toDouble();
 Map.addLayer(firesPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
 
 // mask data 
 
 var occurenceByYearM = occurenceByYear.map(function(x) {
-    return ee.Image(x).updateMask(mask);
+  
+    return ee.Image(x).updateMask(mask);  
 });
 
 var firesPerPixelM = firesPerPixel.updateMask(mask);
@@ -135,9 +131,10 @@ var totalArea = calcTotalArea(areaImage, 'b1'); // total (unmasked) area
 
 //print(occurenceByYear)
 // % of total area that burned each year
+print(occurenceByYearM);
 var percAreaByYear = occurenceByYearM.map(function(image){
   var area = ee.Image(image).gt(0).multiply(areaImage);
-  var out = calcTotalArea(area, 'constant')
+  var out = calcTotalArea(area, 'first')
     .divide(totalArea)
     .multiply(100); // convert to percent
   return out;
@@ -176,3 +173,23 @@ var chart = ui.Chart.array.values({
     lineWidth: 1
   });
 print(chart);
+
+// save file --------------------
+
+var crs = 'EPSG:4326';
+var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-mask_v1';
+
+Export.image.toDrive({
+  image: firesPerPixelM,
+  description: 'mtbs_fires-per-pixel' + s,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
+
+
+
+
