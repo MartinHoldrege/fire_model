@@ -37,7 +37,20 @@ rast_rap1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1985-2019_media
 
 # * fire probability ------------------------------------------------------
 
+# fire probability modelled by Pastick et al
 rast_fire1 <- rast("data_processed/fire_probability/LT_Wildfire_Prob_85to19_v1-0_1000m.tif")
+
+
+# number of observed fires per pixel.
+rast_mtbs1 <- rast(file.path(
+  "data_processed/fire_probability", 
+  "mtbs_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif"))
+
+# burn probability based on the fsim model 
+# (https://doi.org/10.2737/RDS-2016-0034-2)
+rast_fsim1 <- rast(file.path(
+  "data_processed/fire_probability", 
+  "fsim_burn-prob_1000m_pastick-etal-mask_v1.tif"))
 
 
 # check rasters -----------------------------------------------------------
@@ -53,6 +66,8 @@ compareGeom(rasts_clim1[[1]], rasts_clim1[[2]], rasts_clim1[[3]],
 compareGeom(rast_rap1, rast_fire1, rasts_clim1[[1]], lyrs = FALSE, 
             crs = TRUE, ext = TRUE, rowcol = TRUE)
 
+compareGeom(rast_rap1, rast_mtbs1, lyrs = FALSE, 
+            crs = TRUE, ext = TRUE, rowcol = TRUE)
 
 # create dataframe --------------------------------------------------------
 
@@ -63,6 +78,8 @@ rasts_clim1$Yearly %>% names()
 # the 'pat' in the object name)
 df_past1 <- tibble(
   fireProb = as.vector(values(rast_fire1)),
+  nfire_mtbs = as.vector(values(rast_mtbs1)), # num of observed fires per pixel
+  fsim_bp = as.vector(values(rast_fsim1)), # burn probability from fsim model
   afgAGB = as.vector(values(rast_rap1$afgAGB)), # biomass of annuals
   pfgAGB = as.vector(values(rast_rap1$pfgAGB)), # biomass of perennials
   shrCover = as.vector(values(rast_rap1$shrCover)) # cover of shrubs

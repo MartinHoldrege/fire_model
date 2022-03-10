@@ -38,7 +38,10 @@ df_past3 <- df_past2 %>%
   rename(fireProbPerc = fireProb) %>%  # fireProb is a %
   mutate(fireProb = fireProbPerc/100) %>%  # actually probability (between 0 and 1)
   # probability of fire in a given year
-  mutate(fireProbYr = calc_yearly_prob(fireProb, n = 35))
+  mutate(fireProbYr = calc_yearly_prob(fireProb, n = 35),
+          # number of years the mtbs count data corresponds to (for binomial glm)
+         mtbs_n = 35,
+         mtbs_prop = nfire_mtbs/mtbs_n)
 
 # predictor variables
 pred_vars <- names(df_past3) %>% 
@@ -52,7 +55,7 @@ Using a small sample for now to make model fitting quicker
 
 ```{r}
 pred_vars <- names(df_past3) %>% 
-  str_subset("^fireProb", negate = TRUE)
+  str_subset("(AGB)|(Cover)|(Summer)|(Spring)|(Yearly)")
 
 n = 10000
 train <- slice_sample(df_past3, n = n) %>% 
@@ -61,15 +64,19 @@ train <- slice_sample(df_past3, n = n) %>%
 
 # Exploratory figs & summary values
 
+Note that the fsim_bp dataset has a mean fire probability around 0.6%.
+
 
 ```{r}
 df_past3 %>% 
   pivot_longer(cols = everything(),
                names_to = 'variable') %>% 
   group_by(variable) %>% 
-  summarise(across(value, .fns = list(min = min, median = median, max = max))) %>% 
-  mutate(across(where(is.numeric), round, 2)) %>% 
+  summarise(across(value, .fns = list(mean = mean, min = min, 
+                                      median = median, max = max))) %>% 
+  mutate(across(where(is.numeric), round, 4)) %>% 
   knitr::kable(caption = 'summaries of variables')
+
 ```
 
 Plot each predictor variable against fireProbYr
@@ -87,6 +94,20 @@ for (var in pred_vars) {
   
 
 ```
+## comparing different fire probability data sources
+
+```{r}
+plot(train$fireProbYr*100, train$fsim_bp*100,
+     xlab = "Fire probability (%) Pastick et al.",
+     ylab = "Fire probability (%) FSim model data")
+abline(0, 1)
+
+# correlation between the metrics
+cor(train$fireProbYr, train$fsim_bp) %>% 
+  round(3)
+```
+
+
 
 # Random forest 
 
@@ -176,7 +197,7 @@ plot(train2$pred, train2$resid,
 
 ```
 
-# GLM
+# GLM (Pastick fire data)
 
 ## fitting model
 
@@ -213,3 +234,25 @@ plot(train_glm2$pred, train_glm2$resid,  xlab = 'predicted', ylab = 'residual')
 abline(0, 0)
 ```
 
+# GLM -- MTBS
+
+Here the response variable is the number of fires observed per pixel
+(check file name for year range, but initially using 35 years, 1985-2019)
+
+
+
+## Null model
+
+```{r}
+mtbs_null <- glm(mtbs_prop ~ 1, weight = mtbs_n, family = binomial,
+                 data = train)
+summary(mtbs_null)
+mtbs_mean_prob <- predict(mtbs_null, type = 'response') %>% 
+  mean()
+
+mtbs_mean_prob
+
+```
+
+The mean probability of fire in any given year based on mtbs data is 
+`r round(mtbs_mean_prob*100, 2)`%. 

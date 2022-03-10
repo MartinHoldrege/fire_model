@@ -19,7 +19,6 @@ files_daymet_pastick
 files_rap_pastick <- drive_ls(path = 'gee', 
                               pattern = 'RAP.*pastick-etal')
 
-files_rap_pastick
 # download  ---------------------------------------------------------------
 
 # daymet data
@@ -42,4 +41,16 @@ for (i in 1:nrow(files_rap_pastick)) {
 fire_name <- 'LT_Wildfire_Prob_85to19_v1-0_1000m.tif'
 drive_download(fire_name,
                path = file.path("data_processed/fire_probability", fire_name),
+               overwrite = TRUE)
+
+# mtbs--fire count per pixel
+file <- 'mtbs_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif'
+drive_download(file,
+               path = file.path("data_processed/fire_probability", file),
+               overwrite = TRUE)
+
+# fsim burn probability
+file <- 'fsim_burn-prob_1000m_pastick-etal-mask_v1.tif'
+drive_download(file,
+               path = file.path("data_processed/fire_probability", file),
                overwrite = TRUE)
