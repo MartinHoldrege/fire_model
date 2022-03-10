@@ -63,7 +63,7 @@ var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-c
 // burn probability based on the FSim model. 
 // downloaded from: https://doi.org/10.2737/RDS-2016-0034-2
 var bpFSim = ee.Image(path + 'fire_probability/CONUS_iBP');
-Map.addLayer(bpFSim, {min:0, max: 0.12, palette: ['white', 'red']}, 'fsim bp', false);
+
 /************************************************
  * 
  * Prepare vegetation data
@@ -74,6 +74,7 @@ Map.addLayer(bpFSim, {min:0, max: 0.12, palette: ['white', 'red']}, 'fsim bp', f
 // rap cover data -------------------------------------------
 
 var mask = fire1.mask(); // 0's are areas where the fire data set is masked, 1's are unmasked
+Map.addLayer(bpFSim.updateMask(mask), {min:0, max: 0.12, palette: ['white', 'red']}, 'fsim bp', false);
 Map.addLayer(mask, {palette: ['black', 'white']}, 'mask', false);
 
 // masking out non-sagebrush
