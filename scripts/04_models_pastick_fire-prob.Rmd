@@ -28,6 +28,7 @@ source("src/general_functions.R")
 source("src/fig_params.R")
 library(randomForest)
 library(tidyverse)
+library(margins) # for cplot function
 ```
 
 # Prep data
@@ -94,6 +95,19 @@ for (var in pred_vars) {
   
 
 ```
+
+## Histograms
+
+```{r}
+hist(df_past3$fireProbYr, xlab = paste0(lab_fireProb[['fireProbYr']], 
+                                        " (Pastick et al.)"),
+     main = 'Data from all grid-cells')
+
+hist(df_past3$fsim_bp, xlab = paste0(lab_fireProb[['fireProbYr']], 
+                                        " (FSim data)"),
+     main = 'Data from all grid-cells')
+```
+
 ## comparing different fire probability data sources
 
 ```{r}
@@ -206,7 +220,7 @@ n_glm = 10000
 train_glm <- slice_sample(df_past3, n = n_glm) %>% 
   as.data.frame()
 
-gau_glm1 <- glm(fireProbYr ~ afgAGB + I(afgAGB^2) + pfgAGB +  shrCover + prcpYearly +
+gau_glm1 <- glm(fireProbYr ~ afgAGB + pfgAGB +  shrCover + prcpYearly +
                   tmaxSummer + prcpSummer +afgAGB:prcpSummer +
                   pfgAGB:prcpSummer, data = train_glm,
                 family = gaussian(link = 'logit'))
@@ -234,6 +248,18 @@ plot(train_glm2$pred, train_glm2$resid,  xlab = 'predicted', ylab = 'residual')
 abline(0, 0)
 ```
 
+## Marginal effects plots
+
+```{r results='hide', fig.keep='all'}
+# variables in the model
+mod_vars <- attributes(terms(gau_glm1))[["term.labels"]] %>% 
+  str_subset(":", negate = TRUE) # not including interactions
+
+for (var in mod_vars){
+  cplot(gau_glm1, var)
+}
+```
+
 # GLM -- MTBS
 
 Here the response variable is the number of fires observed per pixel
@@ -245,7 +271,7 @@ Here the response variable is the number of fires observed per pixel
 
 ```{r}
 mtbs_null <- glm(mtbs_prop ~ 1, weight = mtbs_n, family = binomial,
-                 data = train)
+                 data = train_glm)
 summary(mtbs_null)
 mtbs_mean_prob <- predict(mtbs_null, type = 'response') %>% 
   mean()
@@ -256,3 +282,40 @@ mtbs_mean_prob
 
 The mean probability of fire in any given year based on mtbs data is 
 `r round(mtbs_mean_prob*100, 2)`%. 
+
+## full(ish) model
+
+```{r}
+
+train_glm_bin <- train_glm
+bin_glm1 <- glm(mtbs_prop ~ afgAGB + pfgAGB +  shrCover + prcpYearly +
+                  tmaxSummer + prcpSummer +afgAGB:prcpSummer +
+                  pfgAGB:prcpSummer,
+                weight = mtbs_n, family = binomial, data = train_glm)
+
+# diagnostic plots
+plot(bin_glm1)
+pred<- predict(bin_glm1, type = 'response')
+
+plot(train_glm2$pred, pred,
+     xlab = "Predicted fire probability, gaussian glm, Pastick data",
+     ylab = "Predicted fire probability, binomial glm, mtbs data",
+     main = 'comparing models beween datasets')
+abline(0, 1)
+
+
+
+```
+
+### Marginal effects plots
+
+```{r results='hide', fig.keep='all'}
+# variables in the model
+mod_vars <- attributes(terms(bin_glm1))[["term.labels"]] %>% 
+  str_subset(":", negate = TRUE) # not including interactions
+
+for (var in mod_vars){
+  print(cplot(bin_glm1, var))
+}
+```
+
