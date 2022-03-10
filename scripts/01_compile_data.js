@@ -59,14 +59,17 @@ Map.addLayer(region, {}, 'region', false);
 var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-cover-v3')
   .filterDate(startDate,  endDate)
   .filterBounds(region);
-
+  
+// burn probability based on the FSim model. 
+// downloaded from: https://doi.org/10.2737/RDS-2016-0034-2
+var bpFSim = ee.Image(path + 'fire_probability/CONUS_iBP');
+Map.addLayer(bpFSim, {min:0, max: 0.12, palette: ['white', 'red']}, 'fsim bp', false);
 /************************************************
  * 
  * Prepare vegetation data
  * 
  ************************************************
  */
- 
  
 // rap cover data -------------------------------------------
 
@@ -362,3 +365,15 @@ Export.image.toDrive({
   fileFormat: 'GeoTIFF'
 });
 
+// fsim burn probability
+
+Export.image.toDrive({
+  image: bpFSim.updateMask(mask),
+  description: 'fsim_burn-prob_' + resolution + 'm_pastick-etal-mask_v1',
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
