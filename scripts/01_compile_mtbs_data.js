@@ -1,9 +1,31 @@
 /**
  * Martin Holdrege
  * 
- * Purpose: Compile the Monitoring Trends in Burn Severity (MTBS) data
+ * Purpose: Compile observe fire occurence data. The end products 
+ * of interest are counts of how many times grid cells burned over
+ * over a defined period of years
+ * 
+ * 1st--Compile the Monitoring Trends in Burn Severity (MTBS) data
  * into a raster dataset. Including a raster where, each cell is a count of the number
- * fires that have occured over the last decades. 
+ * fires that have occured over the last decades. MTBS only shows
+ * fires >1000 acres
+ * 
+ * 2nd--Do the same for the Interagency fire perimeter history dataset.
+ * This dataset may not be as clean, with less data check
+ *  compared to the MTBS data but it
+ * does also include small fires. One concern is that it may
+ * have more of a bias over time (e.g. if reporting standars have improved).
+ * It was acquired from here:
+ * https://data-nifc.opendata.arcgis.com/datasets/nifc::interagency-fire-perimeter-history-all-years/about
+ * 
+ * 3rd--for each year determine if a cell burned according to MTBS and/or 
+ * the interagency fire perim dataset. Then sum that to get a count of number of years
+ * burned. This could be helpful to get a more complete measure of the 
+ * total amount of area burned. 
+ * 
+ * Note--consider carefully whether to call fall a pixel burned only if the pixel
+ * center intersect the fire polygon, or if any part of it intersects the polygon.
+ * This is more important for large (e.g. 1km pixels)
 */
 
 // User define Variables
