@@ -42,7 +42,10 @@ df_past3 <- df_past2 %>%
   mutate(fireProbYr = calc_yearly_prob(fireProb, n = 35),
           # number of years the mtbs count data corresponds to (for binomial glm)
          mtbs_n = 35,
-         mtbs_prop = nfire_mtbs/mtbs_n)
+         mtbs_prop = nfire_mtbs/mtbs_n) %>% 
+  # for now restricting data at the extreme ends
+  # which is far outside the range of what stepwat would model. 
+  filter(afgAGB < 500, pfgAGB < 500)
 
 # predictor variables
 pred_vars <- names(df_past3) %>% 
