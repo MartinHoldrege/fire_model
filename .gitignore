@@ -5,6 +5,7 @@
 
 # figures
 *.png
+*pdf
 
 # History files
 .Rhistory
