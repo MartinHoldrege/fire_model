@@ -35,6 +35,8 @@ library(margins) # for cplot function
 
 ```{r prep_data}
 
+thresh_agb <- 500 # aboveground biomass threshold
+
 df_past3 <- df_past2 %>% 
   rename(fireProbPerc = fireProb) %>%  # fireProb is a %
   mutate(fireProb = fireProbPerc/100) %>%  # actually probability (between 0 and 1)
@@ -45,7 +47,7 @@ df_past3 <- df_past2 %>%
          mtbs_prop = nfire_mtbs/mtbs_n) %>% 
   # for now restricting data at the extreme ends
   # which is far outside the range of what stepwat would model. 
-  filter(afgAGB < 500, pfgAGB < 500)
+  filter(afgAGB < thresh_agb, pfgAGB < thresh_agb)
 
 # predictor variables
 pred_vars <- names(df_past3) %>% 
@@ -101,14 +103,40 @@ for (var in pred_vars) {
 
 ## Histograms
 
-```{r}
-hist(df_past3$fireProbYr, xlab = paste0(lab_fireProb[['fireProbYr']], 
-                                        " (Pastick et al.)"),
-     main = 'Data from all grid-cells')
+For all histograms data includes all grid cells from Pastick et al.,
+except cells with annual or perennial forb & grass biomass > `r thresh_agb`
+were excluded.
 
-hist(df_past3$fsim_bp, xlab = paste0(lab_fireProb[['fireProbYr']], 
-                                        " (FSim data)"),
-     main = 'Data from all grid-cells')
+```{r message = FALSE, warning = FALSE}
+g <- ggplot(df_past3) +
+  # note the mtbs fir prop goes up to >20%, but they're 
+  # are very few cells with that many fires, so truncating
+  coord_cartesian(xlim = c(0, 10)) +
+  labs(x = "Fire probability (%/year)") +
+  theme_classic()
+
+h1 <- g +
+  geom_histogram(aes(x = fireProbYr*100)) +
+  labs(subtitle = "Pastick et al modelled data")
+
+h2 <- g +
+  geom_histogram(aes(mtbs_prop*100)) +
+  labs(subtitle = "MTBS, fire occurence over 35 years,\n(some outliers not shown)")
+
+
+h3 <- g +
+  geom_histogram(aes(fsim_bp*100))+
+  labs(subtitle = "FSim modelled data")
+
+h4 <- g +
+  geom_histogram(aes(mtbs_prop*100)) +
+  labs(subtitle = "MTBS, fire occurence over 35 years,\n(all data shown--some bars to small to see)") +
+  coord_cartesian(xlim = range(df_past3$mtbs_prop)*100)
+
+gridExtra::grid.arrange(h1, h2, h3, h4, ncol = 2)
+
+
+
 ```
 
 ## comparing different fire probability data sources

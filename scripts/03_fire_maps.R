@@ -2,7 +2,7 @@
 
 # Script started March 11, 2022
 
-# Purpose: Create maps of spatial probability and fire occurence datasets
+# Purpose: Create maps of spatial probability and fire occurrence datasets
 
 
 # dependencies ------------------------------------------------------------
