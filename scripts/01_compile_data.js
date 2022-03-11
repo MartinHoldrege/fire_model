@@ -59,6 +59,10 @@ Map.addLayer(region, {}, 'region', false);
 var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-cover-v3')
   .filterDate(startDate,  endDate)
   .filterBounds(region);
+  
+// burn probability based on the FSim model. 
+// downloaded from: https://doi.org/10.2737/RDS-2016-0034-2
+var bpFSim = ee.Image(path + 'fire_probability/CONUS_iBP');
 
 /************************************************
  * 
@@ -67,10 +71,10 @@ var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-c
  ************************************************
  */
  
- 
 // rap cover data -------------------------------------------
 
 var mask = fire1.mask(); // 0's are areas where the fire data set is masked, 1's are unmasked
+Map.addLayer(bpFSim.updateMask(mask), {min:0, max: 0.12, palette: ['white', 'red']}, 'fsim bp', false);
 Map.addLayer(mask, {palette: ['black', 'white']}, 'mask', false);
 
 // masking out non-sagebrush
@@ -169,15 +173,42 @@ Map.addLayer(biomass.filterDate('2019').select('pfgAGB'),
 //print('biomass', biomass);
 
 // mask and calculate median
-var bioMed = biomass.median()
-  .updateMask(mask);
-  
+var bioMasked = biomass.map(function(x) {
+    return ee.Image(x).updateMask(mask);
+});
+var bioMed = bioMasked.median();
+
 Map.addLayer(bioMed.select('pfgAGB'), 
   {min: 0, max: 4000, palette: bamakoReverse}, 
   'perennials median', false);
 Map.addLayer(bioMed.select('afgAGB'), 
   {min: 0, max: 4000, palette: bamakoReverse}, 
   'annuals median', false);
+  
+// Examine RAP time series ----------------------------------------------
+
+var createChart = function(image, title, vAxis){
+  var out = ui.Chart.image.series(image, region, ee.Reducer.mean(), resolution)
+    .setOptions({
+      title: title,
+      vAxis: {title: vAxis},
+      hAxis: {title: 'year', format: 'YYYY'},
+      trendlines: {0: {
+        color: 'CC0000'
+      }}
+    });
+  return out;
+};
+
+// herbacious biomass charts
+var pfts = ['afgAGB', 'pfgAGB'];
+for (var i = 0; i < pfts.length; i++) {
+  var image = bioMasked.select(pfts[i]);
+  print(createChart(image, pfts[i], pfts[i]));
+}
+
+// shrub cover chart
+print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
 
 /************************************************
@@ -230,7 +261,7 @@ Map.addLayer(climYearlyAvg.select('prcp'),
   {min: 50, max: 700, palette: ['white', 'blue']}, 'Annual ppt', false);
   
  Map.addLayer(climYearlyAvg.select('tmax'),
-  {min: 3, max: 30, palette: ['blue', 'red']}, 'Annual tmax'); 
+  {min: 3, max: 30, palette: ['blue', 'red']}, 'Annual tmax', false); 
 // Summer temp and precip ******************************
 
 // This function builds a function that calculates seasonal climate for a given
@@ -283,7 +314,6 @@ var climSpringAvg = ee.ImageCollection(climSpringList)
  ************************************************
  */
  
-
 var crs = 'EPSG:4326';
 
 // rap data
@@ -329,6 +359,19 @@ Export.image.toDrive({
   image: fire1,
   description: 'LT_Wildfire_Prob_85to19_v1-0_' + resolution + 'm',
   folder: 'gee',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
+
+// fsim burn probability
+
+Export.image.toDrive({
+  image: bpFSim.updateMask(mask),
+  description: 'fsim_burn-prob_' + resolution + 'm_pastick-etal-mask_v1',
+  folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
   scale: resolution,
   region: region,
