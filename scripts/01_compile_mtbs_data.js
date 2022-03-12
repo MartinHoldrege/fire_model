@@ -28,6 +28,8 @@
  * This is more important for large (e.g. 1km pixels)
 */
 
+// NEXT: output IFPH data, and combine IFPH data with MTBS data and output that
+
 // User define Variables
 
 // date range
@@ -135,9 +137,7 @@ var occurrenceByYear = boundariesByYear.map(fc2image)
 
 print('occurrenceByYear', occurrenceByYear);
 
-var occurrenceByYear = ee.ImageCollection(occurrenceByYear);
-
-var firesPerPixel = occurrenceByYear.sum().toDouble();
+var firesPerPixel = ee.ImageCollection(occurrenceByYear).sum().toDouble();
 Map.addLayer(firesPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
 
 // mask data 
@@ -170,7 +170,6 @@ var totalArea = calcTotalArea(areaImage, 'b1'); // total (unmasked) area
 
 //print(occurenceByYear)
 // % of total area that burned each year
-print(occurenceByYearM);
 var percAreaByYear = occurenceByYearM.map(function(image){
   var area = ee.Image(image).gt(0).multiply(areaImage);
   var out = calcTotalArea(area, 'first')
@@ -179,21 +178,8 @@ var percAreaByYear = occurenceByYearM.map(function(image){
   return out;
 });
 
-var yearsString = years.map(function(x) {
-    var out = ee.String(x)
-      .replace('\\.\\d$', ''); 
-    return out;
-  });
+
   
-// Combing year, and % of area burned into a dictionary
-var percDict = ee.Dictionary.fromLists({
-  keys: yearsString,
-  values: percAreaByYear});
- 
-
-print(percAreaByYear)
-print('MTBS Dict', percDict);
-
 
 /**************************************************
  * 
@@ -202,8 +188,15 @@ print('MTBS Dict', percDict);
  * ***********************************************
  */
 
+// convert numbers to strings
+var yearsString = years.map(function(x) {
+    var out = ee.String(x)
+      .replace('\\.\\d$', ''); 
+    return out;
+  });
+  
 // List where each element, is a feature collection of the fires that year
-var ifphByYear = years.map(function(year) {
+var ifphByYear = yearsString.map(function(year) {
   return ifph.filter(ee.Filter.eq('FIRE_YEAR', year));
 });
 
@@ -212,26 +205,41 @@ var ifphImageByYear = ifphByYear.map(fc2image)
   .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
   .map(setTimeStart); // setting the start date feature, as Jan 1, of the given year
   
-var ifphImageByYear = ee.ImageCollection(ifphImageByYear);
 
-Map.addLayer(ifphImageByYear, {palette: ['white', 'black']}, 'ifph single year', false);
+Map.addLayer(ee.Image(ifphImageByYear.get(0)), {palette: ['white', 'black']}, 'ifph single year', false);
 
 // total number of fires per pixel
-var ifphFiresPerPixel = ifphImageByYear.sum().toDouble();
+var ifphFiresPerPixel = ee.ImageCollection(ifphImageByYear).sum().toDouble();
 
 Map.addLayer(ifphFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'ifph fires per pixel', false);
+
+// mask data 
+
+var ifphImageByYearM = ifphImageByYear.map(function(x) {
+    return ee.Image(x).updateMask(mask);  
+});
+
+var ifphFiresPerPixelM = ifphFiresPerPixel.updateMask(mask);
+
+var ifphPercAreaByYear = ifphImageByYearM.map(function(image){
+  var area = ee.Image(image).gt(0).multiply(areaImage);
+  var out = calcTotalArea(area, 'first')
+    .divide(totalArea)
+    .multiply(100); // convert to percent
+  return out;
+});
 
 
 // figures ---------------------------------------------
 
 // create figure of percent burned area by year 
 var chart = ui.Chart.array.values({
-  array: percDict.values(),
+  array: percAreaByYear,
   axis: 0,
   xLabels: years
 }).setChartType('ScatterChart')
   .setOptions({
-    title: '% of area burned per year',
+    title: '% of area burned per year (MTBS)',
     hAxis: {title: 'Year', format: '####'},
     vAxis: {title: '% total area'},
     legend: { position: "none" },
@@ -243,7 +251,24 @@ var chart = ui.Chart.array.values({
   });
 print(chart);
 
-
+// create figure of percent burned area by year 
+var chart = ui.Chart.array.values({
+  array: ifphPercAreaByYear,
+  axis: 0,
+  xLabels: years
+}).setChartType('ScatterChart')
+  .setOptions({
+    title: '% of area burned per year (IFPH)',
+    hAxis: {title: 'Year', format: '####'},
+    vAxis: {title: '% total area'},
+    legend: { position: "none" },
+    pointSize: 4,
+    trendlines: {0: {
+        color: 'CC0000'
+      }},
+    lineWidth: 1
+  });
+print(chart);
 
 // save file --------------------
 
