@@ -67,9 +67,51 @@ var mtbs_boundaries = ee.FeatureCollection("projects/sat-io/open-datasets/MTBS/b
   
 Map.addLayer(mtbs_boundaries, {}, 'mtbs', false);
 
+// interagency fire perimeter history
+var ifph = ee.FeatureCollection(path + 'fire_perims/InteragencyFirePerimeterHistory')
+  .filterBounds(region);
+
+Map.addLayer(ifph, {}, 'ifph', false);
+
 // create list of dates
 
 var years = ee.List.sequence(startYear, endYear);
+
+// functions -------------------------------------------------
+
+// convert a feature collection (fc) to an image 
+var fc2image = function(fc) {
+    var fc2 = ee.FeatureCollection(fc)
+      .map(function(feature) {
+        return ee.Feature(feature).set('fire', 1);
+      }); // setting a dummy variable to reduceToImage
+    // Note reduceToImage will count any polygon that touches the fire polygon count as
+    // burned
+    var out = fc2.reduceToImage(['fire'], ee.Reducer.first())
+      .unmask(0); // so that non-fire pixels are 0
+   
+    // alternatively use paint() cells are painted if the centroid falls within the polgyon boundary
+    // return zero.paint(fc, 1); // if fire occured then convert cell to 1
+    return out;
+  };
+  
+// set the start date of an image to Jan 1 of a given year
+// x (input) is a list with two items, the first is an 
+// image the 2nd is the year 
+var setTimeStart = function(x) {
+    var year = ee.List(x).get(1);
+    var startDate = ee.Date.fromYMD(year, 1, 1); 
+    var image = ee.Image(ee.List(x).get(0))
+      .set('system:time_start', startDate);
+    return image;
+  };
+
+/**************************************************
+ * 
+ *  MTBS data
+ * 
+ * ***********************************************
+ */
 
 // map over years
 
@@ -86,45 +128,21 @@ var boundariesByYear = years.map(function(year) {
 
 var zero = ee.Image(0);
 
-var occurrenceByYear = boundariesByYear
-  .map(function(fc) {
-    var fc2 = ee.FeatureCollection(fc)
-      .map(function(feature) {
-        return ee.Feature(feature).set('fire', 1);
-      }); // setting a dummy variable to reduceToImage
-    // Note reduceToImage will count any polygon that touches the fire polygon count as
-    // burned
-    var out = fc2.reduceToImage(['fire'], ee.Reducer.first())
-      .unmask(0); // so that non-fire pixels are 0
-   
-    // alternatively use paint() cells are painted if the centroid falls within the polgyon boundary
-    // return zero.paint(fc, 1); // if fire occured then convert cell to 1
-    return out;
-  });
-print(occurrenceByYear);
-// setting the start date feature, as Jan 1, of the given year
-// combine two lists into one (each element of list is a list w/ 2 elements)
-var occurenceByYear = occurrenceByYear.zip(years)
-  .map(function(x) {
-    var year = ee.List(x).get(1);
-    var startDate = ee.Date.fromYMD(year, 1, 1); 
-    var image = ee.Image(ee.List(x).get(0))
-      .set('system:time_start', startDate);
-    return image;
-  });
+// convert each years feature collection to a binary image
+var occurrenceByYear = boundariesByYear.map(fc2image)
+  .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
+  .map(setTimeStart); // setting the start date feature, as Jan 1, of the given year
 
+print('occurrenceByYear', occurrenceByYear);
 
 var occurrenceByYear = ee.ImageCollection(occurrenceByYear);
-
-Map.addLayer(occurrenceByYear, {palette: ['white', 'black']}, 'single year', false);
 
 var firesPerPixel = occurrenceByYear.sum().toDouble();
 Map.addLayer(firesPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
 
 // mask data 
 
-var occurenceByYearM = occurenceByYear.map(function(x) {
-  
+var occurenceByYearM = occurrenceByYear.map(function(x) {
     return ee.Image(x).updateMask(mask);  
 });
 
@@ -148,7 +166,6 @@ var calcTotalArea = function(area, key) {
   return totalArea;
 };
     
-
 var totalArea = calcTotalArea(areaImage, 'b1'); // total (unmasked) area
 
 //print(occurenceByYear)
@@ -172,8 +189,38 @@ var yearsString = years.map(function(x) {
 var percDict = ee.Dictionary.fromLists({
   keys: yearsString,
   values: percAreaByYear});
+ 
+
+print(percAreaByYear)
+print('MTBS Dict', percDict);
+
+
+/**************************************************
+ * 
+ *  Interagency fire perimeter data
+ * 
+ * ***********************************************
+ */
+
+// List where each element, is a feature collection of the fires that year
+var ifphByYear = years.map(function(year) {
+  return ifph.filter(ee.Filter.eq('FIRE_YEAR', year));
+});
+
+// convert polygons to image (rasters)
+var ifphImageByYear = ifphByYear.map(fc2image)
+  .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
+  .map(setTimeStart); // setting the start date feature, as Jan 1, of the given year
   
-//print(percDict);
+var ifphImageByYear = ee.ImageCollection(ifphImageByYear);
+
+Map.addLayer(ifphImageByYear, {palette: ['white', 'black']}, 'ifph single year', false);
+
+// total number of fires per pixel
+var ifphFiresPerPixel = ifphImageByYear.sum().toDouble();
+
+Map.addLayer(ifphFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'ifph fires per pixel', false);
+
 
 // figures ---------------------------------------------
 
@@ -196,11 +243,15 @@ var chart = ui.Chart.array.values({
   });
 print(chart);
 
+
+
 // save file --------------------
 
 var crs = 'EPSG:4326';
 var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-mask_v1';
 
+if (false) {
+  
 Export.image.toDrive({
   image: firesPerPixelM,
   description: 'mtbs_fires-per-pixel' + s,
@@ -211,7 +262,6 @@ Export.image.toDrive({
   crs: crs,
   fileFormat: 'GeoTIFF'
 });
-
-
+}
 
 
