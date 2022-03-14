@@ -28,7 +28,6 @@
  * This is more important for large (e.g. 1km pixels)
 */
 
-// NEXT: output IFPH data, and combine IFPH data with MTBS data and output that
 
 // User define Variables
 
@@ -272,7 +271,7 @@ var titleList = ['% of area burned per year (MTBS)',
   '% of area burned per year (IFPH and MTBS combined)'];
   
 // Note here putting EE objects inside of javascript lists
-// this normally isn't a good idea but seems to work here
+// this normally isn't a good idea but seems to work 
 // (and function didn't), because ui.chart is client side?
 for (var i = 0; i < arrayList.length; i++) {
   var chart = ui.Chart.array.values({
@@ -295,16 +294,22 @@ for (var i = 0; i < arrayList.length; i++) {
 }
 
 
-// save file --------------------
+// save files --------------------
+
+// combining into a single image to export
+var allFiresPerPixelM = mtbsFiresPerPixelM.rename('mtbs')
+  .addBands(ifphFiresPerPixelM.rename('ifph'))
+  .addBands(combFiresPerPixelM.rename('comb'));
+
 
 var crs = 'EPSG:4326';
 var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-mask_v1';
 
-if (false) {
+if (true) {
   
 Export.image.toDrive({
-  image: mtbsFiresPerPixelM,
-  description: 'mtbs_fires-per-pixel' + s,
+  image: allFiresPerPixelM,
+  description: 'mtbs-ifph-comb_fires-per-pixel' + s,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
   scale: resolution,
@@ -312,6 +317,8 @@ Export.image.toDrive({
   crs: crs,
   fileFormat: 'GeoTIFF'
 });
+
 }
+
 
 
