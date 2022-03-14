@@ -53,6 +53,8 @@ var path = 'projects/gee-guest/assets/cheatgrass_fire/';
 var mask = ee.Image(path + 'fire_probability/LT_Wildfire_Prob_85to19_v1-0')
   .mask();
 
+
+
 // bounding box of the fire data (copied from the metadata of the Pastick fire dataset)
 var region = ee.Geometry({
   'type': 'Polygon',
@@ -107,6 +109,35 @@ var setTimeStart = function(x) {
       .set('system:time_start', startDate);
     return image;
   };
+  
+// total area of interest (i.e. unmasked pixels)
+var calcTotalArea = function(area, key) {
+  var totalArea = ee.Number(
+    ee.Image(area).reduceRegion({
+      reducer: ee.Reducer.sum(),
+      geometry: region,
+      maxPixels: 1e12,
+      scale: resolution
+    }).get(key)
+    );
+  return totalArea;
+};
+
+// objects used in calcPercArea function:
+
+var areaImage = mask.multiply(ee.Image.pixelArea());
+var totalArea = calcTotalArea(areaImage, 'b1'); // total (unmasked) area
+
+// calc percent of total area that has burned
+// note that areaImage needs to be in scope for this
+// to run. 
+var calcPercArea = function(image){
+  var area = ee.Image(image).gt(0).multiply(areaImage);
+  var out = calcTotalArea(area, 'first')
+    .divide(totalArea)
+    .multiply(100); // convert to percent
+  return out;
+};
 
 /**************************************************
  * 
@@ -137,49 +168,26 @@ var mtbsImageByYear = boundariesByYear.map(fc2image)
 
 print('mtbsImageByYear', mtbsImageByYear);
 
-var firesPerPixel = ee.ImageCollection(mtbsImageByYear).sum().toDouble();
-Map.addLayer(firesPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
+var mtbsFiresPerPixel = ee.ImageCollection(mtbsImageByYear).sum().toDouble();
+Map.addLayer(mtbsFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
 
 // mask data 
 
-var occurenceByYearM = mtbsImageByYear.map(function(x) {
+var mtbsImageByYearM = mtbsImageByYear.map(function(x) {
     return ee.Image(x).updateMask(mask);  
 });
 
-var firesPerPixelM = firesPerPixel.updateMask(mask);
+var mtbsFiresPerPixelM = mtbsFiresPerPixel.updateMask(mask);
 
 // Calculate burned area ------------------------------------------------------------
 
-var areaImage = mask.multiply(ee.Image.pixelArea());
-Map.addLayer(areaImage, {palette: ['white', 'black']}, 'area', false);
 
-// total area of interest (i.e. unmasked pixels)
-var calcTotalArea = function(area, key) {
-  var totalArea = ee.Number(
-    ee.Image(area).reduceRegion({
-      reducer: ee.Reducer.sum(),
-      geometry: region,
-      maxPixels: 1e12,
-      scale: resolution
-    }).get(key)
-    );
-  return totalArea;
-};
-    
-var totalArea = calcTotalArea(areaImage, 'b1'); // total (unmasked) area
+Map.addLayer(areaImage, {palette: ['white', 'black']}, 'area', false);
 
 //print(occurenceByYear)
 // % of total area that burned each year
-var percAreaByYear = occurenceByYearM.map(function(image){
-  var area = ee.Image(image).gt(0).multiply(areaImage);
-  var out = calcTotalArea(area, 'first')
-    .divide(totalArea)
-    .multiply(100); // convert to percent
-  return out;
-});
+var mtbsPercAreaByYear = mtbsImageByYearM.map(calcPercArea);
 
-
-  
 
 /**************************************************
  * 
@@ -221,53 +229,59 @@ var ifphImageByYearM = ifphImageByYear.map(function(x) {
 
 var ifphFiresPerPixelM = ifphFiresPerPixel.updateMask(mask);
 
-var ifphPercAreaByYear = ifphImageByYearM.map(function(image){
-  var area = ee.Image(image).gt(0).multiply(areaImage);
-  var out = calcTotalArea(area, 'first')
-    .divide(totalArea)
-    .multiply(100); // convert to percent
-  return out;
-});
+var ifphPercAreaByYear = ifphImageByYearM.map(calcPercArea);
 
-// Combine MTBS and IFPH
+/**************************************************
+ * 
+ *  Combine Monitoring trends in burn severity and
+ *  Interagency fire perimeter data
+ * 
+ * ***********************************************
+ */
 
 var combImageByYear = ifphImageByYear.zip(mtbsImageByYear).map(function(x) {
-  var ifphImage = ee.Image(ee.List(x).get(0)); // ifph fires (presennce/absence for the years)
+  var ifphImage = ee.Image(ee.List(x).get(0)); // ifph fires (presence/absence for the given year)
   var imtbsImage = ee.Image(ee.List(x).get(1)); // mtbs fires (pres/abs) for the same year
   // pixels where ifph and/or imtbs dataset shows it burned. 
   var out = ifphImage.add(imtbsImage).gte(1);
   return out;
 });
 
+// sum across years
+var combFiresPerPixel = ee.ImageCollection(combImageByYear).sum().toDouble();
+
+// apply mask
+var combImageByYearM = combImageByYear.map(function(x) {
+    return ee.Image(x).updateMask(mask);  
+});
+
+var combFiresPerPixelM = combFiresPerPixel.updateMask(mask);
+
+// % of area burned per year
+var combPercAreaByYear = combImageByYearM.map(calcPercArea);
+
 // figures ---------------------------------------------
 
-// create figure of percent burned area by year 
-var chart = ui.Chart.array.values({
-  array: percAreaByYear,
-  axis: 0,
-  xLabels: years
-}).setChartType('ScatterChart')
-  .setOptions({
-    title: '% of area burned per year (MTBS)',
-    hAxis: {title: 'Year', format: '####'},
-    vAxis: {title: '% total area'},
-    legend: { position: "none" },
-    pointSize: 4,
-    trendlines: {0: {
-        color: 'CC0000'
-      }},
-    lineWidth: 1
-  });
-print(chart);
+// creating time series of % burned area by year, for each
+// data set
 
-// create figure of percent burned area by year 
-var chart = ui.Chart.array.values({
-  array: ifphPercAreaByYear,
+var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, combPercAreaByYear];
+
+var titleList = ['% of area burned per year (MTBS)', 
+  '% of area burned per year (IFPH)',
+  '% of area burned per year (IFPH and MTBS combined)'];
+  
+// Note here putting EE objects inside of javascript lists
+// this normally isn't a good idea but seems to work here
+// (and function didn't), because ui.chart is client side?
+for (var i = 0; i < arrayList.length; i++) {
+  var chart = ui.Chart.array.values({
+  array: arrayList[i],
   axis: 0,
   xLabels: years
 }).setChartType('ScatterChart')
   .setOptions({
-    title: '% of area burned per year (IFPH)',
+    title: titleList[i],
     hAxis: {title: 'Year', format: '####'},
     vAxis: {title: '% total area'},
     legend: { position: "none" },
@@ -277,7 +291,9 @@ var chart = ui.Chart.array.values({
       }},
     lineWidth: 1
   });
-print(chart);
+  print(chart);
+}
+
 
 // save file --------------------
 
@@ -287,7 +303,7 @@ var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-ma
 if (false) {
   
 Export.image.toDrive({
-  image: firesPerPixelM,
+  image: mtbsFiresPerPixelM,
   description: 'mtbs_fires-per-pixel' + s,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
