@@ -131,18 +131,18 @@ var boundariesByYear = years.map(function(year) {
 var zero = ee.Image(0);
 
 // convert each years feature collection to a binary image
-var occurrenceByYear = boundariesByYear.map(fc2image)
+var mtbsImageByYear = boundariesByYear.map(fc2image)
   .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
   .map(setTimeStart); // setting the start date feature, as Jan 1, of the given year
 
-print('occurrenceByYear', occurrenceByYear);
+print('mtbsImageByYear', mtbsImageByYear);
 
-var firesPerPixel = ee.ImageCollection(occurrenceByYear).sum().toDouble();
+var firesPerPixel = ee.ImageCollection(mtbsImageByYear).sum().toDouble();
 Map.addLayer(firesPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
 
 // mask data 
 
-var occurenceByYearM = occurrenceByYear.map(function(x) {
+var occurenceByYearM = mtbsImageByYear.map(function(x) {
     return ee.Image(x).updateMask(mask);  
 });
 
@@ -229,6 +229,15 @@ var ifphPercAreaByYear = ifphImageByYearM.map(function(image){
   return out;
 });
 
+// Combine MTBS and IFPH
+
+var combImageByYear = ifphImageByYear.zip(mtbsImageByYear).map(function(x) {
+  var ifphImage = ee.Image(ee.List(x).get(0)); // ifph fires (presennce/absence for the years)
+  var imtbsImage = ee.Image(ee.List(x).get(1)); // mtbs fires (pres/abs) for the same year
+  // pixels where ifph and/or imtbs dataset shows it burned. 
+  var out = ifphImage.add(imtbsImage).gte(1);
+  return out;
+});
 
 // figures ---------------------------------------------
 
