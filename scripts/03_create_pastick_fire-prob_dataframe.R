@@ -41,10 +41,13 @@ rast_rap1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1985-2019_media
 rast_fire1 <- rast("data_processed/fire_probability/LT_Wildfire_Prob_85to19_v1-0_1000m.tif")
 
 
-# number of observed fires per pixel.
-rast_mtbs1 <- rast(file.path(
+# number of observed fires per pixel, MTBS data
+# monitoring trends in burn severity, 
+# ifph data (interagency fire perimeter history),
+# and MTBS and IFPH combined
+rast_fPerPixel <- rast(file.path(
   "data_processed/fire_probability", 
-  "mtbs_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif"))
+  "mtbs-ifph-comb_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif"))
 
 # burn probability based on the fsim model 
 # (https://doi.org/10.2737/RDS-2016-0034-2)
@@ -66,7 +69,7 @@ compareGeom(rasts_clim1[[1]], rasts_clim1[[2]], rasts_clim1[[3]],
 compareGeom(rast_rap1, rast_fire1, rasts_clim1[[1]], lyrs = FALSE, 
             crs = TRUE, ext = TRUE, rowcol = TRUE)
 
-compareGeom(rast_rap1, rast_mtbs1, lyrs = FALSE, 
+compareGeom(rast_rap1, rast_fPerPixel, lyrs = FALSE, 
             crs = TRUE, ext = TRUE, rowcol = TRUE)
 
 # create dataframe --------------------------------------------------------
@@ -78,7 +81,10 @@ rasts_clim1$Yearly %>% names()
 # the 'pat' in the object name)
 df_past1 <- tibble(
   fireProb = as.vector(values(rast_fire1)),
-  nfire_mtbs = as.vector(values(rast_mtbs1)), # num of observed fires per pixel
+  # num of observed fires per pixel
+  nfire_mtbs = as.vector(values(rast_fPerPixel[['mtbs']])), # mtbs data
+  nfire_ifph = as.vector(values(rast_fPerPixel[['ifph']])), # ifph data
+  nfire_comb = as.vector(values(rast_fPerPixel[['comb']])), # ifph and mtbs combined
   fsim_bp = as.vector(values(rast_fsim1)), # burn probability from fsim model
   afgAGB = as.vector(values(rast_rap1$afgAGB)), # biomass of annuals
   pfgAGB = as.vector(values(rast_rap1$pfgAGB)), # biomass of perennials

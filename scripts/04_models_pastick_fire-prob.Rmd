@@ -28,7 +28,8 @@ source("src/general_functions.R")
 source("src/fig_params.R")
 library(randomForest)
 library(tidyverse)
-library(margins) # for cplot function
+library(margins) # for cplot()
+library(GGally) # for ggpairs()
 ```
 
 # Prep data
@@ -43,15 +44,15 @@ df_past3 <- df_past2 %>%
   # probability of fire in a given year
   mutate(fireProbYr = calc_yearly_prob(fireProb, n = 35),
           # number of years the mtbs count data corresponds to (for binomial glm)
-         mtbs_n = 35,
-         mtbs_prop = nfire_mtbs/mtbs_n) %>% 
+         # all count datasets (mtbs and ifph) are 35 years (change if updated)
+         mtbs_n = 35, 
+         # proportion of years with fires
+         mtbs_prop = nfire_mtbs/mtbs_n,
+         ifph_prop = nfire_ifph/mtbs_n,
+         comb_prop = nfire_comb/mtbs_n) %>% 
   # for now restricting data at the extreme ends
   # which is far outside the range of what stepwat would model. 
   filter(afgAGB < thresh_agb, pfgAGB < thresh_agb)
-
-# predictor variables
-pred_vars <- names(df_past3) %>% 
-  str_subset("^fireProb", negate = TRUE)
 
 ```
 
@@ -107,11 +108,11 @@ For all histograms data includes all grid cells from Pastick et al.,
 except cells with annual or perennial forb & grass biomass > `r thresh_agb`
 were excluded.
 
-```{r message = FALSE, warning = FALSE}
+```{r message = FALSE, warning = FALSE, fig.height = 9}
 g <- ggplot(df_past3) +
   # note the mtbs fir prop goes up to >20%, but they're 
   # are very few cells with that many fires, so truncating
-  coord_cartesian(xlim = c(0, 10)) +
+  coord_cartesian(c(0, 10)) +
   labs(x = "Fire probability (%/year)") +
   theme_classic()
 
@@ -133,13 +134,19 @@ h4 <- g +
   labs(subtitle = "MTBS, fire occurence over 35 years,\n(all data shown--some bars to small to see)") +
   coord_cartesian(xlim = range(df_past3$mtbs_prop)*100)
 
-gridExtra::grid.arrange(h1, h2, h3, h4, ncol = 2)
+h5 <- g +
+  geom_histogram(aes(ifph_prop*100)) +
+  labs(subtitle = "IFPH, fire occurence over 35 years,\n(some outliers not shown)")
 
+h6 <- g +
+  geom_histogram(aes(comb_prop*100)) +
+  labs(subtitle = "IFPH and MTBS combined, fire occurence over 35 years,\n(some outliers not shown)")
 
+gridExtra::grid.arrange(h1, h2, h3, h4, h5, h6, ncol = 2)
 
 ```
 
-## comparing different fire probability data sources
+## comparing response variables
 
 ```{r}
 plot(train$fireProbYr*100, train$fsim_bp*100,
@@ -147,9 +154,13 @@ plot(train$fireProbYr*100, train$fsim_bp*100,
      ylab = "Fire probability (%) FSim model data")
 abline(0, 1)
 
-# correlation between the metrics
-cor(train$fireProbYr, train$fsim_bp) %>% 
-  round(3)
+
+response_vars <- names(df_past3) %>% 
+  str_subset("(fireProbYr)|(fsim_bp)|(_prop$)")
+
+ggpairs(train, 'correlogram between response variables',
+        columns = response_vars,
+        lower = list(continuous = wrap("points", alpha = 0.1,    size=0.2)))
 ```
 
 

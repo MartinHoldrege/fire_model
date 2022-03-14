@@ -22,8 +22,11 @@ rast_fire1 <- rast(file.path(p, "LT_Wildfire_Prob_85to19_v1-0_1000m.tif"))
 
 
 # number of observed fires per pixel, MTBS data
-rast_mtbs1 <- rast(file.path(
-  p,  "mtbs_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif"))
+# monitoring trends in burn severity, 
+# ifph data (interagency fire perimeter history),
+# and MTBS and IFPH combined
+rast_fPerPixel <- rast(file.path(
+  p,  "mtbs-ifph-comb_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif"))
 
 # burn probability based on the fsim model 
 # (https://doi.org/10.2737/RDS-2016-0034-2)
@@ -45,7 +48,7 @@ rast_PastickYrPerc[] = calc_yearly_prob(fireProb, n = 35)*100
 
 # Making sure values are masked (for some reason this tif
 # doesn't have NA for masked values)
-rast_PastickYrPerc[is.na(rast_mtbs1)] <- NA
+rast_PastickYrPerc[is.na(rast_fPerPixel[[1]])] <- NA
 
 # maps --------------------------------------------------------------------
 
@@ -76,32 +79,50 @@ tm1 <- tm_shape(rast_PastickYrPerc, bbox = bbox) +
   base +
   tm_layout(main.title = "Pastick et al. modelled fire probability")
 
-# * MTBS ------------------------------------------------------------------
+# * Observed fire occurence --------------------------------------------------
 
-breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 10)
-labels <-  c(0, 1, 2, 3, 4, 5, '>=6')
+breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 6.5, 13)
+labels <-  c(0, 1, 2, 3, 4, 6, '>=6')
 palette <- c('grey', RColorBrewer::brewer.pal(6, "YlOrRd"))
-tm2 <- tm_shape(rast_mtbs1, bbox = bbox) +
+tm2 <- tm_shape(rast_fPerPixel[['mtbs']], bbox = bbox) +
   tm_raster(title = "N fires",
             breaks = breaks,
             labels = labels,
             palette = palette) +
   base +
-  tm_layout(main.title = "MTBS, # of first over 35 years")
+  tm_layout(main.title = "MTBS, # of fires over 35 years")
+
+tm3 <- tm_shape(rast_fPerPixel[['ifph']], bbox = bbox) +
+  tm_raster(title = "N fires",
+            breaks = breaks,
+            labels = labels,
+            palette = palette) +
+  base +
+  tm_layout(main.title = "IFPH, # of firest over 35 years")
+
+tm4 <- tm_shape(rast_fPerPixel[['comb']], bbox = bbox) +
+  tm_raster(title = "N fires",
+            breaks = breaks,
+            labels = labels,
+            palette = palette) +
+  base +
+  tm_layout(main.title = "IFPH and MTBS combined\n# of fires over 35 years")
+
+
 
 # * FSim ------------------------------------------------------------------
 
-tm3 <- tm_shape(rast_fsim1*100, bbox = bbox) +
+tm5 <- tm_shape(rast_fsim1*100, bbox = bbox) +
   tm_raster(title = "Fire probability (%/yr)",
             breaks = fprob_breaks) +
   base +
   tm_layout(main.title = "FSim modelled fire probability")
-tm3
+
 
 
 # * combine into multi panel map ------------------------------------------
 
 pdf("figures/maps_fire_prob/fire_prob_Pastick-etal-mask_v1.pdf",
-    width = 8, height = 7)
-tmap_arrange(tm1, tm2, tm3, ncol = 2)
+    width = 8, height = 9)
+tmap_arrange(tm1, tm2, tm5, tm3, tm4,  ncol = 2)
 dev.off()

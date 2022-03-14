@@ -44,7 +44,7 @@ drive_download(fire_name,
                overwrite = TRUE)
 
 # mtbs--fire count per pixel
-file <- 'mtbs_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif'
+file <- 'mtbs-ifph-comb_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif'
 drive_download(file,
                path = file.path("data_processed/fire_probability", file),
                overwrite = TRUE)
