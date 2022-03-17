@@ -11,3 +11,6 @@
 lab_fireProb <- c("fireProb" = "Long term fire probability (0-1)", 
                   "fireProbYr" = "Probability of fire in a given year (0-1)"
                   )
+
+# biomass
+lab_bio0 <- expression("Biomass ("*gm^-2*")")

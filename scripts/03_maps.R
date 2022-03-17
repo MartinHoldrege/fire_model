@@ -3,18 +3,24 @@
 # Script started March 11, 2022
 
 # Purpose: Create maps of spatial probability and fire occurrence datasets
+# (i.e. response variables), and of predictor variables (e.g., RAP
+# biomass cover datasets)
 
 
 # dependencies ------------------------------------------------------------
 
 library(terra)
 library(tmap)
-library(spData) # for us_states polygon
+library(spData, quietly = TRUE) # for us_states polygon
 source("src/general_functions.R")
+source("src/fig_params.R")
 
 # read in data ------------------------------------------------------------
+
 # this data downloaded in
 # "scripts/02_download_GEE_output_from_gdrive.R"
+
+# * fire data -------------------------------------------------------------
 
 p <- "data_processed/fire_probability"
 # fire probability modelled by Pastick et al
@@ -32,6 +38,13 @@ rast_fPerPixel <- rast(file.path(
 # (https://doi.org/10.2737/RDS-2016-0034-2)
 rast_fsim1 <- rast(file.path(
   p, "fsim_burn-prob_1000m_pastick-etal-mask_v1.tif"))
+
+
+# * rap data --------------------------------------------------------------
+
+# annual forb and grass biomass, perennial forb and grass biomass, and
+# shrub cover
+rast_rap1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1985-2019_median_1000m_pastick-etal-mask_v1.tif")
 
 
 # prep data ---------------------------------------------------------------
@@ -53,10 +66,11 @@ rast_PastickYrPerc[is.na(rast_fPerPixel[[1]])] <- NA
 # maps --------------------------------------------------------------------
 
 tmap_mode("plot")
-
-# * base map --------------------------------------------------------------
 # extend bounding box
 bbox <- tmaptools::bb(x = raster::raster(rast_fire1), ext = 1.15) 
+
+# * base map --------------------------------------------------------------
+
 
 base <- tmap_options( # increase number of pixels plotted
     max.raster = c(plot = 1e10, view = 1e6) 
@@ -128,7 +142,47 @@ tmap_arrange(tm1, tm2, tm5, tm3, tm4,  ncol = 2)
 dev.off()
 
 
-# RAP maps ----------------------------------------------------------------
+# * RAP maps ----------------------------------------------------------------
+# rangeland analysis platform biomass and cover data
 
-# maps 
+title <- "\nMedian values (1985-2019)"
+
+breaks_bio1 <- c(0, 10, 20, 50, 100, 200, 500, 1000, 5000)
+palette_bio1 <- RColorBrewer::brewer.pal(length(breaks_bio), 'YlGn')
+
+# annuals
+tm_rap1 <- tm_shape(rast_rap1[["afgAGB"]], bbox = bbox) +
+  tm_raster(breaks = breaks_bio1,
+            palette = palette_bio1,
+            title = lab_bio0) +
+  base +
+  tm_layout(main.title = paste("Annual forb and grass biomass", 
+                               title))
+
+# perennials
+tm_rap2 <- tm_shape(rast_rap1[["pfgAGB"]], bbox = bbox) +
+  tm_raster(breaks = breaks_bio1,
+            palette = palette_bio1,
+            title = lab_bio0) +
+  base +
+  tm_layout(main.title = paste("Perennial forb and grass biomass", 
+                               title))
+
+# shrubs
+breaks_cov1 <- c(0,2, 5, 10, 15, 20, 30, 50, 70)
+palette_cov1 <- RColorBrewer::brewer.pal(length(breaks_cov1), 'YlGn')
+
+tm_rap3 <- tm_shape(rast_rap1[["shrCover"]], bbox = bbox) +
+  tm_raster(breaks = breaks_cov1,
+            palette = palette_cov1,
+            title = "% Cover") +
+  base +
+  tm_layout(main.title = paste("Shrub cover", 
+                               title))
+
+# save maps
+pdf("figures/maps_veg/RAP_bio-cover_Pastick-etal-mask_v1.pdf",
+    width = 8, height = 7)
+tmap_arrange(tm_rap1, tm_rap2, tm_rap3, nrow = 2)
+dev.off()
 
