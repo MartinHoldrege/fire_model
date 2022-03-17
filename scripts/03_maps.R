@@ -126,3 +126,9 @@ pdf("figures/maps_fire_prob/fire_prob_Pastick-etal-mask_v1.pdf",
     width = 8, height = 9)
 tmap_arrange(tm1, tm2, tm5, tm3, tm4,  ncol = 2)
 dev.off()
+
+
+# RAP maps ----------------------------------------------------------------
+
+# maps 
+
