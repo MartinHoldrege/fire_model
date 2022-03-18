@@ -11,7 +11,8 @@
  ************************************************
  */
  
- 
+  // the daymet data has 1km res, so I don't think it makes sense to go smaller
+ var resolution = 1000;
 // read in data -------------------------------------
 
 // climate normals calculated from daymet data
@@ -31,7 +32,34 @@ Map.addLayer(aim2, {}, "Aim sites w/ sagebrush", false);
 Map.addLayer(aim1.filter(ee.Filter.eq('SagebrushCover_AH', 0)), 
   {}, "Aim sites w/o sagebrush", false);
 
+var aim3 = ee.Image(clim.climSpringAvg).reduceRegions({
+    collection: aim2, 
+    reducer:ee.Reducer.mean(), 
+    scale: resolution
+});
 
+// Generic Function to remove a property from a feature
+// function from:
+// https://gis.stackexchange.com/questions/321724
+// /removing-property-from-feature-or-featurecollection-using-google-earth-engine
+var removeProperty = function(feat, property) {
+  var properties = feat.propertyNames()
+  var selectProperties = properties.filter(ee.Filter.neq('item', property))
+  return ee.Feature(feat).select(selectProperties)
+}
+
+// Rename the property of a feature
+// feat--ee.Feature
+// newName and oldName --should be strings
+var renameProperty = function(feat, newName, oldName) {
+  var feat2 = feat.set(newName, feat.get(oldName));
+  var out = removeProperty(feat2, oldName);
+  return out;
+};
+
+
+var test = aim3.first();
+print(renameProperty(test, "tminSpring", "tmin"));
 
 /*
 var greens = ee.List([
