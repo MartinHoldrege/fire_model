@@ -1,6 +1,3 @@
-
-
-
 /************************************************
  * 
  * Prepare Daymet climate data
@@ -9,7 +6,7 @@
  * 
  * Purpose: compile daymet data, for use in downstream
  * scripts, specifically calculate average yearly, summer, and
- * spring tmax, tmin and precip
+ * spring tmax, tmin and precip.
  * 
  ************************************************
  */
@@ -26,7 +23,7 @@ var endDate = ee.Date.fromYMD(endYear, 12, 31);
 // Annual temp and precipitation ****************
 
 var daymet = ee.ImageCollection("NASA/ORNL/DAYMET_V4")
-  .filterBounds(region)
+//.filterBounds(region)
   .filterDate(startDate, endDate);
   // set mask (now setting this mask only when saving the file. )
   /*
