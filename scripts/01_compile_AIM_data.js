@@ -8,6 +8,9 @@
  * sites, and export that data along with the
  * daymet climate normals for those sites. 
  * 
+ * NEXT STEPS --add in fire count data, and then export. 
+ * That will necessetate renaming this file to 02_...
+ * 
  ************************************************
  */
  
