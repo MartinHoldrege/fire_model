@@ -222,12 +222,13 @@ print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
 var daymet = ee.ImageCollection("NASA/ORNL/DAYMET_V4")
   .filterBounds(region)
-  .filterDate(startDate, endDate)
-  // set mask
+  .filterDate(startDate, endDate);
+  // set mask (now setting this mask only when saving the file. )
+  /*
   .map(function(image) {
     return image.updateMask(mask);
   });
-
+  */
 
 // Not sure if there is a problem with speed using using select (string), 
 // inside a map() call if the string is a client side string,
@@ -314,6 +315,15 @@ var climSpringAvg = ee.ImageCollection(climSpringList)
  ************************************************
  */
  
+ // export files so that this script can be sourced as a module
+ // and these objects accessed
+ 
+exports.climSpringAvg = climSpringAvg;
+exports.climSummerAvg = climSummerAvg;
+exports.climYearlyAvg = climYearlyAvg;
+
+ // export files to drive
+ 
 var crs = 'EPSG:4326';
 
 // rap data
@@ -342,7 +352,7 @@ var climDescription = ['climYearlyAvg', 'climSummerAvg', 'climSpringAvg'];
 
 for (var i = 0; i < climList.length; i++) {
   Export.image.toDrive({
-    image: climList[i],
+    image: climList[i].updateMask(mask),
     description: 'daymet_' + climDescription[i] + s,
     folder: 'gee',
     maxPixels: 1e13, 
