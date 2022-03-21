@@ -40,6 +40,8 @@ var endYear = 2019;
 
 var resolution = 1000;
 
+// logical--whether to run export and graph making code
+var run = false; 
 // read in data -------------------------------------------------
 
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
@@ -273,6 +275,9 @@ var titleList = ['% of area burned per year (MTBS)',
 // Note here putting EE objects inside of javascript lists
 // this normally isn't a good idea but seems to work 
 // (and function didn't), because ui.chart is client side?
+
+if (run) {
+  
 for (var i = 0; i < arrayList.length; i++) {
   var chart = ui.Chart.array.values({
   array: arrayList[i],
@@ -293,6 +298,8 @@ for (var i = 0; i < arrayList.length; i++) {
   print(chart);
 }
 
+}
+
 // export for use in other scripts
 
 exports.mtbsFiresPerPixel = mtbsFiresPerPixel; // not masked so can be used for other extents
@@ -308,7 +315,7 @@ var allFiresPerPixelM = mtbsFiresPerPixelM.rename('mtbs')
 var crs = 'EPSG:4326';
 var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-mask_v1';
 
-if (false) { // set to true of want to export. 
+if (run) { // set to true of want to export. 
   
 Export.image.toDrive({
   image: allFiresPerPixelM,
