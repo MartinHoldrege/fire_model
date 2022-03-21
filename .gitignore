@@ -2,6 +2,7 @@
 *.tif
 *.xml
 *.SLD
+*.csv
 
 # figures
 *.png

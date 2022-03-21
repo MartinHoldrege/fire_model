@@ -54,3 +54,10 @@ file <- 'fsim_burn-prob_1000m_pastick-etal-mask_v1.tif'
 drive_download(file,
                path = file.path("data_processed/fire_probability", file),
                overwrite = TRUE)
+
+
+# AIM data
+file <- 'AIM-sagebrush-sites_with-climate-and-fire_1985-2019_v1.csv'
+drive_download(file,
+               path = file.path("data_processed/AIM", file),
+               overwrite = TRUE)
