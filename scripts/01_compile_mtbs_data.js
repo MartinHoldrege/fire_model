@@ -308,7 +308,7 @@ var allFiresPerPixelM = mtbsFiresPerPixelM.rename('mtbs')
 var crs = 'EPSG:4326';
 var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-mask_v1';
 
-if (true) {
+if (false) { // set to true of want to export. 
   
 Export.image.toDrive({
   image: allFiresPerPixelM,
