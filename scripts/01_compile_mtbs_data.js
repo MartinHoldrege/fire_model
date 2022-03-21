@@ -300,16 +300,17 @@ for (var i = 0; i < arrayList.length; i++) {
 
 }
 
-// export for use in other scripts
-
-exports.mtbsFiresPerPixel = mtbsFiresPerPixel; // not masked so can be used for other extents
-
 // save files --------------------
 
 // combining into a single image to export
-var allFiresPerPixelM = mtbsFiresPerPixelM.rename('mtbs')
-  .addBands(ifphFiresPerPixelM.rename('ifph'))
-  .addBands(combFiresPerPixelM.rename('comb'));
+var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
+  .addBands(ifphFiresPerPixel.rename('ifph'))
+  .addBands(combFiresPerPixel.rename('comb'));
+  
+// export for use in other scripts
+exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
+  
+var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
 
 var crs = 'EPSG:4326';
