@@ -6,10 +6,9 @@
  * 
  * Purpose: Pull in AIM vegetation monitoring 
  * sites, and export that data along with the
- * daymet climate normals for those sites. 
+ * daymet climate normals for those sites. In addition
+ * export the number of fires recorded for for each AIM site
  * 
- * NEXT STEPS --add in fire count data, and then export. 
- * That will necessetate renaming this file to 02_...
  * 
  ************************************************
  */
@@ -20,6 +19,7 @@
 
 // climate normals calculated from daymet data
 var clim = require("users/mholdrege/cheatgrass_fire:scripts/00_daymet_summaries.js");
+var fire = require("users/mholdrege/cheatgrass_fire:scripts/01_compile_mtbs_data.js");
 
 // misc. useful functions
 var util = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
@@ -32,7 +32,7 @@ var aim1 = ee.FeatureCollection('BLM/AIM/v1/TerrADat/TerrestrialAIM');
 // keep sites with sagebrush
 var aim2 = aim1.filter(ee.Filter.gt('SagebrushCover_AH', 0));
 
-print('example aim point', aim2.first());
+// print('example aim point', aim2.first());
 Map.addLayer(aim2, {}, "Aim sites w/ sagebrush", false);
 
 Map.addLayer(aim1.filter(ee.Filter.eq('SagebrushCover_AH', 0)), 
@@ -73,12 +73,26 @@ var aim4 = addClimateToFc(clim.climSummerAvg, aim3, 'Summer');
 // yearly climate data
 var aim5 = addClimateToFc(clim.climYearlyAvg, aim4, 'Yearly');
 
+// add in number of fires per pixel (MTBS, ifph, and combined mtbs + ifph)
+var aim6 = fire.allFiresPerPixel.reduceRegions({
+      collection: aim5, 
+      reducer:ee.Reducer.mean(), 
+      // higher resolution here--that way method used to convert polygons to pixels won't have an effect.
+      scale: 30  
+  });
 
 // rename
-var test = aim5.first();
-print(test);
+var test = aim6.first();
+print('example aim site', test);
 
+var s = fire.startYear + '-' + fire.endYear;
 
+Export.table.toDrive({
+  collection: aim6,
+  description: 'AIM-sagebrush-sites_with-climate-and-fire_' + s + '_v1',
+  folder: 'cheatgrass_fire',
+  fileFormat: 'csv'
+});
 
 
 
