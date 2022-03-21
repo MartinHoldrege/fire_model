@@ -65,8 +65,8 @@ var region = ee.Geometry({
 }).bounds();
 
 // Mtbs data (https://samapriya.github.io/awesome-gee-community-datasets/projects/mtbs/)
-var mtbs_boundaries = ee.FeatureCollection("projects/sat-io/open-datasets/MTBS/burned_area_boundaries")
-  .filterBounds(region);
+var mtbs_boundaries = ee.FeatureCollection("projects/sat-io/open-datasets/MTBS/burned_area_boundaries");
+//  .filterBounds(region);
   
 Map.addLayer(mtbs_boundaries, {}, 'mtbs', false);
 
@@ -293,6 +293,9 @@ for (var i = 0; i < arrayList.length; i++) {
   print(chart);
 }
 
+// export for use in other scripts
+
+exports.mtbsFiresPerPixel = mtbsFiresPerPixel; // not masked so can be used for other extents
 
 // save files --------------------
 
