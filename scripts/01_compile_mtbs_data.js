@@ -309,7 +309,9 @@ var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
   
 // export for use in other scripts
 exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
-  
+exports.startYear = startYear;
+exports.endYear = endYear;
+
 var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
 
