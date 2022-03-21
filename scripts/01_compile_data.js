@@ -64,6 +64,9 @@ var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-c
 // downloaded from: https://doi.org/10.2737/RDS-2016-0034-2
 var bpFSim = ee.Image(path + 'fire_probability/CONUS_iBP');
 
+// Climate (daymet) data
+var clim = require("users/mholdrege/cheatgrass_fire:scripts/00_daymet_summaries.js");
+
 /************************************************
  * 
  * Prepare vegetation data
@@ -213,99 +216,6 @@ print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
 /************************************************
  * 
- * Prepare Daymet climate data
- * 
- ************************************************
- */
-
-// Annual temp and precipitation ****************
-
-var daymet = ee.ImageCollection("NASA/ORNL/DAYMET_V4")
-  .filterBounds(region)
-  .filterDate(startDate, endDate)
-  // set mask
-  .map(function(image) {
-    return image.updateMask(mask);
-  });
-
-
-// Not sure if there is a problem with speed using using select (string), 
-// inside a map() call if the string is a client side string,
-// so doing the select here
-var daymetP = daymet.select('prcp');
-
-var daymetT = daymet.select(['tmax', 'tmin']);
-
-// make a list with years
-var years = ee.List.sequence(startYear, endYear);
-
-//  avg temp, and total ppt for each year
-var climYearlyList = years.map(function(y) {
-  // Precip for each day of year for the given year
-  var filteredP = daymetP.filter(ee.Filter.calendarRange(y, y, 'year'));
-  // Temp for each day of year for the given year
-  var filteredT = daymetT.filter(ee.Filter.calendarRange(y, y, 'year'));
-  var precip = filteredP.sum(); // total ppt for the year
-  var temp = filteredT.mean(); // mean of min/max temp for the year
-   // casting to double so datatype of temp and precp same. otherwise can't export to drive
-  var out = ee.Image(precip).addBands(temp.toDouble());
-  return out;
-});
-
-
-// avg yearly ppt and temp across years
-var climYearlyAvg = ee.ImageCollection(climYearlyList)
-  .mean();
-
-Map.addLayer(climYearlyAvg.select('prcp'),
-  {min: 50, max: 700, palette: ['white', 'blue']}, 'Annual ppt', false);
-  
- Map.addLayer(climYearlyAvg.select('tmax'),
-  {min: 3, max: 30, palette: ['blue', 'red']}, 'Annual tmax', false); 
-// Summer temp and precip ******************************
-
-// This function builds a function that calculates seasonal climate for a given
-// month range
-var createSeasonClimFun = function(startMonth, endMonth) {
-  var outFun = function(y) {
-    var filteredP = daymetP.filter(ee.Filter.calendarRange(y, y, 'year'))
-      .filter(ee.Filter.calendarRange(startMonth, endMonth, 'month'));
-    var filteredT = daymetT.filter(ee.Filter.calendarRange(y, y, 'year'))
-      .filter(ee.Filter.calendarRange(startMonth, endMonth, 'month'));
-    var precip = filteredP.sum(); // total ppt for the year
-    var temp = filteredT.mean(); // mean of min/max temp for the year
-    var out = ee.Image(precip).addBands(temp.toDouble());
-  return out;
-  };
-  return outFun;
-};
-
-// function to calculate summer climate (June-Aug)
-var calcSummerClim = createSeasonClimFun(ee.Number(6), ee.Number(8));
-
-//  avg temp, and total ppt for each year
-var climSummerList = years.map(calcSummerClim);
-
-// avg summer ppt and temp across years
-var climSummerAvg = ee.ImageCollection(climSummerList)
-  .mean();
-  
-// Spring temp and precip ******************************
-  
-// function to calculate springr climate (march - may)
-var calcSpringClim = createSeasonClimFun(ee.Number(3), ee.Number(5));
-
-//  avg temp, and total ppt for each year
-var climSpringList = years.map(calcSpringClim);
-
-// avg spring ppt and temp across years
-var climSpringAvg = ee.ImageCollection(climSpringList)
-  .mean();
-
-// print('summer climate', climSummerAvg);
-
-/************************************************
- * 
  * Export data
  * 
  * pastick-etal-mask in the file names, just means that this output data was masked
@@ -313,6 +223,9 @@ var climSpringAvg = ee.ImageCollection(climSpringList)
  * 
  ************************************************
  */
+ 
+
+ // export files to drive
  
 var crs = 'EPSG:4326';
 
@@ -337,12 +250,12 @@ Export.image.toDrive({
 
 var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-mask_v1';
 
-var climList = [climYearlyAvg, climSummerAvg, climSpringAvg];
+var climList = [clim.climYearlyAvg, clim.climSummerAvg, clim.climSpringAvg];
 var climDescription = ['climYearlyAvg', 'climSummerAvg', 'climSpringAvg'];
 
 for (var i = 0; i < climList.length; i++) {
   Export.image.toDrive({
-    image: climList[i],
+    image: climList[i].updateMask(mask),
     description: 'daymet_' + climDescription[i] + s,
     folder: 'gee',
     maxPixels: 1e13, 
