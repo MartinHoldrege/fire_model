@@ -3,6 +3,15 @@
 *.xml
 *.SLD
 *.csv
+*.prj
+*.shp
+*.shx
+*.cpg
+*.dbf
+*.sbx
+*.sbn
+*.lyr
+
 
 # figures
 *.png
