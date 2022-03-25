@@ -4,12 +4,14 @@
  * 
  * Script started: March 25, 2022
  * 
- * Purpose--
+ * Purpose--create a mask of the sagebrush biome to be used in subsequent
+ * scripts (and a polygon of the sagebrush biome).
+ * Note--the input files I'm using are ones that David Theobald
+ * used in his SEI scripts
  * 
+ *  * This script should sourced in other scripts using e.g:
  * 
- * 
- * 
- * 
+ * var mask = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js")
 */ 
 
 // outline of sagebrush biome
