@@ -42,6 +42,7 @@ var resolution = 1000;
 
 // logical--whether to run export and graph making code
 var run = false; 
+
 // read in data -------------------------------------------------
 
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
@@ -64,11 +65,24 @@ var ifph = ee.FeatureCollection(path + 'fire_perims/InteragencyFirePerimeterHist
 
 Map.addLayer(ifph, {}, 'ifph', false);
 
+// landsat burned area algorithm (used as part of the input to the Pastick paper)
+// More info here: https://samapriya.github.io/awesome-gee-community-datasets/projects/lba/
+
+var lba = ee.Image('users/keikonomura/fire/LBA_CU_2019_20200415_C01_V01_BP_L8');
+// STOP--continue here--I need to figure out what the names of the images in this collection
+// are. Extract the ones the names of the ones of interest (i.e. burn classification, no area)
+// and read them into a list. 
+print(lba);
+var ic = ee.ImageCollection('users/keikonomura/fire');
+print(ic);
+var assetList = ee.data.listAssets('users/keikonomura/fire');
+
+print(assetList);
+
+// functions etc -------------------------------------------------
+
 // create list of dates
-
 var years = ee.List.sequence(startYear, endYear);
-
-// functions -------------------------------------------------
 
 // convert a feature collection (fc) to an image 
 var fc2image = function(fc) {
