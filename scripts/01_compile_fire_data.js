@@ -32,7 +32,7 @@
 // User define Variables
 
 // date range
-// this data includes 1984, but to make in comparable to other dfor the time
+// this data includes 1984, but to make in comparable to other data for the time
 // being I'm doing 1985
 var startYear = 1985;
 
@@ -75,7 +75,7 @@ var lba = ee.Image('users/keikonomura/fire/LBA_CU_2019_20200415_C01_V01_BP_L8');
 print(lba);
 var ic = ee.ImageCollection('users/keikonomura/fire');
 print(ic);
-var assetList = ee.data.listAssets('users/keikonomura/fire');
+var assetList = ee.data.listAssets('users/keikonomura/fire/');
 
 print(assetList);
 
