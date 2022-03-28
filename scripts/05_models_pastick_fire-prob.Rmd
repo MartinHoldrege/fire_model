@@ -30,6 +30,7 @@ library(randomForest)
 library(tidyverse)
 library(margins) # for cplot()
 library(GGally) # for ggpairs()
+library(gnm) # generalized non-linear models
 ```
 
 ## functions 
@@ -180,9 +181,9 @@ abline(0, 1)
 response_vars <- names(df_past3) %>% 
   str_subset("(fireProbYr)|(fsim_bp)|(_prop$)")
 
-ggpairs(train, 'correlogram between response variables',
+ggpairs(train , 'correlogram between response variables',
         columns = response_vars,
-        lower = list(continuous = wrap("points", alpha = 0.1,    size=0.2)))
+        lower = list(continuous = GGally::wrap("points", alpha = 0.1,    size=0.2)))
 ```
 
 
@@ -387,6 +388,37 @@ car::residualPlots(bin_glm1)
 
 ## NLS model
 
+### testing with fake data
+
+Continue here--
+
+```{r}
+n = 1000
+df <- tibble(
+  x1 = rnorm(n, 5),
+  x2 = runif(n),
+  
+  y = 1 - exp(-1.5*x1)  + 0.01*x2,
+  y3 = y  + rnorm(n, 0, 0.001) # adding noise for testing w/ nls
+)
+df$y2 <- as.numeric(df$y > mean(df$y)) # creating a binary outcome
+
+plot(y~x1, data = df)
+
+mod <- gnm(y ~ 1  + Const(-1)Exp(x1) + x2, data = df)
+mod
+yhat <- predict(mod)
+plot(df$y, yhat)
+nls_mod <- nls(y3 ~ int + a*x1^b + c*x2,
+               data = df,
+               start = list(int = 1, a = 1, b = -1, c= 1))
+summary(nls_mod)
+yhat <- predict(nls_mod)
+plot(df$y, yhat)
+abline(0, 1)
+```
+
+
 Continue working on this...
 
 ```{r}
@@ -394,7 +426,7 @@ Continue working on this...
 ```
 
 
-### Marginal effects plots
+## Marginal effects plots
 
 ```{r results='hide', fig.keep='all'}
 # variables in the model
