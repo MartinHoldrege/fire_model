@@ -10,7 +10,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
 ```
 
 # Dependencies 
@@ -31,6 +31,9 @@ library(tidyverse)
 library(margins) # for cplot()
 library(GGally) # for ggpairs()
 library(gnm) # generalized non-linear models
+library(pdp) # for partial dependence plots
+library(gridExtra)
+theme_set(theme_classic())
 ```
 
 ## functions 
@@ -49,6 +52,31 @@ cplot_all_vars <- function(mod, ...) {
     print(cplot(mod, var, ...))
   }
 }
+
+# create partial dependence plots
+pdp_all_vars <- function(mod, mod_vars = NULL, ylab = NULL, ...) {
+  if (is.null(mod_vars)) {
+    mod_vars <- attributes(terms(mod))[["term.labels"]] %>% 
+     # not including interactions or squared terms
+    # e.g. I(x^2)
+    str_subset(":|(^I\\()", negate = TRUE)
+  }
+  
+  plots <- map(mod_vars, function(var) {
+    pdp::partial(mod, pred.var = var, plot = TRUE,
+               prob = TRUE,
+               plot.engine = 'ggplot2', rug = TRUE, ...) +
+    ylab(ylab)
+  })
+  
+  
+  gridExtra::marrangeGrob(plots, nrow = 2, ncol = 2)
+}
+
+
+
+  
+
 ```
 
 # Prep data
@@ -328,10 +356,13 @@ plot(train_glm2$pred, train_glm2$resid,  xlab = 'predicted', ylab = 'residual')
 abline(0, 0)
 ```
 
-## Marginal effects plots
+## Partial dependence plots
 
 ```{r results='hide', fig.keep='all'}
-cplot_all_vars(gau_glm1)
+vip::vip(gau_glm1) # variable importance
+pdp_all_vars(gau_glm1, ylab = 'probability', 
+             inv.link = boot::inv.logit)
+
 ```
 
 
@@ -364,7 +395,6 @@ The mean probability of fire in any given year based on mtbs data is
 
 ```{r}
 
-train_glm_bin <- train_glm
 bin_glm1 <- glm(mtbs_prop ~ afgAGB + pfgAGB +  shrCover + prcpYearly +
                   tmaxSummer + prcpSummer
                 # interactions
@@ -382,56 +412,116 @@ plot(train_glm2$pred, pred,
 abline(0, 1)
 
 car::residualPlots(bin_glm1)
-
-
 ```
 
-## NLS model
+## Partial dependence plots
 
-### testing with fake data
-
-Continue here--
-
-```{r}
-n = 1000
-df <- tibble(
-  x1 = rnorm(n, 5),
-  x2 = runif(n),
-  
-  y = 1 - exp(-1.5*x1)  + 0.01*x2,
-  y3 = y  + rnorm(n, 0, 0.001) # adding noise for testing w/ nls
-)
-df$y2 <- as.numeric(df$y > mean(df$y)) # creating a binary outcome
-
-plot(y~x1, data = df)
-
-mod <- gnm(y ~ 1  + Const(-1)Exp(x1) + x2, data = df)
-mod
-yhat <- predict(mod)
-plot(df$y, yhat)
-nls_mod <- nls(y3 ~ int + a*x1^b + c*x2,
-               data = df,
-               start = list(int = 1, a = 1, b = -1, c= 1))
-summary(nls_mod)
-yhat <- predict(nls_mod)
-plot(df$y, yhat)
-abline(0, 1)
-```
-
-
-Continue working on this...
-
-```{r}
-#
-```
-
-
-## Marginal effects plots
+Note here that that pfgAGB is the most important variable. But afgAGB is
+the most important variable for the random forest of the same data. 
 
 ```{r results='hide', fig.keep='all'}
-# variables in the model
-cplot_all_vars(bin_glm1)
+vip::vip(bin_glm1) # variable importance
+pdp_all_vars(bin_glm1, ylab = 'probability')
 ```
+
+# GNM model
+
+## testing with fake data
+
+
+```{r}
+
+
+n = 100000
+df <- tibble(
+  x1 = rnorm(n, mean = 2),
+  x2 = runif(n),
+  
+  y = 1 - exp(-1.5*x1)  + 0.5*x2,
+  y3 = y  + rnorm(n, 0, 0.1) # adding noise for testing w/ nls
+)
+plot(y~x1, data = df)
+plot(y~x2, data = df)
+
+# 
+customNonlin <- function(x1){
+    list(predictors = list(beta2 = 1),
+         variables = list(substitute(x1)),
+         term = function(predLabels, varLabels) {
+             sprintf("-1*exp(%s*%s)",
+                     predLabels[1], varLabels[1])
+         })
+}
+class(customNonlin) <- "nonlin"
+mod <- gnm(y3 ~ customNonlin(x1) + x2, data = df, 
+           start = c(1, -1, 1))
+mod
+
+# fitting the model with nls
+nls_mod <- nls(y3 ~ int + a*exp(b*x1) + c*x2,
+               data = df,
+               start = list(int = 1, a = -1, b = -1, c= 1))
+nls_mod
+yhat <- predict(nls_mod)
+#plot(df$y, yhat)
+#abline(0, 1)
+```
+
+Fitting non-linear logistic regression
+
+```{r}
+pr <- exp(df$y)/(1 + exp(df$y)) # probability of success (reverse of logit)
+# hist(pr)
+df$y4 <- rbinom(n, size = 1, prob = pr)
+
+
+mod <- gnm(y4 ~ customNonlin(x1) + x2, data = df, 
+           start = c(1, -2, 2), family = binomial(link = 'logit'))
+mod
+
+```
+
+## full(ish) model
+
+Fitting the model, with all linear terms except afgAGB is a negative exponential
+term. (-exp(beta1*x))
+
+```{r}
+afgNonLin <- function(afgAGB){
+    list(predictors = list(beta1 = 1),
+         variables = list(substitute(afgAGB)),
+         term = function(predLabels, varLabels) {
+             sprintf("-1*exp(%s*%s)",
+                     predLabels[1], varLabels[1])
+         })
+}
+
+class(afgNonLin) <- "nonlin"
+set.seed(123)
+bin_gnm1 <- gnm(mtbs_prop ~ afgNonLin(afgAGB) + pfgAGB +  shrCover + prcpYearly +
+                  tmaxSummer + prcpSummer,
+                weight = mtbs_n, family = binomial(link = "logit"), 
+                data = train_glm)
+summary(bin_gnm1)
+
+
+```
+
+## Partial dependence plots 
+
+Partial dependence plots for gnm models
+
+```{r warning = FALSE}
+
+vip::vip(bin_gnm1) # variable importance
+
+vars <- c("afgAGB", 'pfgAGB', 'shrCover', 'prcpYearly', 'tmaxSummer', 'prcpSummer')
+
+pdp_all_vars(bin_gnm1, mod_vars = vars, ylab = lab_fireProb['mtbsOccur'])
+
+
+```
+
 
 # GLM--IFPH
 
