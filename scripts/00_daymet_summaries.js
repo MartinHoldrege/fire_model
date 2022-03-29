@@ -98,13 +98,14 @@ var createSeasonClimFun = function(startMonth, endMonth) {
 // function to calculate summer climate (June-Aug)
 var calcSummerClim = createSeasonClimFun(ee.Number(6), ee.Number(8));
 
+
 //  avg temp, and total ppt for each year
-var climSummerList = years.map(calcSummerClim);
-var climSummerList = climSummerList.zip(climYearlyList)
-  map(function(x) {
-    var imageSummer = x[0];
-    var imageYearly = x[1];
-    
+var climSummerList = years.map(calcSummerClim)
+  //calculating proportion of total ppt that falls in summer
+  .zip(climYearlyList)
+  .map(function(x) {
+    var imageSummer = ee.Image(ee.List(x).get(0));
+    var imageYearly = ee.Image(ee.List(x).get(1));
     // proportion of ppt that falls in summer
     var prcpProp = imageSummer.select('prcp')
       .divide(imageYearly.select('prcp'))
@@ -117,6 +118,8 @@ var climSummerList = climSummerList.zip(climYearlyList)
 var climSummerAvg = ee.ImageCollection(climSummerList)
   .mean();
   
+print(climSummerAvg);
+Map.addLayer(climSummerAvg.select('prcpProp'), {min: 0, max: 0.7, palette: ['red', 'white', 'blue']}, 'prcpPropSummer', false);
 // Spring temp and precip ******************************
   
 // function to calculate springr climate (march - may)
