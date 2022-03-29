@@ -39,6 +39,18 @@ var daymetP = daymet.select('prcp');
 
 var daymetT = daymet.select(['tmax', 'tmin']);
 
+var daymetT = daymetT.map(function(image) {
+  var tsum = image.select('tmax')
+    .add(image.select('tmin'));
+  
+  var tavg = tsum.divide(2)
+    .rename('tavg');
+  var out = image.addBands(tavg);
+  return out;
+});
+// print(daymetT.first());
+// Map.addLayer(daymetT.first().select('tmax'),{}, 'tmax');
+// Map.addLayer(daymetT.first().select('tavg'), {},'tavg');
 // make a list with years
 var years = ee.List.sequence(startYear, endYear);
 
@@ -68,7 +80,7 @@ Map.addLayer(climYearlyAvg.select('prcp'),
 // Summer temp and precip ******************************
 
 // This function builds a function that calculates seasonal climate for a given
-// month range
+// month range (i.e. what Hadley Wickham calls a function factory)
 var createSeasonClimFun = function(startMonth, endMonth) {
   var outFun = function(y) {
     var filteredP = daymetP.filter(ee.Filter.calendarRange(y, y, 'year'))
@@ -88,6 +100,18 @@ var calcSummerClim = createSeasonClimFun(ee.Number(6), ee.Number(8));
 
 //  avg temp, and total ppt for each year
 var climSummerList = years.map(calcSummerClim);
+var climSummerList = climSummerList.zip(climYearlyList)
+  map(function(x) {
+    var imageSummer = x[0];
+    var imageYearly = x[1];
+    
+    // proportion of ppt that falls in summer
+    var prcpProp = imageSummer.select('prcp')
+      .divide(imageYearly.select('prcp'))
+      .rename('prcpProp');
+    var out = imageSummer.addBands(prcpProp);
+    return out;
+  });
 
 // avg summer ppt and temp across years
 var climSummerAvg = ee.ImageCollection(climSummerList)
