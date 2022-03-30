@@ -34,7 +34,7 @@
 // date range
 // this data includes 1984, but to make in comparable to other data for the time
 // being I'm doing 1985
-var startYear = 1985;
+var startYear = 1984;
 
 var endYear = 2019;
 
@@ -87,15 +87,14 @@ var lbaPaths = yearsString.map(function(x) {
   return preString.cat(ee.String(x)).cat(postString);
 });
 
-print('string', ee.String(lbaPaths.get(0)).getInfo());
-print(ee.FeatureCollection(ee.String(lbaPaths.get(0)).getInfo()))
+// Reading in LBA polygons
 
-var lbaByYear = lbaPaths.map(function(x) {
+// not sure why this isn't working without getinfo()
+var lbaByYear = lbaPaths.getInfo().map(function(x) {
   return ee.FeatureCollection(ee.String(x));
 });
-print(ee.FeatureCollection(lbaByYear.get(0)).get(0))
-
-
+var lbaByYear = ee.List(lbaByYear);
+//print('fc', ee.FeatureCollection(lbaByYear.get(0)).first())
 
 
 // functions etc -------------------------------------------------
@@ -183,7 +182,7 @@ var mtbsImageByYear = boundariesByYear.map(fc2image)
   .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
   .map(setTimeStart); // setting the start date feature, as Jan 1, of the given year
 
-print('mtbsImageByYear', mtbsImageByYear);
+//print('mtbsImageByYear', mtbsImageByYear);
 
 var mtbsFiresPerPixel = ee.ImageCollection(mtbsImageByYear).sum().toDouble();
 Map.addLayer(mtbsFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
@@ -310,17 +309,19 @@ var lbaPercAreaByYear = lbaImageByYearM.map(calcPercArea);
 // creating time series of % burned area by year, for each
 // data set
 
-var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, combPercAreaByYear];
+var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, combPercAreaByYear,
+                  lbaPercAreaByYear];
 
 var titleList = ['% of area burned per year (MTBS)', 
   '% of area burned per year (IFPH)',
-  '% of area burned per year (IFPH and MTBS combined)'];
+  '% of area burned per year (IFPH and MTBS combined)',
+  '% of area burned per year (LBA)'];
   
 // Note here putting EE objects inside of javascript lists
 // this normally isn't a good idea but seems to work 
 // (and function didn't), because ui.chart is client side?
 
-if (run) {
+if (true) {
   
 for (var i = 0; i < arrayList.length; i++) {
   var chart = ui.Chart.array.values({
@@ -349,7 +350,8 @@ for (var i = 0; i < arrayList.length; i++) {
 // combining into a single image to export
 var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
   .addBands(ifphFiresPerPixel.rename('ifph'))
-  .addBands(combFiresPerPixel.rename('comb'));
+  .addBands(combFiresPerPixel.rename('comb'))
+  .addBands(lbaFiresPerPixel.renam('lba'));
   
 // export for use in other scripts
 exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
@@ -366,7 +368,7 @@ if (run) { // set to true of want to export.
   
 Export.image.toDrive({
   image: allFiresPerPixelM,
-  description: 'mtbs-ifph-comb_fires-per-pixel' + s,
+  description: 'mtbs-ifph-lba_fires-per-pixel' + s,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
   scale: resolution,
