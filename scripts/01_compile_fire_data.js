@@ -1,7 +1,7 @@
 /**
  * Martin Holdrege
  * 
- * Purpose: Compile observe fire occurence data. The end products 
+ * Purpose: Compile observed fire occurence data. The end products 
  * of interest are counts of how many times grid cells burned over
  * over a defined period of years
  * 
@@ -33,8 +33,7 @@
 // User define Variables
 
 // date range
-// this data includes 1984, but to make in comparable to other data for the time
-// being I'm doing 1985
+// this data includes 1984
 var startYear = 1984;
 
 var endYear = 2019;
@@ -47,7 +46,7 @@ var usePaint = true;
 
 var createCharts = true; //whether to create timeseries charts
 // logical--whether to run export images
-var run = true; 
+var run = true;
 
 // read in data -------------------------------------------------
 
