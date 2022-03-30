@@ -33,8 +33,7 @@
 // User define Variables
 
 // date range
-// this data includes 1984, but to make in comparable to other data for the time
-// being I'm doing 1985
+// this data includes 1984
 var startYear = 1984;
 
 var endYear = 2019;
