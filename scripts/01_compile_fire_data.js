@@ -24,7 +24,8 @@
  * total amount of area burned. 
  * 
  * Note--consider carefully whether to call a pixel burned only if the pixel
- * center intersect the fire polygon, or if any part of it intersects the polygon.
+ * center intersect the fire polygon (i.e. paint()), or if any part of it intersects the polygon.
+ * (i.e. reduceToPolygon)
  * This is more important for large (e.g. 1km pixels)
 */
 
@@ -40,8 +41,12 @@ var endYear = 2019;
 
 var resolution = 1000;
 
+// logical whether to use paint (if false use reduceToImage) when converting polygons
+// to rasters
+var usePaint = true; 
+
 // logical--whether to run export and graph making code
-var run = false; 
+var run = true; 
 
 // read in data -------------------------------------------------
 
@@ -68,7 +73,6 @@ Map.addLayer(ifph, {}, 'ifph', false);
 // landsat burned area algorithm (used as part of the input to the Pastick paper)
 // More info here: https://samapriya.github.io/awesome-gee-community-datasets/projects/lba/
 // These were shapefiles which Pastick sent me that I ingested into ee 
-var lba = ee.FeatureCollection(path + 'LBA/LBA_CU_1984_20200415_C01_V01_BF_labeled');
 
 // create list of dates
 var years = ee.List.sequence(startYear, endYear);
@@ -99,21 +103,29 @@ var lbaByYear = ee.List(lbaByYear);
 
 // functions etc -------------------------------------------------
 
-// convert a feature collection (fc) to an image 
-var fc2image = function(fc) {
-    var fc2 = ee.FeatureCollection(fc)
+var fc2imageReduceToImage = function(fc) {
+      var fc2 = ee.FeatureCollection(fc)
       .map(function(feature) {
         return ee.Feature(feature).set('fire', 1);
       }); // setting a dummy variable to reduceToImage
     // Note reduceToImage will count any polygon that touches the fire polygon count as
     // burned
     var out = fc2.reduceToImage(['fire'], ee.Reducer.first())
-      .unmask(0); // so that non-fire pixels are 0
-   
-    // alternatively use paint() cells are painted if the centroid falls within the polgyon boundary
-    // return zero.paint(fc, 1); // if fire occured then convert cell to 1
+      .unmask(0);
     return out;
-  };
+};
+
+var fc2imagePaint = function(fc) {
+  //cells are painted if the centroid falls within the polgyon boundary
+  return zero.paint(fc, 1); //if fire occured then convert cell to 1
+};
+
+// convert a feature collection (fc) to an image 
+var fc2image = function(fc) {
+  // convert to an image using paint() or reduceToImage()
+  var out = ee.Algorithms.If(usePaint, fc2imagePaint(fc), fc2imageReduceToImage(fc));
+  return out;
+};
   
 // set the start date of an image to Jan 1 of a given year
 // x (input) is a list with two items, the first is an 
@@ -321,7 +333,7 @@ var titleList = ['% of area burned per year (MTBS)',
 // this normally isn't a good idea but seems to work 
 // (and function didn't), because ui.chart is client side?
 
-if (true) {
+if (run) {
   
 for (var i = 0; i < arrayList.length; i++) {
   var chart = ui.Chart.array.values({
@@ -351,7 +363,7 @@ for (var i = 0; i < arrayList.length; i++) {
 var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
   .addBands(ifphFiresPerPixel.rename('ifph'))
   .addBands(combFiresPerPixel.rename('comb'))
-  .addBands(lbaFiresPerPixel.renam('lba'));
+  .addBands(lbaFiresPerPixel.rename('lba'));
   
 // export for use in other scripts
 exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
@@ -362,7 +374,15 @@ var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
 
 var crs = 'EPSG:4326';
-var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_sagebrush-biome-mask_v1';
+
+// which method was used to convert polygons to rasters
+if (usePaint) {
+ var method = '_paint_';
+} else {
+ var method = '_reduceToImage_';
+}
+
+var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_sagebrush-biome-mask' + method + 'v1';
 
 if (run) { // set to true of want to export. 
   
