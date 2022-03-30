@@ -14,7 +14,7 @@
  // user define variables:
  
  // date range
-var startYear = 1985;
+var startYear = 1984;
 //var startYear = 2018; // short time period for testing
 var endYear = 2019;
 var startDate = ee.Date.fromYMD(startYear, 1, 1);
@@ -23,14 +23,8 @@ var endDate = ee.Date.fromYMD(endYear, 12, 31);
 // Annual temp and precipitation ****************
 
 var daymet = ee.ImageCollection("NASA/ORNL/DAYMET_V4")
-//.filterBounds(region)
   .filterDate(startDate, endDate);
-  // set mask (now setting this mask only when saving the file. )
-  /*
-  .map(function(image) {
-    return image.updateMask(mask);
-  });
-  */
+
 
 // Not sure if there is a problem with speed using using select (string), 
 // inside a map() call if the string is a client side string,
@@ -39,6 +33,18 @@ var daymetP = daymet.select('prcp');
 
 var daymetT = daymet.select(['tmax', 'tmin']);
 
+var daymetT = daymetT.map(function(image) {
+  var tsum = image.select('tmax')
+    .add(image.select('tmin'));
+  
+  var tavg = tsum.divide(2)
+    .rename('tavg');
+  var out = image.addBands(tavg);
+  return out;
+});
+// print(daymetT.first());
+// Map.addLayer(daymetT.first().select('tmax'),{}, 'tmax');
+// Map.addLayer(daymetT.first().select('tavg'), {},'tavg');
 // make a list with years
 var years = ee.List.sequence(startYear, endYear);
 
@@ -68,7 +74,7 @@ Map.addLayer(climYearlyAvg.select('prcp'),
 // Summer temp and precip ******************************
 
 // This function builds a function that calculates seasonal climate for a given
-// month range
+// month range (i.e. what Hadley Wickham calls a function factory)
 var createSeasonClimFun = function(startMonth, endMonth) {
   var outFun = function(y) {
     var filteredP = daymetP.filter(ee.Filter.calendarRange(y, y, 'year'))
@@ -86,13 +92,28 @@ var createSeasonClimFun = function(startMonth, endMonth) {
 // function to calculate summer climate (June-Aug)
 var calcSummerClim = createSeasonClimFun(ee.Number(6), ee.Number(8));
 
+
 //  avg temp, and total ppt for each year
-var climSummerList = years.map(calcSummerClim);
+var climSummerList = years.map(calcSummerClim)
+  //calculating proportion of total ppt that falls in summer
+  .zip(climYearlyList)
+  .map(function(x) {
+    var imageSummer = ee.Image(ee.List(x).get(0));
+    var imageYearly = ee.Image(ee.List(x).get(1));
+    // proportion of ppt that falls in summer
+    var prcpProp = imageSummer.select('prcp')
+      .divide(imageYearly.select('prcp'))
+      .rename('prcpProp');
+    var out = imageSummer.addBands(prcpProp);
+    return out;
+  });
 
 // avg summer ppt and temp across years
 var climSummerAvg = ee.ImageCollection(climSummerList)
   .mean();
   
+print(climSummerAvg);
+Map.addLayer(climSummerAvg.select('prcpProp'), {min: 0, max: 0.7, palette: ['red', 'white', 'blue']}, 'prcpPropSummer', false);
 // Spring temp and precip ******************************
   
 // function to calculate springr climate (march - may)

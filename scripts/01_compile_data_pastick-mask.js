@@ -8,6 +8,11 @@ annual herbacious biomass, perennial herbacious biomass, and shrub cover).
 Then output this data all in the same projection/scale, for the same grid cells, to be 
 used to create a relationship between fire and and the predictor variabls, for use
 in the cheatgrass/fire module of STEPWAT2
+
+Note--This script is now outdated, and I probably won't use it anymore because we're not
+using the modelled pastick fire probability data anymore (and the predictor variables
+outputted here were also using the Mask/extent of the pastick data, which doesn't cover the whole
+sagebrush biome)
 */
 
 // User defined variables -------------------------------------

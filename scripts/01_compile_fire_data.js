@@ -23,8 +23,9 @@
  * burned. This could be helpful to get a more complete measure of the 
  * total amount of area burned. 
  * 
- * Note--consider carefully whether to call fall a pixel burned only if the pixel
- * center intersect the fire polygon, or if any part of it intersects the polygon.
+ * Note--consider carefully whether to call a pixel burned only if the pixel
+ * center intersect the fire polygon (i.e. paint()), or if any part of it intersects the polygon.
+ * (i.e. reduceToPolygon)
  * This is more important for large (e.g. 1km pixels)
 */
 
@@ -32,41 +33,35 @@
 // User define Variables
 
 // date range
-// this data includes 1984, but to make in comparable to other dfor the time
+// this data includes 1984, but to make in comparable to other data for the time
 // being I'm doing 1985
-var startYear = 1985;
+var startYear = 1984;
 
 var endYear = 2019;
 
 var resolution = 1000;
+
+// logical whether to use paint (if false use reduceToImage) when converting polygons
+// to rasters
+var usePaint = true; 
+
+var createCharts = true; //whether to create timeseries charts
+// logical--whether to run export images
+var run = true; 
 
 // read in data -------------------------------------------------
 
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
 // read in annual grass data
 
-// fire probability
-// data from downloaded from: https://doi.org/10.5066/P9ZN7BN8
-// modelled fire probability 1985-2019
-// I'm must using this data for the mask
-var mask = ee.Image(path + 'fire_probability/LT_Wildfire_Prob_85to19_v1-0')
-  .mask();
-
-
-
-// bounding box of the fire data (copied from the metadata of the Pastick fire dataset)
-var region = ee.Geometry({
-  'type': 'Polygon',
-  'coordinates':
-  [[[-121.87704, 47.84742], // NW corner
-  [-104.87570, 36.90701], // SE corner
-  [-110, 40]]],// just another point (inside the bounding box), so creates a triangle, so get get bounds
-  'proj': mask.projection(),
-}).bounds();
+// Mask for the extent of the sagebrush biome
+var m = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js");
+var mask = m.mask;
+var region = m.region;
 
 // Mtbs data (https://samapriya.github.io/awesome-gee-community-datasets/projects/mtbs/)
-var mtbs_boundaries = ee.FeatureCollection("projects/sat-io/open-datasets/MTBS/burned_area_boundaries")
-  .filterBounds(region);
+var mtbs_boundaries = ee.FeatureCollection("projects/sat-io/open-datasets/MTBS/burned_area_boundaries");
+//  .filterBounds(region);
   
 Map.addLayer(mtbs_boundaries, {}, 'mtbs', false);
 
@@ -76,27 +71,64 @@ var ifph = ee.FeatureCollection(path + 'fire_perims/InteragencyFirePerimeterHist
 
 Map.addLayer(ifph, {}, 'ifph', false);
 
-// create list of dates
+// landsat burned area algorithm (used as part of the input to the Pastick paper)
+// More info here: https://samapriya.github.io/awesome-gee-community-datasets/projects/lba/
+// These were shapefiles which Pastick sent me that I ingested into ee 
 
+// create list of dates
 var years = ee.List.sequence(startYear, endYear);
 
-// functions -------------------------------------------------
+// convert numbers to strings
+var yearsString = years.map(function(x) {
+    var out = ee.String(x)
+      .replace('\\.\\d$', ''); 
+    return out;
+  });
 
-// convert a feature collection (fc) to an image 
-var fc2image = function(fc) {
-    var fc2 = ee.FeatureCollection(fc)
+// creating paths for each of the LBA assets
+var preString = ee.String(path + 'LBA/LBA_CU_');
+var postString = ee.String('_20200415_C01_V01_BF_labeled');
+var lbaPaths = yearsString.map(function(x) {
+  return preString.cat(ee.String(x)).cat(postString);
+});
+
+// Reading in LBA polygons
+
+// not sure why this isn't working without getinfo()
+var lbaByYear = lbaPaths.getInfo().map(function(x) {
+  return ee.FeatureCollection(ee.String(x));
+});
+var lbaByYear = ee.List(lbaByYear);
+//print('fc', ee.FeatureCollection(lbaByYear.get(0)).first())
+
+
+// functions etc -------------------------------------------------
+
+var fc2imageReduceToImage = function(fc) {
+      var fc2 = ee.FeatureCollection(fc)
       .map(function(feature) {
         return ee.Feature(feature).set('fire', 1);
       }); // setting a dummy variable to reduceToImage
     // Note reduceToImage will count any polygon that touches the fire polygon count as
     // burned
     var out = fc2.reduceToImage(['fire'], ee.Reducer.first())
-      .unmask(0); // so that non-fire pixels are 0
-   
-    // alternatively use paint() cells are painted if the centroid falls within the polgyon boundary
-    // return zero.paint(fc, 1); // if fire occured then convert cell to 1
+      .unmask(0);
     return out;
-  };
+};
+
+var fc2imagePaint = function(fc) {
+  //cells are painted if the centroid falls within the polgyon boundary
+  //if fire occured then convert cell to 1
+  // so bandNames are the same as output of fc2imageReduceToImage
+  return zero.paint(fc, 1).rename('first'); 
+};
+
+// convert a feature collection (fc) to an image 
+var fc2image = function(fc) {
+  // convert to an image using paint() or reduceToImage()
+  var out = ee.Algorithms.If(usePaint, fc2imagePaint(fc), fc2imageReduceToImage(fc));
+  return out;
+};
   
 // set the start date of an image to Jan 1 of a given year
 // x (input) is a list with two items, the first is an 
@@ -165,7 +197,7 @@ var mtbsImageByYear = boundariesByYear.map(fc2image)
   .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
   .map(setTimeStart); // setting the start date feature, as Jan 1, of the given year
 
-print('mtbsImageByYear', mtbsImageByYear);
+//print('mtbsImageByYear', mtbsImageByYear);
 
 var mtbsFiresPerPixel = ee.ImageCollection(mtbsImageByYear).sum().toDouble();
 Map.addLayer(mtbsFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'fires per pixel', false);
@@ -187,7 +219,7 @@ Map.addLayer(areaImage, {palette: ['white', 'black']}, 'area', false);
 // % of total area that burned each year
 var mtbsPercAreaByYear = mtbsImageByYearM.map(calcPercArea);
 
-
+//print(mtbsImageByYearM)
 /**************************************************
  * 
  *  Interagency fire perimeter data
@@ -195,13 +227,7 @@ var mtbsPercAreaByYear = mtbsImageByYearM.map(calcPercArea);
  * ***********************************************
  */
 
-// convert numbers to strings
-var yearsString = years.map(function(x) {
-    var out = ee.String(x)
-      .replace('\\.\\d$', ''); 
-    return out;
-  });
-  
+
 // List where each element, is a feature collection of the fires that year
 var ifphByYear = yearsString.map(function(year) {
   return ifph.filter(ee.Filter.eq('FIRE_YEAR', year));
@@ -229,6 +255,8 @@ var ifphImageByYearM = ifphImageByYear.map(function(x) {
 var ifphFiresPerPixelM = ifphFiresPerPixel.updateMask(mask);
 
 var ifphPercAreaByYear = ifphImageByYearM.map(calcPercArea);
+
+
 
 /**************************************************
  * 
@@ -259,20 +287,57 @@ var combFiresPerPixelM = combFiresPerPixel.updateMask(mask);
 // % of area burned per year
 var combPercAreaByYear = combImageByYearM.map(calcPercArea);
 
+/**************************************************
+ * 
+ * Landsat Burned Area data
+ * 
+ * ***********************************************
+ */
+ 
+ // List where each element, is a feature collection of the fires that year
+
+// convert polygons to image (rasters)
+var lbaImageByYear = lbaByYear.map(fc2image)
+  .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
+  .map(setTimeStart); // setting the start date feature, as Jan 1, of the given year
+  
+
+Map.addLayer(ee.Image(lbaImageByYear.get(0)), {palette: ['white', 'black']}, 'lba single year', false);
+
+// total number of fires per pixel
+var lbaFiresPerPixel = ee.ImageCollection(lbaImageByYear).sum().toDouble();
+
+Map.addLayer(lbaFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'lba fires per pixel', false);
+
+// mask data 
+
+var lbaImageByYearM = lbaImageByYear.map(function(x) {
+    return ee.Image(x).updateMask(mask);  
+});
+
+var lbaFiresPerPixelM = lbaFiresPerPixel.updateMask(mask);
+
+var lbaPercAreaByYear = lbaImageByYearM.map(calcPercArea);
+
 // figures ---------------------------------------------
 
 // creating time series of % burned area by year, for each
 // data set
 
-var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, combPercAreaByYear];
+var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, combPercAreaByYear,
+                  lbaPercAreaByYear];
 
 var titleList = ['% of area burned per year (MTBS)', 
   '% of area burned per year (IFPH)',
-  '% of area burned per year (IFPH and MTBS combined)'];
+  '% of area burned per year (IFPH and MTBS combined)',
+  '% of area burned per year (LBA)'];
   
 // Note here putting EE objects inside of javascript lists
 // this normally isn't a good idea but seems to work 
 // (and function didn't), because ui.chart is client side?
+
+if (createCharts) {
+  
 for (var i = 0; i < arrayList.length; i++) {
   var chart = ui.Chart.array.values({
   array: arrayList[i],
@@ -293,23 +358,40 @@ for (var i = 0; i < arrayList.length; i++) {
   print(chart);
 }
 
+}
 
 // save files --------------------
 
 // combining into a single image to export
-var allFiresPerPixelM = mtbsFiresPerPixelM.rename('mtbs')
-  .addBands(ifphFiresPerPixelM.rename('ifph'))
-  .addBands(combFiresPerPixelM.rename('comb'));
+var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
+  .addBands(ifphFiresPerPixel.rename('ifph'))
+  .addBands(combFiresPerPixel.rename('comb'))
+  .addBands(lbaFiresPerPixel.rename('lba'));
+  
+// export for use in other scripts
+exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
+exports.startYear = startYear;
+exports.endYear = endYear;
+
+var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
 
 var crs = 'EPSG:4326';
-var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_pastick-etal-mask_v1';
 
-if (true) {
+// which method was used to convert polygons to rasters
+if (usePaint) {
+ var method = '_paint_';
+} else {
+ var method = '_reduceToImage_';
+}
+
+var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_sagebrush-biome-mask' + method + 'v1';
+
+if (run) { // set to true of want to export. 
   
 Export.image.toDrive({
   image: allFiresPerPixelM,
-  description: 'mtbs-ifph-comb_fires-per-pixel' + s,
+  description: 'mtbs-ifph-lba_fires-per-pixel' + s,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
   scale: resolution,
