@@ -43,10 +43,11 @@ var resolution = 1000;
 
 // logical whether to use paint (if false use reduceToImage) when converting polygons
 // to rasters
-var usePaint = true; 
+var usePaint = false; 
 
-// logical--whether to run export and graph making code
-var run = true; 
+var createCharts = true; //whether to create timeseries charts
+// logical--whether to run export images
+var run = false; 
 
 // read in data -------------------------------------------------
 
@@ -117,7 +118,9 @@ var fc2imageReduceToImage = function(fc) {
 
 var fc2imagePaint = function(fc) {
   //cells are painted if the centroid falls within the polgyon boundary
-  return zero.paint(fc, 1); //if fire occured then convert cell to 1
+  //if fire occured then convert cell to 1
+  // so bandNames are the same as output of fc2imageReduceToImage
+  return zero.paint(fc, 1).bandNames('first'); 
 };
 
 // convert a feature collection (fc) to an image 
@@ -216,7 +219,7 @@ Map.addLayer(areaImage, {palette: ['white', 'black']}, 'area', false);
 // % of total area that burned each year
 var mtbsPercAreaByYear = mtbsImageByYearM.map(calcPercArea);
 
-
+print(mtbsImageByYearM)
 /**************************************************
  * 
  *  Interagency fire perimeter data
@@ -333,7 +336,7 @@ var titleList = ['% of area burned per year (MTBS)',
 // this normally isn't a good idea but seems to work 
 // (and function didn't), because ui.chart is client side?
 
-if (run) {
+if (createCharts) {
   
 for (var i = 0; i < arrayList.length; i++) {
   var chart = ui.Chart.array.values({
