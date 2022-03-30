@@ -67,22 +67,38 @@ Map.addLayer(ifph, {}, 'ifph', false);
 
 // landsat burned area algorithm (used as part of the input to the Pastick paper)
 // More info here: https://samapriya.github.io/awesome-gee-community-datasets/projects/lba/
-
-var lba = ee.Image('users/keikonomura/fire/LBA_CU_2019_20200415_C01_V01_BP_L8');
-// STOP--continue here--I need to figure out what the names of the images in this collection
-// are. Extract the ones the names of the ones of interest (i.e. burn classification, no area)
-// and read them into a list. 
-print(lba);
-var ic = ee.ImageCollection('users/keikonomura/fire');
-print(ic);
-var assetList = ee.data.listAssets('users/keikonomura/fire/');
-
-print(assetList);
-
-// functions etc -------------------------------------------------
+// These were shapefiles which Pastick sent me that I ingested into ee 
+var lba = ee.FeatureCollection(path + 'LBA/LBA_CU_1984_20200415_C01_V01_BF_labeled');
 
 // create list of dates
 var years = ee.List.sequence(startYear, endYear);
+
+// convert numbers to strings
+var yearsString = years.map(function(x) {
+    var out = ee.String(x)
+      .replace('\\.\\d$', ''); 
+    return out;
+  });
+
+// creating paths for each of the LBA assets
+var preString = ee.String(path + 'LBA/LBA_CU_');
+var postString = ee.String('_20200415_C01_V01_BF_labeled');
+var lbaPaths = yearsString.map(function(x) {
+  return preString.cat(ee.String(x)).cat(postString);
+});
+
+print('string', ee.String(lbaPaths.get(0)).getInfo());
+print(ee.FeatureCollection(ee.String(lbaPaths.get(0)).getInfo()))
+
+var lbaByYear = lbaPaths.map(function(x) {
+  return ee.FeatureCollection(ee.String(x));
+});
+print(ee.FeatureCollection(lbaByYear.get(0)).get(0))
+
+
+
+
+// functions etc -------------------------------------------------
 
 // convert a feature collection (fc) to an image 
 var fc2image = function(fc) {
@@ -197,13 +213,7 @@ var mtbsPercAreaByYear = mtbsImageByYearM.map(calcPercArea);
  * ***********************************************
  */
 
-// convert numbers to strings
-var yearsString = years.map(function(x) {
-    var out = ee.String(x)
-      .replace('\\.\\d$', ''); 
-    return out;
-  });
-  
+
 // List where each element, is a feature collection of the fires that year
 var ifphByYear = yearsString.map(function(year) {
   return ifph.filter(ee.Filter.eq('FIRE_YEAR', year));
@@ -231,6 +241,8 @@ var ifphImageByYearM = ifphImageByYear.map(function(x) {
 var ifphFiresPerPixelM = ifphFiresPerPixel.updateMask(mask);
 
 var ifphPercAreaByYear = ifphImageByYearM.map(calcPercArea);
+
+
 
 /**************************************************
  * 
@@ -260,6 +272,38 @@ var combFiresPerPixelM = combFiresPerPixel.updateMask(mask);
 
 // % of area burned per year
 var combPercAreaByYear = combImageByYearM.map(calcPercArea);
+
+/**************************************************
+ * 
+ * Landsat Burned Area data
+ * 
+ * ***********************************************
+ */
+ 
+ // List where each element, is a feature collection of the fires that year
+
+// convert polygons to image (rasters)
+var lbaImageByYear = lbaByYear.map(fc2image)
+  .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
+  .map(setTimeStart); // setting the start date feature, as Jan 1, of the given year
+  
+
+Map.addLayer(ee.Image(lbaImageByYear.get(0)), {palette: ['white', 'black']}, 'lba single year', false);
+
+// total number of fires per pixel
+var lbaFiresPerPixel = ee.ImageCollection(lbaImageByYear).sum().toDouble();
+
+Map.addLayer(lbaFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'lba fires per pixel', false);
+
+// mask data 
+
+var lbaImageByYearM = lbaImageByYear.map(function(x) {
+    return ee.Image(x).updateMask(mask);  
+});
+
+var lbaFiresPerPixelM = lbaFiresPerPixel.updateMask(mask);
+
+var lbaPercAreaByYear = lbaImageByYearM.map(calcPercArea);
 
 // figures ---------------------------------------------
 
