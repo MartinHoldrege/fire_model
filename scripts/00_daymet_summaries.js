@@ -14,7 +14,7 @@
  // user define variables:
  
  // date range
-var startYear = 1985;
+var startYear = 1984;
 //var startYear = 2018; // short time period for testing
 var endYear = 2019;
 var startDate = ee.Date.fromYMD(startYear, 1, 1);
@@ -23,14 +23,8 @@ var endDate = ee.Date.fromYMD(endYear, 12, 31);
 // Annual temp and precipitation ****************
 
 var daymet = ee.ImageCollection("NASA/ORNL/DAYMET_V4")
-//.filterBounds(region)
   .filterDate(startDate, endDate);
-  // set mask (now setting this mask only when saving the file. )
-  /*
-  .map(function(image) {
-    return image.updateMask(mask);
-  });
-  */
+
 
 // Not sure if there is a problem with speed using using select (string), 
 // inside a map() call if the string is a client side string,
