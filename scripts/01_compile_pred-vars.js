@@ -15,14 +15,14 @@ Data is masked to the extent of the sagebrush biome
 // User defined variables -------------------------------------
 
 // date range
-var startYear = 1985;
+var startYear = 1984;
 //var startYear = 2018; // short time period for testing
 var endYear = 2019;
 var startDate = ee.Date.fromYMD(startYear, 1, 1);
 var endDate = ee.Date.fromYMD(endYear, 12, 31); 
 
 var resolution = 1000; // this is the resolution of the daymet product (i.e. which
-// is corser than the other dataset used)
+// is coarser than the RAP data)
 
 // visualization params ----------------------------------------
 var fireVis = {min: 0, max: 100, palette: ['white', 'red']};
@@ -240,7 +240,7 @@ for (var i = 0; i < climList.length; i++) {
   Export.image.toDrive({
     image: climList[i].updateMask(mask),
     description: 'daymet_' + climDescription[i] + s,
-    folder: 'gee',
+    folder: 'cheatgrass_fire',
     maxPixels: 1e13, 
     scale: resolution,
     region: region,
