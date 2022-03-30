@@ -61,7 +61,7 @@ var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-c
  
 // rap cover data -------------------------------------------
 
-Map.addLayer(bpFSim.updateMask(mask), {min:0, max: 0.12, palette: ['white', 'red']}, 'fsim bp', false);
+
 Map.addLayer(mask, {palette: ['black', 'white']}, 'mask', false);
 
 // masking out non-sagebrush
