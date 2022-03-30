@@ -43,11 +43,11 @@ var resolution = 1000;
 
 // logical whether to use paint (if false use reduceToImage) when converting polygons
 // to rasters
-var usePaint = false; 
+var usePaint = true; 
 
 var createCharts = true; //whether to create timeseries charts
 // logical--whether to run export images
-var run = false; 
+var run = true; 
 
 // read in data -------------------------------------------------
 
@@ -120,7 +120,7 @@ var fc2imagePaint = function(fc) {
   //cells are painted if the centroid falls within the polgyon boundary
   //if fire occured then convert cell to 1
   // so bandNames are the same as output of fc2imageReduceToImage
-  return zero.paint(fc, 1).bandNames('first'); 
+  return zero.paint(fc, 1).rename('first'); 
 };
 
 // convert a feature collection (fc) to an image 
@@ -219,7 +219,7 @@ Map.addLayer(areaImage, {palette: ['white', 'black']}, 'area', false);
 // % of total area that burned each year
 var mtbsPercAreaByYear = mtbsImageByYearM.map(calcPercArea);
 
-print(mtbsImageByYearM)
+//print(mtbsImageByYearM)
 /**************************************************
  * 
  *  Interagency fire perimeter data
