@@ -221,7 +221,7 @@ var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
 Export.image.toDrive({
   image: rapOut,
   description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm' + maskString,
-  folder: 'gee',
+  folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
   scale: resolution,
   region: region,
