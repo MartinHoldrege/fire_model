@@ -9,8 +9,52 @@
 # dependencies ------------------------------------------------------------
 
 library(googledrive)
+library(stringr)
 
 # get file paths drive --------------------------------------------------------
+
+# sagebrush biome masked data
+files_biome <- drive_ls(path = "cheatgrass_fire",
+                        pattern = "sagebrush-biome-mask")
+files_biome
+
+# download  ---------------------------------------------------------------
+
+# * daymet ------------------------------------------------------------------
+
+daymet_files <- files_biome %>%
+  filter(str_detect(name, '^daymet'))
+
+for (i in 1:nrow(daymet_files)) {
+  drive_download(file = daymet_files$id[i], 
+                 path = file.path("data_processed/daymet", daymet_files$name[i]),
+                 overwrite = TRUE)
+}
+
+# * fires -----------------------------------------------------------------
+
+fire_files <- files_biome %>%
+  filter(str_detect(name, 'fires'))
+
+for (i in 1:nrow(fire_files)) {
+  drive_download(file = fire_files$id[i], 
+                 path = file.path("data_processed/fire_probability", fire_files$name[i]),
+                 overwrite = TRUE)
+}
+
+
+# * RAP ---------------------------------------------------------------------
+
+rap_files <- files_biome %>%
+  filter(str_detect(name, '^RAP'))
+
+for (i in 1:nrow(rap_files)) {
+  drive_download(file = rap_files$id[i], 
+                 path = file.path("data_processed/RAP", rap_files$name[i]),
+                 overwrite = TRUE)
+}
+
+# * old data downloads below ----------------------------------------------
 
 # files masked to pastick et al fire probability data set
 files_daymet_pastick <- drive_ls(path = 'gee', 
@@ -19,7 +63,6 @@ files_daymet_pastick
 files_rap_pastick <- drive_ls(path = 'gee', 
                               pattern = 'RAP.*pastick-etal')
 
-# download  ---------------------------------------------------------------
 
 # daymet data
 for (i in 1:nrow(files_daymet_pastick)) {
@@ -61,3 +104,4 @@ file <- 'AIM-sagebrush-sites_with-climate-and-fire_1985-2019_v1.csv'
 drive_download(file,
                path = file.path("data_processed/AIM", file),
                overwrite = TRUE)
+
