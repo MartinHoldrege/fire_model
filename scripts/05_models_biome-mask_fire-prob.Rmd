@@ -1,0 +1,349 @@
+---
+title: "Models of fire probability for the sagebrush biome"
+author: "Martin Holdrege"
+date: "`r lubridate::today()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+```
+
+# Dependencies 
+
+Sourcing the script that creates a dataframe of historical
+fore occurrence, as well as biotic and climate
+predictors for those same grid-cells. 
+
+```{r warning=FALSE, message=FALSE, cache = TRUE}
+source("scripts/04_create_biome-mask_dataframe.R")
+```
+
+```{r warning=FALSE, message=FALSE}
+source("src/general_functions.R")
+source("src/fig_params.R")
+source("src/modeling_functions.R")
+library(randomForest)
+library(tidyverse)
+library(margins) # for cplot()
+library(GGally) # for ggpairs()
+library(gnm) # generalized non-linear models
+library(pdp) # for partial dependence plots
+library(gridExtra)
+library(knitr)
+theme_set(theme_classic())
+```
+
+
+# Prep data
+
+```{r prep_data}
+
+# converting a fire count into a factor (true if at least 1 fire occured)
+occur_factor <- function(nfire){
+  factor(nfire > 0, levels = c("TRUE", "FALSE"))
+}
+dfs_biome3 <- map(dfs_biome2, function(df) {
+  out <- df %>% 
+  # probability of fire in a given year
+    mutate(# number of years the mtbs count data corresponds to (for binomial glm)
+           # all count datasets (mtbs and ifph) are 35 years (change if updated)
+           mtbs_n = 36, 
+           # proportion of years with fires
+           mtbs_prop = nfire_mtbs/mtbs_n,
+           ifph_prop = nfire_ifph/mtbs_n,
+           comb_prop = nfire_comb/mtbs_n,
+           lba_prop = nfire_lba/mtbs_n) %>% 
+    # creating true/false occurrence cols for each datasets
+    mutate(across(matches("^nfire_"), .fns = list(occur = occur_factor),
+                  .names = "{.fn}_{.col}")) %>% 
+    rename_with(.fn = str_replace, .cols = matches("^occur_"),
+                pattern = "_nfire", replacement = "")
+})
+
+method <- names(dfs_biome3)
+names(method) <- method
+```
+
+Create transformed variables
+
+```{r}
+dfs_biome3 <- map(dfs_biome3, function(df) {
+  df %>% 
+    mutate(afgAGB_sqrt = sqrt(afgAGB),
+           afgAGB_ln = log(afgAGB),
+           prcpPropSum_exp = exp(prcpPropSum),
+           prcpPropSum_sqrt = sqrt(prcpPropSum),
+           prcpPropSum_sq = prcpPropSum^2,
+           MAP_sqrt = sqrt(MAP))
+})
+```
+
+
+
+## training data
+
+Using a small sample for now to make model fitting quicker
+
+```{r train}
+set.seed(1234)
+pred_vars <- c("afgAGB", "pfgAGB", "shrCover", "MAT", "MAP", "prcpPropSum")
+
+# predictor vars are the same in both dfs
+df_pred <- dfs_biome3[[1]][, pred_vars]
+n = 10000
+row_nums <- 1:nrow(dfs_biome3[[1]])
+rows_train <- sample(row_nums, size = n, replace = FALSE)
+
+# rows for test dataset
+rows_test <- sample(row_nums[!row_nums %in% rows_train], size = 40000, replace = FALSE)
+
+# selecting rows this was so both dataframes in list have same rows
+# and differences in models will only be b/ of differences in response
+dfs_train <- map(dfs_biome3, function(df) as.data.frame(df[rows_train, ]))
+dfs_test <- map(dfs_biome3, function(df) as.data.frame(df[rows_test, ]))
+
+# all variables (transformed or not, that could be predictor vars)
+all_pred_vars <- names(dfs_biome3[[1]]) %>% 
+  str_subset(pattern = paste0("(", 
+                              paste0(pred_vars, collapse = ")|("), 
+                              ")")
+             )
+train_pred <- dfs_train[[1]][, all_pred_vars]
+test_pred <- dfs_test[[1]][, all_pred_vars]
+```
+
+# Exploratory figs & summary values
+
+
+```{r}
+
+create_summary <- function(df) {
+  df %>% 
+    pivot_longer(cols = everything(),
+                 names_to = 'variable') %>% 
+    group_by(variable) %>% 
+    summarise(across(value, .fns = list(mean = mean, min = min, 
+                                        median = median, max = max))) %>% 
+    mutate(across(where(is.numeric), round, 4))
+}
+
+df_pred %>% 
+  create_summary() %>% 
+  knitr::kable(caption = 'summaries of predictor variables')
+
+
+response_summary <- map(dfs_biome3, function(df) {
+  df %>% 
+    dplyr::select(-all_of(pred_vars), -matches("^occur_")) %>% 
+    create_summary()
+})
+
+kable(response_summary$paint, 
+      caption = 'summaries of response variables, calculated using paint  <- ')
+
+kable(response_summary$reduceToImage, 
+      caption = 'summaries of response variables, calculated using reduceToImage method')
+
+```
+
+## Plot predictor vars against each other
+
+```{r}
+ggpairs(train_pred,
+        lower = list(continuous = GGally::wrap("points", alpha = 0.1,    size=0.2)))
+```
+
+## boxplots--predictor variables vs. # of fires
+
+```{r fig.height=9, fig.width=8, cache = TRUE, dependson='prep_data'}
+
+vars_nfire <- names(dfs_biome3[[1]]) %>% 
+  str_subset("^nfire_")
+names(vars_nfire) <- vars_nfire
+df <- dfs_biome3[[1]] %>% 
+  pivot_longer(cols = all_of(pred_vars)) %>% 
+  mutate(across(all_of(vars_nfire), factor))
+
+# dataframes for making boxplots
+dfs_biome_long <- map(dfs_biome3, function(df) {
+  df %>% 
+    pivot_longer(cols = all_of(pred_vars)) %>% 
+    mutate(across(all_of(vars_nfire), factor))
+})
+
+fire_box <- function(xvar, df, method) {
+  ggplot(df, aes_string(x= xvar, y = 'value')) +
+    geom_boxplot() +
+    facet_wrap(~name, scales = 'free_y') +
+    labs(subtitle = paste0(xvar, " (", method, " method)"))
+}
+
+map2(dfs_biome_long, names(dfs_biome_long), function(df, method) {
+  map(vars_nfire, fire_box, df = df, method = method)
+})
+
+  
+
+```
+
+## Histograms of response vars
+
+Histograms for all fire variables, includes all grid cells from sagebrush biome,
+showing fire probability (nfires/nyears)
+
+```{r message = FALSE, warning = FALSE}
+
+dfs_prop_long <- map(dfs_biome3, function(df) {
+  df %>% 
+    select(matches("_prop$")) %>% 
+    pivot_longer(cols = everything(),
+                 names_to = "variable",
+                 values_to = 'value') %>% 
+    mutate(probability = value*100)
+})
+
+map(method, function(x) {
+  ggplot(dfs_prop_long[[x]], aes(probability)) +
+  geom_histogram(breaks = seq(-1, 15)) +
+  facet_wrap(~variable, scales = "free_y") +
+  labs(x = lab_fireProbPerc,
+       caption = paste(x, "method used")) +
+  coord_cartesian(xlim = c(-0.1, 15))
+})
+
+```
+
+## Plot response variables against each other
+
+```{r}
+map(method, function(x) {
+  ggpairs(dfs_train[[x]] , title =  paste0('relationships between response variables (',
+                           x,  " method used)"),
+        columns = vars_nfire,
+        lower = list(continuous = GGally::wrap("points", alpha = 0.1, size=0.2)))
+})
+
+```
+
+# Random forest
+
+
+## Fit Model
+
+```{r}
+
+vars_occur <- names(dfs_biome3[[1]]) %>% 
+  str_subset("^occur_")
+
+names(vars_occur) <- str_replace(vars_occur, "occur_", "")
+# fire occurence (0/1) in MTBS data, over 35 years
+forms_occur <-  map(paste(vars_occur, ' ~', paste(pred_vars, collapse = "+")),
+                    as.formula)
+
+names(forms_occur) <- names(vars_occur)
+
+# fitting random forests to dfs of response variables created with both methods
+rf_mods1 <- map(method, function(x) {
+  # fitting rfs for each formula 
+  map(forms_occur, randomForest, ntree = 100, data = dfs_train[[x]],
+               nodesize = 10)
+})
+rf_mods2 <- flatten_rename(rf_mods1)
+
+```
+
+## Variable importance
+
+```{r results='hide', fig.keep='all'}
+
+par(mfrow = c(2, 2))
+map2(rf_mods2, names(rf_mods2), function(x, y) {
+  print(varImpPlot(x = x, main = y))
+})
+
+```
+
+## Partial dependence plots
+
+The output is transformed to yearly fire probability. Rugs on plots show
+the percentiles of the predictor variable
+
+```{r fig.height=5, fig.width = 8, cache = TRUE}
+
+pdp_all_rf_mods(mod_list = rf_mods2, df_train = train_pred)
+
+```
+
+
+## Examine Model fit
+
+The strongly bi-modal histogram suggests this model is overfitting (i.e.
+ probabilities close to 1 and 0)
+
+```{r}
+mod <- rf_mods2$paint_mtbs
+y <- predict(mod, test_pred, type = "prob")
+hist(calc_yearly_prob(y), main = "Predicted probabilities (per year)")
+```
+
+## transforming predictor variables
+
+### Fit Model
+
+```{r}
+pred_vars2 <- c("afgAGB_sqrt", "pfgAGB", "shrCover", "MAP", "MAT", 
+                "prcpPropSum_sqrt")
+
+# fire occurence (0/1) in MTBS data, over 35 years
+forms_occur2 <-  map(paste(vars_occur, ' ~', paste(pred_vars2, collapse = "+")),
+                    as.formula)
+
+names(forms_occur2) <- str_replace(vars_occur, "occur_", "")
+# fitting random forests to dfs of response variables created with both methods
+rf_mods3 <- map(method, function(x) {
+  # fitting rfs for each formula 
+  map(forms_occur2, randomForest, ntree = 100, data = dfs_train[[x]],
+               nodesize = 10)
+}) %>% 
+  flatten_rename()
+
+```
+
+
+### Partial dependence plots
+
+The output is transformed to yearly fire probability. Rugs on plots show
+the percentiles of the predictor variable
+
+```{r fig.height=5, fig.width = 8, cache = TRUE}
+
+pdp_all_rf_mods(mod_list = rf_mods3[1], df_train = train_pred)
+
+```
+
+# GLMs
+
+CONTINUE HERE
+
+## fitting models
+```{r}
+forms_glm1 <-  map(paste(vars_occur, "~ sqrt(afgAGB) + pfgAGB + shrCover", 
+                         "+ MAP + MAT + sqrt(prcpPropSum)"), as.formula)
+
+names(forms_glm1) <- names(vars_occur)
+mod_glm1 <- map(method, function(x) {
+  # fitting glms for each formula 
+  map(forms_glm1, function(form) {
+    glm(form, data = dfs_train[[x]], family = 'binomial', weights = mtbs_n)
+  })
+}) %>% 
+  flatten_rename()
+
+mod_glm1[[1]]
+```
+

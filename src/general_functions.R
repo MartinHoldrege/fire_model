@@ -53,3 +53,27 @@ var_explained <- function(mod) {
   R2 <- 1 - SSE/SST
   R2 # R squared
 }
+
+
+#' flatten and rename list elements
+#'
+#' @param x a list where each list item is a sublist
+#'
+#' @return a list where each item are elements of the original sublist,
+#' but with the names of the two levels of the original list pasted together
+#' @examples
+#' x = list(upper1 = list('a' = 1), upper2 = list('a' = 21, 'b' = 27))
+#' flatten_rename(x)
+flatten_rename <- function(x) {
+  out <- purrr::flatten(x) # flatten list
+  top_names <- names(x) # names of top level of list
+  n_lower <- map_dbl(x, length)
+  n_top <- length(x)
+  # repeat the name of the highest list level, for each
+  # component of the sublist
+  rep_top_names <- top_names[rep.int(1:n_top, times = n_lower)] 
+  lower_names <- names(out)
+  stopifnot(length(lower_names) == length(rep_top_names))
+  names(out) <- paste(rep_top_names, lower_names, sep = "_")
+  out
+}
