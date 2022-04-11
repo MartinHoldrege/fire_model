@@ -236,7 +236,7 @@ map(method, function(x) {
 ## Fit Model
 
 ```{r}
-
+nodesize <-  50 # minimum size of terminal nodes in trees
 vars_occur <- names(dfs_biome3[[1]]) %>% 
   str_subset("^occur_")
 
@@ -251,7 +251,7 @@ names(forms_occur) <- names(vars_occur)
 rf_mods1 <- map(method, function(x) {
   # fitting rfs for each formula 
   map(forms_occur, randomForest, ntree = 100, data = dfs_train[[x]],
-               nodesize = 10)
+               nodesize = nodesize)
 })
 rf_mods2 <- flatten_rename(rf_mods1)
 
@@ -308,7 +308,7 @@ names(forms_occur2) <- str_replace(vars_occur, "occur_", "")
 rf_mods3 <- map(method, function(x) {
   # fitting rfs for each formula 
   map(forms_occur2, randomForest, ntree = 100, data = dfs_train[[x]],
-               nodesize = 10)
+               nodesize = nodesize)
 }) %>% 
   flatten_rename()
 
@@ -328,11 +328,17 @@ pdp_all_rf_mods(mod_list = rf_mods3[1], df_train = train_pred)
 
 # GLMs
 
-CONTINUE HERE
-
 ## fitting models
+
+Response variables are the proportion of years in which fires occurred
+
 ```{r}
-forms_glm1 <-  map(paste(vars_occur, "~ sqrt(afgAGB) + pfgAGB + shrCover", 
+
+vars_prop <- str_replace(vars_occur, "occur_", "") %>% 
+  paste0(., "_prop")
+names(vars_prop) <- names(vars_occur)
+
+forms_glm1 <-  map(paste(vars_prop, "~ sqrt(afgAGB) + pfgAGB + shrCover", 
                          "+ MAP + MAT + sqrt(prcpPropSum)"), as.formula)
 
 names(forms_glm1) <- names(vars_occur)
@@ -341,9 +347,78 @@ mod_glm1 <- map(method, function(x) {
   map(forms_glm1, function(form) {
     glm(form, data = dfs_train[[x]], family = 'binomial', weights = mtbs_n)
   })
-}) %>% 
-  flatten_rename()
+}) 
 
-mod_glm1[[1]]
+mod_glm1_flat <- flatten_rename(mod_glm1)
+map(mod_glm1_flat, summary)
+
+```
+
+## partial dependence & VIP
+
+
+```{r, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE}
+# vip::vip(bin_glm1) # variable importance
+vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
+   out <- vip::vip(mod) +
+    labs(subtitle = name)
+})
+marrangeGrob(vip_plots1, ncol = 3, nrow = 3)
+map(mod_glm1_flat, pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
+              train = df_pred)
+```
+
+
+## observed vs. predicted
+
+Predicting on different rows than models fit using
+
+```{r}
+pred_glm1 <- map2(mod_glm1, dfs_train, function(mods, df) {
+  df_out <- df
+  for(var in names(vars_prop)) {
+    mod <- mods[[var]]
+    
+    response_name <- paste0(vars_prop[[var]], "_pred")
+    df_out[[response_name]] <- predict(mod, df, type = 'response')
+  }
+  df_out
+})
+```
+
+```{r message = FALSE}
+
+# long format so can have observed and predicted columns
+pred_glm1_long <- map(pred_glm1, function(df) { 
+  df %>% 
+    select(matches("_prop")) %>% 
+    mutate(row = 1:n()) %>% 
+    pivot_longer(cols = -row) %>% 
+    mutate(data_source = str_extract(name, "^[a-z]+"),
+           type = ifelse(str_detect(name, "prop_pred$"), 'predicted', 
+                         'observed')) %>% 
+    select(-name) %>% 
+    pivot_wider(id_cols = c('row', 'data_source'), 
+                names_from = 'type',
+                values_from = 'value') %>% 
+    select(-row)
+})
+
+# observed vs predicted ggplots
+g <- ggplot(pred_glm1_long[[1]] %>% filter(observed <= 0.1), 
+            aes(y = predicted)) +
+  facet_wrap(~data_source) +
+  labs(subtitle = 'observed and predicted fire probabilities',
+       y = "predicted probability")
+
+g +
+  geom_boxplot(aes(x = as.factor(as.numeric(as.factor(observed)) - 1)))+
+  labs(x = "number of observed fires")
+
+g +
+  geom_jitter(aes(x = observed), width = 0.005, alpha = 0.1) +
+  geom_smooth(aes(x = observed), method = 'lm') +
+  geom_abline(slope = 1) 
+
 ```
 
