@@ -154,24 +154,32 @@ kable(response_summary$reduceToImage,
 ## Plot predictor vars against each other
 
 ```{r}
-ggpairs(train_pred,
+ggpairs(train_pred %>% select(-matches("_")),
         lower = list(continuous = GGally::wrap("points", alpha = 0.1,    size=0.2)))
 ```
 
-## boxplots--predictor variables vs. # of fires
+## boxplots-- # of fires vs predictor variables
 
 ```{r fig.height=9, fig.width=8, cache = TRUE, dependson='prep_data'}
 
+# vectors of names of response variables
 vars_nfire <- names(dfs_biome3[[1]]) %>% 
   str_subset("^nfire_")
-names(vars_nfire) <- vars_nfire
-df <- dfs_biome3[[1]] %>% 
-  pivot_longer(cols = all_of(pred_vars)) %>% 
-  mutate(across(all_of(vars_nfire), factor))
+
+vars_occur <- names(dfs_biome3[[1]]) %>% 
+  str_subset("^occur_")
+
+names(vars_occur) <- str_replace(vars_occur, "occur_", "")
+
+vars_prop <- str_replace(vars_occur, "occur_", "") %>% 
+  paste0(., "_prop")
+
+names(vars_prop) <- names(vars_occur)
 
 # dataframes for making boxplots
 dfs_biome_long <- map(dfs_biome3, function(df) {
-  df %>% 
+  # for some reason select() was giving me problems
+  df[, c(pred_vars, vars_nfire, vars_prop)] %>% 
     pivot_longer(cols = all_of(pred_vars)) %>% 
     mutate(across(all_of(vars_nfire), factor))
 })
@@ -188,8 +196,65 @@ map2(dfs_biome_long, names(dfs_biome_long), function(df, method) {
 })
 
   
+```
+
+## Dotplots: deciles vs fire probability
+
+First calculating mean of response variables (proportion of years with fires) 
+for each decile of each predictor
+variable. 
+
+Next plotting decile vs fire probability. Dotplots made for each predictor
+variable and response variable (as well method by which response variable
+was calculated)
+
+```{r}
+
+dfs_deciles1 <- map(dfs_biome_long, function(df) {
+  out <- df %>% 
+    #.[1:1000, ] %>% # for testing
+    # the named vector in select was selecting by the names
+    # not the vector values!
+    select(name, value, unname(vars_prop)) %>% 
+    group_by(name) %>% 
+    nest() %>% 
+    # empirical cdf
+    mutate(cdf = map(data, function(df) ecdf(df$value)),
+           # calculate the percentile of each data point based on the ecdf
+           percentile = map2(data, cdf, function(df, f) f(df$value))) %>% 
+    select(-cdf) %>% 
+    unnest(cols = c("data", "percentile")) %>% 
+    group_by(name) %>% 
+    mutate(decile = cut(percentile, seq(0, 1, 0.1),
+                        labels = 1:10)) %>% 
+    # calculate mean of response variables for each decile of each predictor
+    # variable
+    group_by(name, decile) %>% 
+    summarize(across(unname(vars_prop), mean),
+              mean_value = mean(value), # mean of predictor for that decile
+              .groups = 'drop')
+  out
+})
+
+# df <- dfs_deciles1[[1]]
+# yvar = vars_prop[[1]]
+
+decile_dotplot <- function(yvar, df, method) {
+  ggplot(df, aes_string(x = 'mean_value', y = yvar)) +
+  geom_point() +
+  facet_wrap(~name, scales = 'free_x') +
+  labs(x = "mean of decile of predictor variable",
+       y = "mean observed fire probability (nfires/nyears)",
+       caption = "each panel shows a different predictor variable",
+       subtitle = paste0('y variable is ', yvar, " (", method, " method)"))
+}
+
+map2(dfs_deciles1, names(dfs_deciles1), function(df, method) {
+  map(vars_prop, decile_dotplot, df = df, method = method)
+})
 
 ```
+
 
 ## Histograms of response vars
 
@@ -237,10 +302,7 @@ map(method, function(x) {
 
 ```{r}
 nodesize <-  50 # minimum size of terminal nodes in trees
-vars_occur <- names(dfs_biome3[[1]]) %>% 
-  str_subset("^occur_")
 
-names(vars_occur) <- str_replace(vars_occur, "occur_", "")
 # fire occurence (0/1) in MTBS data, over 35 years
 forms_occur <-  map(paste(vars_occur, ' ~', paste(pred_vars, collapse = "+")),
                     as.formula)
@@ -334,9 +396,7 @@ Response variables are the proportion of years in which fires occurred
 
 ```{r}
 
-vars_prop <- str_replace(vars_occur, "occur_", "") %>% 
-  paste0(., "_prop")
-names(vars_prop) <- names(vars_occur)
+
 
 forms_glm1 <-  map(paste(vars_prop, "~ sqrt(afgAGB) + pfgAGB + shrCover", 
                          "+ MAP + MAT + sqrt(prcpPropSum)"), as.formula)
