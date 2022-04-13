@@ -67,11 +67,8 @@ dfs_biome3 <- map(dfs_biome2, function(df) {
 
 method <- names(dfs_biome3)
 names(method) <- method
-```
 
-Create transformed variables
-
-```{r}
+# Create transformed variables
 dfs_biome3 <- map(dfs_biome3, function(df) {
   df %>% 
     mutate(afgAGB_sqrt = sqrt(afgAGB),
@@ -84,12 +81,11 @@ dfs_biome3 <- map(dfs_biome3, function(df) {
 ```
 
 
-
 ## training data
 
 Using a small sample for now to make model fitting quicker
 
-```{r train}
+```{r train, dependson='prep_data'}
 set.seed(1234)
 pred_vars <- c("afgAGB", "pfgAGB", "shrCover", "MAT", "MAP", "prcpPropSum")
 
@@ -176,11 +172,18 @@ vars_prop <- str_replace(vars_occur, "occur_", "") %>%
 
 names(vars_prop) <- names(vars_occur)
 
-# dataframes for making boxplots
+# function to pivot dataframe into longer format
+# this function in defined here b/ it relies on pred_vars being in the
+# global environment
+predvars2long <- function(df, response_vars) {
+  df[, c(pred_vars, response_vars)] %>% 
+    pivot_longer(cols = all_of(pred_vars))
+}
+
+# longformat dataframes for making boxplots
 dfs_biome_long <- map(dfs_biome3, function(df) {
   # for some reason select() was giving me problems
-  df[, c(pred_vars, vars_nfire, vars_prop)] %>% 
-    pivot_longer(cols = all_of(pred_vars)) %>% 
+  predvars2long(df, response_vars = c(vars_nfire, vars_prop)) %>% 
     mutate(across(all_of(vars_nfire), factor))
 })
 
@@ -210,47 +213,13 @@ was calculated)
 
 ```{r}
 
-dfs_deciles1 <- map(dfs_biome_long, function(df) {
-  out <- df %>% 
-    #.[1:1000, ] %>% # for testing
-    # the named vector in select was selecting by the names
-    # not the vector values!
-    select(name, value, unname(vars_prop)) %>% 
-    group_by(name) %>% 
-    nest() %>% 
-    # empirical cdf
-    mutate(cdf = map(data, function(df) ecdf(df$value)),
-           # calculate the percentile of each data point based on the ecdf
-           percentile = map2(data, cdf, function(df, f) f(df$value))) %>% 
-    select(-cdf) %>% 
-    unnest(cols = c("data", "percentile")) %>% 
-    group_by(name) %>% 
-    mutate(decile = cut(percentile, seq(0, 1, 0.1),
-                        labels = 1:10)) %>% 
-    # calculate mean of response variables for each decile of each predictor
-    # variable
-    group_by(name, decile) %>% 
-    summarize(across(unname(vars_prop), mean),
-              mean_value = mean(value), # mean of predictor for that decile
-              .groups = 'drop')
-  out
-})
-
+dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop)
 # df <- dfs_deciles1[[1]]
 # yvar = vars_prop[[1]]
 
-decile_dotplot <- function(yvar, df, method) {
-  ggplot(df, aes_string(x = 'mean_value', y = yvar)) +
-  geom_point() +
-  facet_wrap(~name, scales = 'free_x') +
-  labs(x = "mean of decile of predictor variable",
-       y = "mean observed fire probability (nfires/nyears)",
-       caption = "each panel shows a different predictor variable",
-       subtitle = paste0('y variable is ', yvar, " (", method, " method)"))
-}
-
 map2(dfs_deciles1, names(dfs_deciles1), function(df, method) {
-  map(vars_prop, decile_dotplot, df = df, method = method)
+  map(vars_prop, decile_dotplot, df = df, method = method,
+      ylab = "mean observed fire probability (nfires/nyears)")
 })
 
 ```
@@ -300,7 +269,7 @@ map(method, function(x) {
 
 ## Fit Model
 
-```{r}
+```{r fit_rf, dependson='train'}
 nodesize <-  50 # minimum size of terminal nodes in trees
 
 # fire occurence (0/1) in MTBS data, over 35 years
@@ -335,7 +304,7 @@ map2(rf_mods2, names(rf_mods2), function(x, y) {
 The output is transformed to yearly fire probability. Rugs on plots show
 the percentiles of the predictor variable
 
-```{r fig.height=5, fig.width = 8, cache = TRUE}
+```{r fig.height=5, fig.width = 8, cache = TRUE, dependson='train'}
 
 pdp_all_rf_mods(mod_list = rf_mods2, df_train = train_pred)
 
@@ -382,21 +351,24 @@ rf_mods3 <- map(method, function(x) {
 The output is transformed to yearly fire probability. Rugs on plots show
 the percentiles of the predictor variable
 
-```{r fig.height=5, fig.width = 8, cache = TRUE}
+```{r fig.height=5, fig.width = 8, cache = TRUE, dependson='fit_rf'}
 
 pdp_all_rf_mods(mod_list = rf_mods3[1], df_train = train_pred)
 
 ```
 
-# GLMs
+# GLMs (all linear terms)
+
+## AIC model selection
+
+CONTINUE HERE
+
 
 ## fitting models
 
 Response variables are the proportion of years in which fires occurred
 
-```{r}
-
-
+```{r fit_glm1, dependson='train'}
 
 forms_glm1 <-  map(paste(vars_prop, "~ sqrt(afgAGB) + pfgAGB + shrCover", 
                          "+ MAP + MAT + sqrt(prcpPropSum)"), as.formula)
@@ -417,7 +389,7 @@ map(mod_glm1_flat, summary)
 ## partial dependence & VIP
 
 
-```{r, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE}
+```{r, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1'}
 # vip::vip(bin_glm1) # variable importance
 vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
    out <- vip::vip(mod) +
@@ -434,7 +406,7 @@ map(mod_glm1_flat, pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
 Predicting on different rows than models fit using
 
 ```{r}
-pred_glm1 <- map2(mod_glm1, dfs_train, function(mods, df) {
+pred_glm1 <- map2(mod_glm1, dfs_test, function(mods, df) {
   df_out <- df
   for(var in names(vars_prop)) {
     mod <- mods[[var]]
@@ -482,3 +454,57 @@ g +
 
 ```
 
+### Deciles
+
+Binning predictor variables into deciles and looking at the mean
+predicted probability for each decile.
+
+```{r}
+vars_prop_pred <- paste0(vars_prop, "_pred")
+
+pred_glm1_deciles <- map(pred_glm1, function(df) {
+  response_vars <- c(vars_prop, vars_prop_pred)
+  # longformat df
+  long_df <- predvars2long(df, response_vars = response_vars)
+  # mean of deciles
+  out <- longdf2deciles(long_df, response_vars = response_vars)
+  out
+})
+
+map2(pred_glm1_deciles, names(pred_glm1_deciles), function(df, method) {
+  map(vars_prop, decile_dotplot, df = df, method = method, 
+      add_predicted = TRUE)
+})
+```
+
+Plot observed vs predicted values for the deciles
+
+```{r}
+# long format, so have columns of predicted and observed
+# and can facet by response variable
+dfs_obs_v_pred <- map(pred_glm1_deciles, function(df) {
+  df %>% 
+    select(matches("_prop")) %>% 
+    mutate(id = 1:nrow(.)) %>% 
+    pivot_longer(cols = matches("_prop")) %>% 
+    mutate(type = ifelse(str_detect(name, "_pred$"),
+                         "predicted", "observed"),
+           variable = str_extract(name, "^[a-z]+")) %>% 
+    pivot_wider(id_cols = c(id, variable), names_from = 'type')
+})     
+
+map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
+  ggplot(df, aes(observed, predicted)) +
+    geom_point() +
+    facet_wrap(~variable) +
+    geom_abline(slope = 1) +
+    labs(title = paste(method, "method"),
+         subtitle = "fire probability averaged for each decile of each predictor variable",
+         caption = "each panel shows observed and predicted values
+         of annual fire probability, for a given fire dataset")
+})
+
+```
+
+
+## GLMS with splines

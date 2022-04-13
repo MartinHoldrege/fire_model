@@ -77,3 +77,84 @@ flatten_rename <- function(x) {
   names(out) <- paste(rep_top_names, lower_names, sep = "_")
   out
 }
+
+
+#' convert longform dataframe to means of predictor deciles
+#'
+#' @param df with columns of name (name of predictor variable), 'value'
+#' (value of predictor variable), and 1 or more response variable columns
+#' @param response_vars character vector, names of the response variables
+#'
+#' @return For each predictor variable calculate the mean of each decile
+#' and the corresponding mean (of those same rows) of the response variable
+longdf2deciles <- function(df, response_vars) {
+  
+  stopifnot(c("name", "value", response_vars) %in% names(df))
+  out <- df %>% 
+    # the named vector in select was selecting by the names
+    # not the vector values!
+    select(name, value, unname(response_vars)) %>% 
+    group_by(name) %>% 
+    nest() %>% 
+    # empirical cdf
+    mutate(cdf = map(data, function(df) ecdf(df$value)),
+           # calculate the percentile of each data point based on the ecdf
+           percentile = map2(data, cdf, function(df, f) f(df$value))) %>% 
+    select(-cdf) %>% 
+    unnest(cols = c("data", "percentile")) %>% 
+    group_by(name) %>% 
+    mutate(decile = cut(percentile, seq(0, 1, 0.1),
+                        labels = 1:10)) %>% 
+    # calculate mean of response variables for each decile of each predictor
+    # variable
+    group_by(name, decile) %>% 
+    summarize(across(unname(response_vars), mean),
+              mean_value = mean(value), # mean of predictor for that decile
+              .groups = 'drop')
+  out
+}
+
+
+# figure making functions -------------------------------------------------
+
+#' create dotplot of data summarized to deciles, faceted by predictor variable
+#'
+#' @param yvar name of the yvar to be plotted (string) (must be present in df) 
+#' @param df dataframe longform with 'mean_value' column
+#' (i.e. mean value of the predictor variable for the given decile) and 'name' 
+#' column which gives the name of the predictor variable
+#' @param method string, to be pasted into subtitle (method used to convert
+#' polygons to rasters)
+#' @param ylab string--y axis label
+#' @param add_predicted logical, whether to also add model predicted data
+#' to the plot. this requires the dataframe to 
+decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)',
+                           add_predicted = FALSE) {
+  g <- ggplot(df, aes_string(x = 'mean_value', y = yvar)) +
+    geom_point(aes(color = "Observed")) +
+    facet_wrap(~name, scales = 'free_x') +
+    labs(x = "mean of decile of predictor variable",
+         y = ylab,
+         caption = "each panel shows a different predictor variable",
+         subtitle = paste0('y variable is ', yvar, " (", method, " method)")) +
+    theme(legend.position = 'top',
+          legend.title = element_blank()) 
+  g
+  
+  col_values <- c("Observed" = "black")
+  
+  # whether to also add dots for predicted probability
+  # this requires predicted value columns to have the same name as yvar
+  # but followed by _pred
+  if(add_predicted) {
+    yvar_pred <- paste0(yvar, "_pred")
+    
+    g <- g +
+      geom_point(aes_string(y = yvar_pred), color = "blue", alpha = 0.5) 
+    col_values <- c("Observed" = "black", "Predicted" = "blue")
+  }
+  
+  out <- g +
+    scale_color_manual(values = col_values)
+  out
+}
