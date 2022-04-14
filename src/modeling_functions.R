@@ -32,9 +32,6 @@ pdp_all_vars <- function(mod, mod_vars = NULL, ylab = NULL, ...) {
   gridExtra::marrangeGrob(plots, nrow = 2, ncol = 2)
 }
 
-
-
-
 #' partial dependence plots for a list of RF models
 #'
 #' @param mod_list list of random forest models
@@ -82,6 +79,232 @@ pdp_all_rf_mods <- function(mod_list, df_train) {
     mtext(name, outer = TRUE, cex = 1)
   }
 }
+
+
+
+# find best variable transformations --------------------------------------
+
+transform_funs <- list()
+
+transform_funs$convert_sqrt <- function(x) paste0("sqrt(", x, ")")
+
+transform_funs$convert_sq <- function(x) paste0("I(", x, "^2)")
+
+# adding x^2 term to the model (in addition to x) i.e. to allow for parabola
+transform_funs$add_sq <- function(x) paste0(x, "+ I(", x, "^2)")
+
+transform_funs$convert_ln <- function(x) paste0("log(", x, ")")
+
+transform_funs$convert_exp <- function(x) paste0("exp(", x, ")")
+
+# spline with two degrees of freedom (1 would linear)
+transform_funs$convert_spline2 <- function(x) {
+  # requires splines package to be loaded to run these formulas inside glm()
+  # see ?ns() for information on df 
+  paste0("ns(", x, ", df=", 2, ")")
+} 
+
+# 3 dfs
+transform_funs$convert_spline3 <- function(x) {
+  # requires splines package to be loaded to run these formulas inside glm()
+  # see ?ns() for information on df 
+  paste0("ns(", x, ", df=", 3, ")")
+} 
+
+
+#' Create right half of model formula with one additional element transformed
+#'
+#' @param preds vector of predictor variables
+#'
+#' @return vector where each element returned is a string, that can be used as 
+#' the right hand side of a model formula. One additional element is transformed
+#' @example 
+#' preds <- letters[1:3]
+#' names(preds) <- preds
+#' transform_preds(preds)
+#' preds[1] <- 'sqrt(a)' # doesn't transform 'a' if already transformed
+#' transform_preds(preds)
+transform_preds <- function(preds) {
+  stopifnot(
+    is.character(preds),
+    !is.null(names(preds)), # needs to be a named vector
+    is.list(transform_funs) # list of functions created above
+  )
+  out <- map(transform_funs, function(f) {
+    stopifnot(
+      is.function(f)
+    )
+    out <- list()
+    for (var in preds) {
+      tmp_vars <- preds
+      
+      # if preds isn't already transformed (which for now is detected
+      # by the presence of parentheses, then transform it)
+      if(str_detect(var, "\\(", negate = TRUE)) {
+        # this subsetting only works b/ pred_vars is named vector
+        tmp_vars[var] <- f(preds[var]) 
+      }
+      
+      out[[var]] <- paste(tmp_vars, collapse = " + ") %>% 
+        paste("~", .)
+    }
+    out
+  }) 
+  # if there are already transformed variables in preds
+  # those will be repeated multiple times in the output (so removing)
+  out <- flatten_rename(out)
+  # by putting convert_none first, it is kept, no matter one
+  # even if later elements are duplicates 
+  out <- c(convert_none = paste(preds, collapse = " + ") %>% 
+             paste("~", .),
+           out)
+  out <- out[!duplicated(out)]
+  out
+}
+
+#' Fit a number of binomial glms
+#'
+#' @param forms character vector where each element can be parsed to a 
+#' model formula
+#' @param df dataframe to fit the model on
+#'
+#' @return list of models, one for each formula
+fit_bin_glms <- function(forms, df) {
+  stopifnot('mtbs_n' %in% names(df))
+  
+  glm_list <- map(forms, function(form) {
+    form <- as.formula(form)
+    # some of these won't fit so returns NA if throws error
+    # not using purrr::safely() didn't seem to work, maybe b/ 
+    # of environment issues?
+    out <- tryCatch(glm(formula = form, data = df, 
+                        family = 'binomial', 
+                        weights = mtbs_n),
+                    error = function(e) NA)
+    out
+  })
+  # removing models that couldn't be fit b/ they through an error
+  out <- keep(glm_list, function(x) all(!is.na(x)))
+  out
+}
+
+#' fit glms with varying number of variables transformed
+#' 
+#' @description In the first step this
+#'  is an algorithm that given a number of predictor
+#' variables fits glms where each predictor variable (on its own)  is
+#' transformed using each of the function in the transform_funs list 
+#' (defined in modeling_functions.R), it returns all models, AIC etc
+#' for this first step. If the best model is one where a variable was
+#' transformed then it moves on to step 2. Where it tries transforming an 
+#' an additional variable, so at the end of step 2 you have models with 2 
+#' transformed variables, this goes on until all variables are transformed
+#' or transformations no longer help
+#'
+#' @param preds vector of names of predictor variables
+#' @param df data frame used for model fitting
+#' @param response_var name of the predictor variable
+#' @param max_steps by default this is length(pred), this
+#' the max number of variables that could be transformed in the final
+#' step
+#' @delta_aic how many aic units better the model with an extra transformed
+#' model needs to be to consider it better
+#'
+#' @return list, containing a sub list for each step, which in turn 
+#' contains 'glm' element of all the glm objects, 'which is the model aic's'
+#' and 'best_mod' which is the best model for that step
+#' Also contains an element 'final_formula; which is the formula of the 
+#' best model. 
+glms_iterate_transforms <- function(preds, df, response_var,
+                                    max_steps = NULL, delta_aic = 4) {
+  stopifnot(
+    is.data.frame(df),
+    is.character(preds),
+    is.character(response_var)
+  )
+  
+  if (is.null(max_steps)) {
+    max_steps <- length(preds)
+  }
+  
+  if (is.na(max_steps) | max_steps > 20 | max_steps > length(preds)) {
+    stop("two many iterations will be required consider shorter preds vector,
+         also max_steps can't be longer than preds")
+  }
+  
+  out <- list()
+  i = 1
+  
+  # iterating through number of total variables transformed in the model
+  while (i <= max_steps) {
+    
+    step_name <- paste0('step', i)
+    out[[step_name]] <- list() # list of output for this step
+    
+    # model formulas with an additional predictor variable transformed
+    pred_transforms1 <- transform_preds(preds = preds)
+    # pasting in response variable
+    pred_transforms2 <- paste(response_var,  pred_transforms1) 
+    names(pred_transforms2) <- names(pred_transforms1)
+    
+    # fitting glm's for each formula (all model objects)
+    glm_list <- fit_bin_glms(forms = pred_transforms2,df = df)
+    
+    # sorting AIC
+    aic_sorted <- map_dbl(glm_list, AIC) %>% 
+      sort() 
+    
+    # putting output into list
+    best_mod <- names(aic_sorted[1])# name of model with lowest aic
+    
+    # model with no transformations is considered best unless other
+    # model is delta_aic better
+    if((aic_sorted['convert_none'] - aic_sorted[best_mod]) < delta_aic) {
+      best_mod <- 'convert_none'
+    }
+    out[[step_name]]$best <- best_mod 
+
+    out[[step_name]]$glm <- glm_list # model objects
+    out[[step_name]]$aic <- aic_sorted # AIC values sorted
+    
+    # preparing for next cycle through the loop
+    i <- i + 1
+    
+    # parsing the predictor variables
+    # of the best model into a vector
+    preds_out <- pred_transforms1[[best_mod]] %>% 
+      str_replace_all("[ ]|~", "") %>%  # remove spaces and ~
+      str_split("\\+") %>% 
+      unlist() %>% 
+      self_name()
+    
+    # transformation that took place this step
+    is_diff <- preds_out != preds
+    if(!any(is_diff)) {
+      diff = NA_character_
+    } else {
+      diff <- preds_out[is_diff]
+    }
+    out[[step_name]]$var_transformed <- diff
+    
+    # check if variable parsing worked
+    stopifnot(length(preds_out) == length(preds))
+    preds <- preds_out
+    
+    # determine whether to go to the next step
+    # if the best model is the one where no more  transformations
+    # were done then don't continue
+    if(out[[step_name]]$best == 'convert_none') {
+      break
+    }
+  }
+  # the formula of the best model in the final step
+  out$final_formula <- pred_transforms2[best_mod]
+  out
+}
+
+
+# misc --------------------------------------------------------------------
 
 
 # this is just a copy of the partialPlot function from random forest

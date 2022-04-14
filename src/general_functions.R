@@ -20,7 +20,7 @@ calc_yearly_prob <- function(long_term_prob, nyears = 35) {
     min(long_term_prob) >=0
   )
   
-  # probility of no first over nyears
+  # probability of no first over nyears
   long_term_no_fire <- 1 - long_term_prob
   
   # probability of no fire in a given year
@@ -114,7 +114,14 @@ longdf2deciles <- function(df, response_vars) {
   out
 }
 
-
+# names elements of x with the values of x
+self_name <- function(x) {
+  if(!is.null(names(x))){
+    warning('x is already named are you sure you want to rename')
+  }
+  names(x) <- x
+  x
+}
 # figure making functions -------------------------------------------------
 
 #' create dotplot of data summarized to deciles, faceted by predictor variable

@@ -33,6 +33,7 @@ library(margins) # for cplot()
 library(GGally) # for ggpairs()
 library(gnm) # generalized non-linear models
 library(pdp) # for partial dependence plots
+library(splines) # for ns() (splines) inside formulas of glm()
 library(gridExtra)
 library(knitr)
 theme_set(theme_classic())
@@ -88,7 +89,7 @@ Using a small sample for now to make model fitting quicker
 ```{r train, dependson='prep_data'}
 set.seed(1234)
 pred_vars <- c("afgAGB", "pfgAGB", "shrCover", "MAT", "MAP", "prcpPropSum")
-
+names(pred_vars) <- pred_vars
 # predictor vars are the same in both dfs
 df_pred <- dfs_biome3[[1]][, pred_vars]
 n = 10000
@@ -359,19 +360,61 @@ pdp_all_rf_mods(mod_list = rf_mods3[1], df_train = train_pred)
 
 # GLMs (all linear terms)
 
-## AIC model selection
-
-CONTINUE HERE
-
 
 ## fitting models
 
-Response variables are the proportion of years in which fires occurred
+### fitting various transforms
 
-```{r fit_glm1, dependson='train'}
+Creating formulas where each variable on its own is transformed numerous ways
+(including formula to fit spline), all other variables are left alone,
+that repeated for each variable. So have models with 1 variable transformed,
+2 transformed, etc. 
 
-forms_glm1 <-  map(paste(vars_prop, "~ sqrt(afgAGB) + pfgAGB + shrCover", 
-                         "+ MAP + MAT + sqrt(prcpPropSum)"), as.formula)
+see documentation for glms_iterate_transforms, in the modelling_functions.R
+script
+
+```{r iterate_transform, warning = FALSE, dependson='train'}
+mods_glm_mtbs1 <- glms_iterate_transforms(
+  preds = pred_vars, 
+  df = dfs_train$paint,
+  response_var = "mtbs_prop", 
+  delta_aic = 4)
+
+# not including the last element of the list which is final_formula
+mods_glm_mtbs2 <- mods_glm_mtbs1[-length(mods_glm_mtbs1)]
+best_aic_by_step <- map_dbl(mods_glm_mtbs2, 
+                        function(x) x$aic[1])
+
+best_aic_by_step <- c(step0 = mods_glm_mtbs1$step1$aic[['convert_none']], 
+                      best_aic_by_step)
+# AIC improvement by step
+diff(best_aic_by_step)
+plot(y = best_aic_by_step, 
+     x = 1:length(best_aic_by_step) - 1,
+     ylab = "AIC",
+     xlab = "Number of variables transformed")
+
+```
+
+Best transformation each step.
+
+```{r}
+var_transformed <- map_chr(mods_glm_mtbs2, function(x) x$var_transformed)
+var_transformed
+```
+
+
+### same model for all response variables
+
+Response variables are the proportion of years in which fires occurred.
+Using best model formula selected in the previous step
+
+```{r fit_glm1, dependson='iterate_transform'}
+
+best_form <- mods_glm_mtbs1$final_formula %>% 
+  str_replace(".+(?=~)", "") # remove everything before ~ (i.e. response var)
+
+forms_glm1 <-  map(paste(vars_prop, best_form), as.formula)
 
 names(forms_glm1) <- names(vars_occur)
 mod_glm1 <- map(method, function(x) {
@@ -382,12 +425,12 @@ mod_glm1 <- map(method, function(x) {
 }) 
 
 mod_glm1_flat <- flatten_rename(mod_glm1)
-map(mod_glm1_flat, summary)
+summary(mod_glm1_flat$paint_mtbs)
 
 ```
 
-## partial dependence & VIP
 
+## partial dependence & VIP
 
 ```{r, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1'}
 # vip::vip(bin_glm1) # variable importance
@@ -397,7 +440,7 @@ vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
 })
 marrangeGrob(vip_plots1, ncol = 3, nrow = 3)
 map(mod_glm1_flat, pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
-              train = df_pred)
+              train = train_pred)
 ```
 
 
