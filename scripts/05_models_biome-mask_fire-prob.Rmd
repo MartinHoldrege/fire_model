@@ -382,8 +382,10 @@ mods_glm_mtbs1 <- glms_iterate_transforms(
 
 # not including the last element of the list which is final_formula
 mods_glm_mtbs2 <- mods_glm_mtbs1[-length(mods_glm_mtbs1)]
-best_aic_by_step <- map_dbl(mods_glm_mtbs2, 
-                        function(x) x$aic[1])
+
+map_dfc(mods_glm_mtbs2, ~ names(.$aic[1:5])) %>% 
+  kable(caption = "5 best transformations at each step")
+best_aic_by_step <- map_dbl(mods_glm_mtbs2, ~.$aic[1])
 
 best_aic_by_step <- c(step0 = mods_glm_mtbs1$step1$aic[['convert_none']], 
                       best_aic_by_step)
