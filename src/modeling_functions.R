@@ -97,20 +97,21 @@ transform_funs$convert_ln <- function(x) paste0("log(", x, ")")
 
 transform_funs$convert_exp <- function(x) paste0("exp(", x, ")")
 
-# spline with two degrees of freedom (1 would linear)
-transform_funs$convert_spline2 <- function(x) {
-  # requires splines package to be loaded to run these formulas inside glm()
-  # see ?ns() for information on df 
-  paste0("ns(", x, ", df=", 2, ")")
-} 
+# # spline with two degrees of freedom (1 would linear)
+# transform_funs$convert_spline2 <- function(x) {
+#   # requires splines package to be loaded to run these formulas inside glm()
+#   # see ?ns() for information on df 
+#   paste0("bs(", x, ", df", 2, ")")
+# } 
+# 
+# # 3 dfs
+# transform_funs$convert_spline3 <- function(x) {
+#   paste0("bs(", x, ", df=", 3, ")")
+# } 
 
-# 3 dfs
-transform_funs$convert_spline3 <- function(x) {
-  # requires splines package to be loaded to run these formulas inside glm()
-  # see ?ns() for information on df 
-  paste0("ns(", x, ", df=", 3, ")")
-} 
-
+# transform_funs$convert_spline4 <- function(x) {
+#   paste0("ns(", x, ", df=", 4, ")")
+# } 
 
 #' Create right half of model formula with one additional element transformed
 #'
@@ -274,6 +275,7 @@ glms_iterate_transforms <- function(preds, df, response_var,
     # of the best model into a vector
     preds_out <- pred_transforms1[[best_mod]] %>% 
       str_replace_all("[ ]|~", "") %>%  # remove spaces and ~
+      # split based on presence of + 
       str_split("\\+") %>% 
       unlist() %>% 
       self_name()
@@ -288,7 +290,9 @@ glms_iterate_transforms <- function(preds, df, response_var,
     out[[step_name]]$var_transformed <- diff
     
     # check if variable parsing worked
-    stopifnot(length(preds_out) == length(preds))
+    # this line now commented out so that transformation 
+    # can include replacing x with x +x^2
+    # stopifnot(length(preds_out) == length(preds))
     preds <- preds_out
     
     # determine whether to go to the next step

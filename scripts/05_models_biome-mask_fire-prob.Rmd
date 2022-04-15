@@ -58,7 +58,9 @@ dfs_biome3 <- map(dfs_biome2, function(df) {
            mtbs_prop = nfire_mtbs/mtbs_n,
            ifph_prop = nfire_ifph/mtbs_n,
            comb_prop = nfire_comb/mtbs_n,
-           lba_prop = nfire_lba/mtbs_n) %>% 
+           lba_prop = nfire_lba/mtbs_n,
+           MAT = MAT + 273.15 # convert C to K
+           ) %>% 
     # creating true/false occurrence cols for each datasets
     mutate(across(matches("^nfire_"), .fns = list(occur = occur_factor),
                   .names = "{.fn}_{.col}")) %>% 
@@ -374,8 +376,11 @@ see documentation for glms_iterate_transforms, in the modelling_functions.R
 script
 
 ```{r iterate_transform, warning = FALSE, dependson='train'}
+pred_vars_mat <- pred_vars
+ # needs to have no spaces for parsing in function to work
+pred_vars_mat <- self_name(pred_vars_mat)
 mods_glm_mtbs1 <- glms_iterate_transforms(
-  preds = pred_vars, 
+  preds = pred_vars_mat, 
   df = dfs_train$paint,
   response_var = "mtbs_prop", 
   delta_aic = 4)
@@ -441,7 +446,7 @@ vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
     labs(subtitle = name)
 })
 marrangeGrob(vip_plots1, ncol = 3, nrow = 3)
-map(mod_glm1_flat, pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
+map(mod_glm1_flat[1], pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
               train = train_pred)
 ```
 
