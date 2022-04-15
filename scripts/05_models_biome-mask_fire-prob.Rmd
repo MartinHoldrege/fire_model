@@ -376,14 +376,11 @@ see documentation for glms_iterate_transforms, in the modelling_functions.R
 script
 
 ```{r iterate_transform, warning = FALSE, dependson='train'}
-pred_vars_mat <- pred_vars
- # needs to have no spaces for parsing in function to work
-pred_vars_mat <- self_name(pred_vars_mat)
 mods_glm_mtbs1 <- glms_iterate_transforms(
-  preds = pred_vars_mat, 
+  preds = pred_vars, 
   df = dfs_train$paint,
   response_var = "mtbs_prop", 
-  delta_aic = 4)
+  delta_aic = 0)
 
 # not including the last element of the list which is final_formula
 mods_glm_mtbs2 <- mods_glm_mtbs1[-length(mods_glm_mtbs1)]
@@ -406,7 +403,7 @@ plot(y = best_aic_by_step,
 Best transformation each step.
 
 ```{r}
-var_transformed <- map_chr(mods_glm_mtbs2, function(x) x$var_transformed)
+var_transformed <- map(mods_glm_mtbs2, function(x) x$var_transformed)
 var_transformed
 ```
 

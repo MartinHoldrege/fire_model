@@ -91,11 +91,13 @@ transform_funs$convert_sqrt <- function(x) paste0("sqrt(", x, ")")
 transform_funs$convert_sq <- function(x) paste0("I(", x, "^2)")
 
 # adding x^2 term to the model (in addition to x) i.e. to allow for parabola
-transform_funs$add_sq <- function(x) paste0(x, "+ I(", x, "^2)")
+#transform_funs$add_sq <- function(x) paste0(x, "+ I(", x, "^2)")
 
 transform_funs$convert_ln <- function(x) paste0("log(", x, ")")
 
 transform_funs$convert_exp <- function(x) paste0("exp(", x, ")")
+
+transform_funs$convert_poly2 <- function(x) paste0("poly(", x, ",2)")
 
 # # spline with two degrees of freedom (1 would linear)
 # transform_funs$convert_spline2 <- function(x) {
@@ -205,9 +207,10 @@ fit_bin_glms <- function(forms, df) {
 #' @param preds vector of names of predictor variables
 #' @param df data frame used for model fitting
 #' @param response_var name of the predictor variable
-#' @param max_steps by default this is length(pred), this
-#' the max number of variables that could be transformed in the final
-#' step
+#' @param max_steps this
+#' the max number of variables that could be transformed in the final step. Note
+#' that this could be more than the number of original variables if
+#' transformations are included that add variables (e.g. x + x^2)
 #' @delta_aic how many aic units better the model with an extra transformed
 #' model needs to be to consider it better
 #'
@@ -223,22 +226,22 @@ glms_iterate_transforms <- function(preds, df, response_var,
     is.character(preds),
     is.character(response_var)
   )
-  
+  # max steps just makes sure the while loop doesn't explode
+  # (run for ever) if something goes wrong
   if (is.null(max_steps)) {
-    max_steps <- length(preds)
+    max_steps <- 30
   }
-  
-  if (is.na(max_steps) | max_steps > 20 | max_steps > length(preds)) {
-    stop("two many iterations will be required consider shorter preds vector,
-         also max_steps can't be longer than preds")
+  if (is.na(max_steps) | max_steps > 30) {
+    stop("two many iterations will be required consider shorter preds vector")
   }
   
   out <- list()
-  i = 1
+  i = 1 # this is the step number
   
   # iterating through number of total variables transformed in the model
-  while (i <= max_steps) {
-    
+  steps_left <- length(preds)
+  while (i <= max_steps & steps_left > 0) {
+
     step_name <- paste0('step', i)
     out[[step_name]] <- list() # list of output for this step
     
@@ -281,11 +284,14 @@ glms_iterate_transforms <- function(preds, df, response_var,
       self_name()
     
     # transformation that took place this step
-    is_diff <- preds_out != preds
-    if(!any(is_diff)) {
+
+    if(all(preds_out %in% preds)) {
       diff = NA_character_
     } else {
-      diff <- preds_out[is_diff]
+      diff <- preds_out[!preds_out %in% preds]
+      if(length(diff) > 1) {
+        stop('issue with figuring out which var was transformed')
+      }
     }
     out[[step_name]]$var_transformed <- diff
     
@@ -295,9 +301,13 @@ glms_iterate_transforms <- function(preds, df, response_var,
     # stopifnot(length(preds_out) == length(preds))
     preds <- preds_out
     
+    # how many untransformed variables are left?
+    
+    steps_left <- sum(str_detect(preds, "\\(", negate = TRUE))
     # determine whether to go to the next step
     # if the best model is the one where no more  transformations
     # were done then don't continue
+    
     if(out[[step_name]]$best == 'convert_none') {
       break
     }
