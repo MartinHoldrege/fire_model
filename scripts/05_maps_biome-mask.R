@@ -104,6 +104,13 @@ pdf("figures/maps_fire_prob/fire_prob_biome-mask_v1.pdf",
 dev.off()
 
 
+# * examine cover ---------------------------------------------------------
+
+r <- rast_rap1[["shrCover"]]
+x <- values(r)
+r_integer <- r
+r_integer[[x%%1!= 0]] <- NA
+plot(r_integer)
 # * RAP maps ----------------------------------------------------------------
 # rangeland analysis platform biomass and cover data
 
