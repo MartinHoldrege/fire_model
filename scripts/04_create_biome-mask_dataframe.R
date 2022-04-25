@@ -75,15 +75,33 @@ compareGeom(rast_rap1, rasts_fPerPixel[[1]], rasts_fPerPixel[[2]],
 
 # create dataframe --------------------------------------------------------
 
+# fixing shrCover data issue
+# the cover dataset has some values that are x.5% values, but
+# many more are whole numbers. here rounding all values to integers.
+# but to not bias the outcomes (which also leads to a jagged histogram)
+# X.5 values are randomly rounded up or down, with 50% probability
+
+set.seed(123)
 names(rasts_clim1)
 rasts_clim1$Yearly %>% names()
+
+shrCover1 <- as.vector(values(rast_rap1$shrCover))
+shrCover2 <- shrCover1 + runif(n = length(shrCover1),
+                               min = -0.01, max = 0.01)
+shrCover3 <- round(shrCover2)
+# note, the two means are nearly identical
+mean(shrCover1, na.rm = TRUE)
+mean(shrCover3, na.rm = TRUE)
 
 # data frame with predictor variables
 df_biome0 <- tibble(
   afgAGB = as.vector(values(rast_rap1$afgAGB)), # biomass of annuals
   pfgAGB = as.vector(values(rast_rap1$pfgAGB)), # biomass of perennials
-  shrCover = as.vector(values(rast_rap1$shrCover)), # cover of shrubs
+  # rounding because a small subset cells has decimal cover (x.5%),
+  # but must are integers (and this causes problems with percentiles)
+  shrCover = shrCover3, # cover of shrubs
   MAT = as.vector(values(rasts_clim1$Yearly$tavg)),
+  MAT = MAT + 273.15, # convert C to K
   MAP = as.vector(values(rasts_clim1$Yearly$prcp)),
   # proportion ppt falling in summer
   prcpPropSum = as.vector(values(rasts_clim1$Summer$prcpProp))

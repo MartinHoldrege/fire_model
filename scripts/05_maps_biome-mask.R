@@ -105,12 +105,21 @@ dev.off()
 
 
 # * examine cover ---------------------------------------------------------
-
+# the cover dataset has some values that are x.5% values, but
+# many more are whole numbers
+# looking at the spatial pattern here (pattern not overly concerning)
+# due to this issue (which creates a weird ) histograms/percentiles
+# therefore the data was rounded in 04_create_biome-mask_dataframe.R
 r <- rast_rap1[["shrCover"]]
 x <- values(r)
 r_integer <- r
-r_integer[[x%%1!= 0]] <- NA
+r_integer[r%%1!= 0] <- NA
 plot(r_integer)
+
+r_frac <- r
+r_frac[r_frac %% 1 == 0] <- NA
+plot(r_frac)
+
 # * RAP maps ----------------------------------------------------------------
 # rangeland analysis platform biomass and cover data
 
@@ -150,15 +159,28 @@ tm_rap3 <- tm_shape(rast_rap1[["shrCover"]], bbox = bbox) +
   tm_layout(main.title = paste("Shrub cover", 
                                title))
 
-# save maps
+
+# ** histograms -----------------------------------------------------------
+bins = 100
+h0 <- ggplot(dfs_biome2[[1]])
+h1 <- h0+
+  geom_histogram(aes(afgAGB), bins = bins)
+h2 <- h0+
+  geom_histogram(aes(pfgAGB), bins = bins)
+h3 <- h0+
+  geom_histogram(aes(shrCover), 
+                 breaks = seq(0, ceiling(max(dfs_biome2[[1]]$shrCover)), 1)) +
+  labs(caption = "Cover rounded to the integer")
+
+# save maps & histograms
 pdf("figures/maps_veg/RAP_bio-cover_biome-mask_v1.pdf",
     width = 8, height = 6)
 tmap_arrange(tm_rap1, tm_rap2, tm_rap3, nrow = 2)
+gridExtra::grid.arrange(h1, h2, h3, ncol = 2)
 dev.off()
 
 
 # * daymet data -----------------------------------------------------------
-
 
 met1 <- tm_shape(rasts_clim1$Yearly[["prcp"]], bbox = bbox) +
   tm_raster(breaks = c(0, 50, 100, 150, 200, 300, 400, 500, 700, 1000,
@@ -180,8 +202,25 @@ met3 <- tm_shape(rasts_clim1$Summer[["prcpProp"]], bbox = bbox) +
   base+
   tm_layout(main.title = 'Proportion of precipitation that \nfalls in summer (Jun-Aug) ')
 
-# save maps
+
+# ** histograms -----------------------------------------------------------
+
+bins <-  500
+h4 <- h0+
+  geom_histogram(aes(MAP), bins = bins) +
+  coord_cartesian(xlim = c(0, 1000)) +
+  labs(caption = "xlim restricted")
+
+h5 <- h0+
+  geom_histogram(aes(MAT - 273.15), bins = bins) +
+  labs(x = "MAT (deg C)")
+
+h6 <- h0+
+  geom_histogram(aes(prcpPropSum), bins = bins)
+
+# save maps & histograms
 pdf("figures/maps_climate/climate_biome-mask_v1.pdf",
     width = 8, height = 6)
   tmap_arrange(met1, met2, met3, nrow = 2)
+  gridExtra::grid.arrange(h4, h5, h6, ncol = 2)
 dev.off()
