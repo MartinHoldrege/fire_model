@@ -58,8 +58,7 @@ dfs_biome3 <- map(dfs_biome2, function(df) {
            mtbs_prop = nfire_mtbs/mtbs_n,
            ifph_prop = nfire_ifph/mtbs_n,
            comb_prop = nfire_comb/mtbs_n,
-           lba_prop = nfire_lba/mtbs_n,
-           MAT = MAT + 273.15 # convert C to K
+           lba_prop = nfire_lba/mtbs_n
            ) %>% 
     # creating true/false occurrence cols for each datasets
     mutate(across(matches("^nfire_"), .fns = list(occur = occur_factor),
@@ -94,7 +93,7 @@ pred_vars <- c("afgAGB", "pfgAGB", "shrCover", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
 # predictor vars are the same in both dfs
 df_pred <- dfs_biome3[[1]][, pred_vars]
-n = 10000
+n = 500000
 row_nums <- 1:nrow(dfs_biome3[[1]])
 rows_train <- sample(row_nums, size = n, replace = FALSE)
 
@@ -103,6 +102,7 @@ rows_test <- sample(row_nums[!row_nums %in% rows_train], size = 40000, replace =
 
 # selecting rows this was so both dataframes in list have same rows
 # and differences in models will only be b/ of differences in response
+rows_train <- 1:nrow(dfs_biome3[[1]])
 dfs_train <- map(dfs_biome3, function(df) as.data.frame(df[rows_train, ]))
 dfs_test <- map(dfs_biome3, function(df) as.data.frame(df[rows_test, ]))
 
@@ -155,6 +155,23 @@ kable(response_summary$reduceToImage,
 ```{r}
 ggpairs(train_pred %>% select(-matches("_")),
         lower = list(continuous = GGally::wrap("points", alpha = 0.1,    size=0.2)))
+```
+
+## transformed pred vars
+
+```{r}
+"~ poly(afgAGB,2) + poly(pfgAGB,2) + I(shrCover^2) + exp(MAT) + poly(MAP,2) + exp(prcpPropSum)"
+
+train_pred_trans <- train_pred %>% 
+  mutate(afgAGB_sq = afgAGB^2,
+         pfgAGB_sq = pfgAGB^2,
+         MAT_exp = exp(MAT),
+         MAP_sq = MAP^2,
+         prcpPropSum_exp = exp(prcpPropSum))
+
+train_pred_trans[, c("afgAGB_sq", "pfgAGB_sq", "MAT", "MAP_sq", "prcpPropSum_exp")] %>% 
+  ggpairs(lower = list(continuous = GGally::wrap("points", alpha = 0.1,   
+                                                 size=0.2)))
 ```
 
 ## boxplots-- # of fires vs predictor variables
@@ -380,7 +397,7 @@ mods_glm_mtbs1 <- glms_iterate_transforms(
   preds = pred_vars, 
   df = dfs_train$paint,
   response_var = "mtbs_prop", 
-  delta_aic = 0)
+  delta_aic = 4)
 
 # not including the last element of the list which is final_formula
 mods_glm_mtbs2 <- mods_glm_mtbs1[-length(mods_glm_mtbs1)]
@@ -415,11 +432,21 @@ Using best model formula selected in the previous step
 
 ```{r fit_glm1, dependson='iterate_transform'}
 
-best_form <- mods_glm_mtbs1$final_formula %>% 
-  str_replace(".+(?=~)", "") # remove everything before ~ (i.e. response var)
+
+
+#best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):MAT + I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + prcpPropSum*MAT + I(pfgAGB^2):prcpPropSum"
+
+best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover  + poly(MAP,2)  + I(pfgAGB^2):prcpPropSum + MAT"
+
+best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + I(pfgAGB^2):prcpPropSum"
+
+best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + I(pfgAGB^2):prcpPropSum + prcpPropSum"
 
 forms_glm1 <-  map(paste(vars_prop, best_form), as.formula)
 
+best_form <- mods_glm_mtbs1$final_formula %>% 
+  str_replace(".+(?=~)", "") # remove everything before ~ (i.e. response var)
+best_form <- "~ poly(afgAGB,2) + poly(pfgAGB,2) + shrCover + MAT + poly(MAP,2) + prcpPropSum"
 names(forms_glm1) <- names(vars_occur)
 mod_glm1 <- map(method, function(x) {
   # fitting glms for each formula 
@@ -427,7 +454,10 @@ mod_glm1 <- map(method, function(x) {
     glm(form, data = dfs_train[[x]], family = 'binomial', weights = mtbs_n)
   })
 }) 
+AIC(mod_glm1$paint$mtbs)
 
+
+mods_glm_mtbs1$step4$aic[1]
 mod_glm1_flat <- flatten_rename(mod_glm1)
 summary(mod_glm1_flat$paint_mtbs)
 
@@ -444,7 +474,7 @@ vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
 })
 marrangeGrob(vip_plots1, ncol = 3, nrow = 3)
 map(mod_glm1_flat[1], pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
-              train = train_pred)
+              train = test_pred)
 ```
 
 
@@ -454,6 +484,19 @@ Predicting on different rows than models fit using
 
 ```{r}
 pred_glm1 <- map2(mod_glm1, dfs_test, function(mods, df) {
+  df_out <- df
+  for(var in names(vars_prop)) {
+    mod <- mods[[var]]
+    
+    response_name <- paste0(vars_prop[[var]], "_pred")
+    df_out[[response_name]] <- predict(mod, df, type = 'response')
+  }
+  df_out
+})
+
+dfs_test_warm <- map(dfs_test, function(df) mutate(df, MAT = MAT + 5))
+
+pred_glm1_warm <- map2(mod_glm1, dfs_test_warm, function(mods, df) {
   df_out <- df
   for(var in names(vars_prop)) {
     mod <- mods[[var]]
@@ -518,10 +561,26 @@ pred_glm1_deciles <- map(pred_glm1, function(df) {
   out
 })
 
+pred_glm1_deciles_warm <- map(pred_glm1_warm, function(df) {
+  response_vars <- c(vars_prop, vars_prop_pred)
+  # longformat df
+  long_df <- predvars2long(df, response_vars = response_vars)
+  # mean of deciles
+  out <- longdf2deciles(long_df, response_vars = response_vars)
+  out
+})
+
 map2(pred_glm1_deciles, names(pred_glm1_deciles), function(df, method) {
   map(vars_prop, decile_dotplot, df = df, method = method, 
       add_predicted = TRUE)
 })
+
+# tryng
+map2(pred_glm1_deciles_warm, names(pred_glm1_deciles_warm), function(df, method) {
+  map(vars_prop, decile_dotplot, df = df, method = method, 
+      add_predicted = TRUE)
+})
+
 ```
 
 Plot observed vs predicted values for the deciles
