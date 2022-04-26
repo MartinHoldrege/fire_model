@@ -176,6 +176,7 @@ fit_bin_glms <- function(forms, df) {
   stopifnot('mtbs_n' %in% names(df))
   
   glm_list <- map(forms, function(form) {
+    char_form <- form
     form <- as.formula(form)
     # some of these won't fit so returns NA if throws error
     # not using purrr::safely() didn't seem to work, maybe b/ 
@@ -184,7 +185,7 @@ fit_bin_glms <- function(forms, df) {
                         family = 'binomial', 
                         weights = mtbs_n),
                     error = function(e) NA)
-    if (is.na(x)) message('error in', form, "\n")
+    if (any(is.na(out))) message(paste(char_form,  "model couldn't fit \n"))
     out
   })
   # removing models that couldn't be fit b/ they through an error

@@ -314,16 +314,14 @@ that repeated for each variable. So have models with 1 variable transformed,
 see documentation for glms_iterate_transforms, in the modelling_functions.R
 script
 
-```{r iterate_transform, warning = FALSE, dependson='train', cache = TRUE}
+```{r iterate_transform, warning = FALSE, dependson='train', cache = TRUE, cache.lazy = FALSE}
 set.seed(1234)
 mods_glm_mtbs1 <- glms_iterate_transforms(
   preds = pred_vars, 
-  df = dfs_train$paint,
+  df = dfs_train$paint[rows_test, ],
   response_var = "mtbs_prop", 
   delta_aic = 4)
 
-mod <- glm(mtbs_prop ~ afgAGB + pfgAGB + shrCover + MAT + MAP + prcpPropSum,
-    family = 'binomial', weights = mtbs_n, data = dfs_train$paint)
 # not including the last element of the list which is final_formula
 mods_glm_mtbs2 <- mods_glm_mtbs1[-length(mods_glm_mtbs1)]
 
@@ -397,7 +395,7 @@ summary(mod_glm1_flat$paint_mtbs)
 
 ## partial dependence & VIP
 
-```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1'}
+```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1' , cache.lazy = FALSE}
 # vip::vip(bin_glm1) # variable importance
 vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
    out <- vip::vip(mod) +
