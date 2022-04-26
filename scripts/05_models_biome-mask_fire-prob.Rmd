@@ -385,7 +385,6 @@ mod_glm1 <- map(method, function(x) {
 
 # should be the same AIC (i.e. refitting the same model)
 AIC(mod_glm1$paint$mtbs)
-mods_glm_mtbs1$step4$aic
 
 mod_glm1_flat <- flatten_rename(mod_glm1)
 summary(mod_glm1_flat$paint_mtbs)
