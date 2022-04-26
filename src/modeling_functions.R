@@ -273,8 +273,8 @@ glms_iterate_transforms <- function(preds, df, response_var,
       best_mod <- 'convert_none'
     }
     out[[step_name]]$best <- best_mod 
-
-    out[[step_name]]$glm <- glm_list # model objects
+    # for memory reasons now not saving the actually model objects
+    #out[[step_name]]$glm <- glm_list # model objects
     out[[step_name]]$aic <- aic_sorted # AIC values sorted
     
     # preparing for next cycle through the loop

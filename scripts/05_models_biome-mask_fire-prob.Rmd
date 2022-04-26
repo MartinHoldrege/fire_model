@@ -10,7 +10,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE)
 ```
 
 # Dependencies 
@@ -42,7 +42,7 @@ theme_set(theme_classic())
 
 # Prep data
 
-```{r prep_data}
+```{r prep_data, cache=TRUE}
 
 # converting a fire count into a factor (true if at least 1 fire occured)
 occur_factor <- function(nfire){
@@ -88,7 +88,7 @@ dfs_biome3 <- map(dfs_biome3, function(df) {
 Note--previously a small sample for now to make model fitting quicker.
 Now the training dataset is all the data.
 
-```{r train, dependson='prep_data'}
+```{r train, dependson='prep_data', cache = TRUE}
 set.seed(1234)
 pred_vars <- c("afgAGB", "pfgAGB", "shrCover", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
@@ -318,7 +318,7 @@ script
 set.seed(1234)
 mods_glm_mtbs1 <- glms_iterate_transforms(
   preds = pred_vars, 
-  df = dfs_train$paint[rows_test, ],
+  df = dfs_train$paint[ , ],
   response_var = "mtbs_prop", 
   delta_aic = 4)
 
