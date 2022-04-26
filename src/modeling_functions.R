@@ -184,6 +184,7 @@ fit_bin_glms <- function(forms, df) {
                         family = 'binomial', 
                         weights = mtbs_n),
                     error = function(e) NA)
+    if (is.na(x)) message('error in', form, "\n")
     out
   })
   # removing models that couldn't be fit b/ they through an error
@@ -243,6 +244,7 @@ glms_iterate_transforms <- function(preds, df, response_var,
   while (i <= max_steps & steps_left > 0) {
 
     step_name <- paste0('step', i)
+    print(step_name)
     out[[step_name]] <- list() # list of output for this step
     
     # model formulas with an additional predictor variable transformed
@@ -263,6 +265,9 @@ glms_iterate_transforms <- function(preds, df, response_var,
     
     # model with no transformations is considered best unless other
     # model is delta_aic better
+    cat('\n', aic_sorted['convert_none'], "\n")
+    cat(aic_sorted[best_mod], "\n")
+    cat('delta aic cutoff', delta_aic, "\n")
     if((aic_sorted['convert_none'] - aic_sorted[best_mod]) < delta_aic) {
       best_mod <- 'convert_none'
     }

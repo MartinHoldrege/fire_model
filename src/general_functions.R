@@ -103,8 +103,8 @@ longdf2deciles <- function(df, response_vars) {
     select(-cdf) %>% 
     unnest(cols = c("data", "percentile")) %>% 
     group_by(name) %>% 
-    mutate(decile = cut(percentile, seq(0, 1, 0.01),
-                        labels = 1:100)) %>% 
+    mutate(decile = cut(percentile, seq(0, 1, 0.005),
+                        labels = 1:200)) %>% 
     # calculate mean of response variables for each decile of each predictor
     # variable
     group_by(name, decile) %>% 
@@ -136,14 +136,15 @@ self_name <- function(x) {
 #' @param add_predicted logical, whether to also add model predicted data
 #' to the plot. this requires the dataframe to 
 decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)',
-                           add_predicted = FALSE) {
+                           add_predicted = FALSE, title = NULL) {
   g <- ggplot(df, aes_string(x = 'mean_value', y = yvar)) +
     geom_point(aes(color = "Observed")) +
     facet_wrap(~name, scales = 'free_x') +
     labs(x = "mean of decile of predictor variable",
          y = ylab,
          caption = "each panel shows a different predictor variable",
-         subtitle = paste0('y variable is ', yvar, " (", method, " method)")) +
+         subtitle = paste0('y variable is ', yvar, " (", method, " method)"),
+         title = title) +
     theme(legend.position = 'top',
           legend.title = element_blank()) 
   g

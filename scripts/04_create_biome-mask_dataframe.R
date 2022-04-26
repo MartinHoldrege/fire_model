@@ -100,8 +100,7 @@ df_biome0 <- tibble(
   # rounding because a small subset cells has decimal cover (x.5%),
   # but must are integers (and this causes problems with percentiles)
   shrCover = shrCover3, # cover of shrubs
-  MAT = as.vector(values(rasts_clim1$Yearly$tavg)),
-  MAT = MAT + 273.15, # convert C to K
+  MAT = as.vector(values(rasts_clim1$Yearly$tavg)) + 273.15, # convert C to K,
   MAP = as.vector(values(rasts_clim1$Yearly$prcp)),
   # proportion ppt falling in summer
   prcpPropSum = as.vector(values(rasts_clim1$Summer$prcpProp))

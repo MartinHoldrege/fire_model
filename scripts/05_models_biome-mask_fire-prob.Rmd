@@ -19,7 +19,7 @@ Sourcing the script that creates a dataframe of historical
 fore occurrence, as well as biotic and climate
 predictors for those same grid-cells. 
 
-```{r warning=FALSE, message=FALSE, cache = TRUE}
+```{r source_data, warning=FALSE, message=FALSE, cache = TRUE}
 source("scripts/04_create_biome-mask_dataframe.R")
 ```
 
@@ -85,7 +85,8 @@ dfs_biome3 <- map(dfs_biome3, function(df) {
 
 ## training data
 
-Using a small sample for now to make model fitting quicker
+Note--previously a small sample for now to make model fitting quicker.
+Now the training dataset is all the data.
 
 ```{r train, dependson='prep_data'}
 set.seed(1234)
@@ -93,16 +94,27 @@ pred_vars <- c("afgAGB", "pfgAGB", "shrCover", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
 # predictor vars are the same in both dfs
 df_pred <- dfs_biome3[[1]][, pred_vars]
-n = 500000
+# n = 100000 # set n to a s
+n = nrow(dfs_biome3[[1]])
+         
 row_nums <- 1:nrow(dfs_biome3[[1]])
 rows_train <- sample(row_nums, size = n, replace = FALSE)
 
 # rows for test dataset
-rows_test <- sample(row_nums[!row_nums %in% rows_train], size = 40000, replace = FALSE)
+# note set up this way, in case the training
+# dataset is all the data
+rows2sample <- if(n == length(rows_train)) {
+  row_nums
+} else {
+  row_nums[!row_nums %in% rows_train]
+}
+
+# rows used in testing dataset
+rows_test <- sample(rows2sample, size = 40000, replace = FALSE)
 
 # selecting rows this was so both dataframes in list have same rows
 # and differences in models will only be b/ of differences in response
-rows_train <- 1:nrow(dfs_biome3[[1]])
+
 dfs_train <- map(dfs_biome3, function(df) as.data.frame(df[rows_train, ]))
 dfs_test <- map(dfs_biome3, function(df) as.data.frame(df[rows_test, ]))
 
@@ -119,7 +131,7 @@ test_pred <- dfs_test[[1]][, all_pred_vars]
 # Exploratory figs & summary values
 
 
-```{r}
+```{r summary_table}
 
 create_summary <- function(df) {
   df %>% 
@@ -152,17 +164,18 @@ kable(response_summary$reduceToImage,
 
 ## Plot predictor vars against each other
 
-```{r}
-ggpairs(train_pred %>% select(-matches("_")),
+here using pred dataframe, because smaller and this code is slow. 
+
+```{r pred_v_pred, cache=TRUE, dependson='train'}
+ggpairs(test_pred %>% select(-matches("_")),
         lower = list(continuous = GGally::wrap("points", alpha = 0.1,    size=0.2)))
 ```
 
 ## transformed pred vars
 
-```{r}
-"~ poly(afgAGB,2) + poly(pfgAGB,2) + I(shrCover^2) + exp(MAT) + poly(MAP,2) + exp(prcpPropSum)"
+```{r pred_v_pred_transform, cache=TRUE, dependson='train'}
 
-train_pred_trans <- train_pred %>% 
+train_pred_trans <- test_pred %>% 
   mutate(afgAGB_sq = afgAGB^2,
          pfgAGB_sq = pfgAGB^2,
          MAT_exp = exp(MAT),
@@ -176,7 +189,7 @@ train_pred_trans[, c("afgAGB_sq", "pfgAGB_sq", "MAT", "MAP_sq", "prcpPropSum_exp
 
 ## boxplots-- # of fires vs predictor variables
 
-```{r fig.height=9, fig.width=8, cache = TRUE, dependson='prep_data'}
+```{r n_fires_boxplots, fig.height=9, fig.width=8, cache = TRUE, dependson='prep_data'}
 
 # vectors of names of response variables
 vars_nfire <- names(dfs_biome3[[1]]) %>% 
@@ -227,11 +240,13 @@ First calculating mean of response variables (proportion of years with fires)
 for each decile of each predictor
 variable. 
 
-Next plotting decile vs fire probability. Dotplots made for each predictor
+Next plotting deciles (originally was deciles, 10 bins, now
+actually 0.5 percentiles, i.e. 200 bins)
+vs fire probability. Dotplots made for each predictor
 variable and response variable (as well method by which response variable
 was calculated)
 
-```{r}
+```{r observed_deciles}
 
 dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop)
 # df <- dfs_deciles1[[1]]
@@ -250,7 +265,7 @@ map2(dfs_deciles1, names(dfs_deciles1), function(df, method) {
 Histograms for all fire variables, includes all grid cells from sagebrush biome,
 showing fire probability (nfires/nyears)
 
-```{r message = FALSE, warning = FALSE}
+```{r hists_response, message = FALSE, warning = FALSE}
 
 dfs_prop_long <- map(dfs_biome3, function(df) {
   df %>% 
@@ -274,9 +289,9 @@ map(method, function(x) {
 
 ## Plot response variables against each other
 
-```{r}
+```{r response_ggpairs, cache=TRUE, dependson='train'}
 map(method, function(x) {
-  ggpairs(dfs_train[[x]] , title =  paste0('relationships between response variables (',
+  ggpairs(dfs_test[[x]] , title =  paste0('relationships between response variables (',
                            x,  " method used)"),
         columns = vars_nfire,
         lower = list(continuous = GGally::wrap("points", alpha = 0.1, size=0.2)))
@@ -284,100 +299,7 @@ map(method, function(x) {
 
 ```
 
-# Random forest
-
-
-## Fit Model
-
-```{r fit_rf, dependson='train'}
-nodesize <-  50 # minimum size of terminal nodes in trees
-
-# fire occurence (0/1) in MTBS data, over 35 years
-forms_occur <-  map(paste(vars_occur, ' ~', paste(pred_vars, collapse = "+")),
-                    as.formula)
-
-names(forms_occur) <- names(vars_occur)
-
-# fitting random forests to dfs of response variables created with both methods
-rf_mods1 <- map(method, function(x) {
-  # fitting rfs for each formula 
-  map(forms_occur, randomForest, ntree = 100, data = dfs_train[[x]],
-               nodesize = nodesize)
-})
-rf_mods2 <- flatten_rename(rf_mods1)
-
-```
-
-## Variable importance
-
-```{r results='hide', fig.keep='all'}
-
-par(mfrow = c(2, 2))
-map2(rf_mods2, names(rf_mods2), function(x, y) {
-  print(varImpPlot(x = x, main = y))
-})
-
-```
-
-## Partial dependence plots
-
-The output is transformed to yearly fire probability. Rugs on plots show
-the percentiles of the predictor variable
-
-```{r fig.height=5, fig.width = 8, cache = TRUE, dependson='train'}
-
-pdp_all_rf_mods(mod_list = rf_mods2, df_train = train_pred)
-
-```
-
-
-## Examine Model fit
-
-The strongly bi-modal histogram suggests this model is overfitting (i.e.
- probabilities close to 1 and 0)
-
-```{r}
-mod <- rf_mods2$paint_mtbs
-y <- predict(mod, test_pred, type = "prob")
-hist(calc_yearly_prob(y), main = "Predicted probabilities (per year)")
-```
-
-## transforming predictor variables
-
-### Fit Model
-
-```{r}
-pred_vars2 <- c("afgAGB_sqrt", "pfgAGB", "shrCover", "MAP", "MAT", 
-                "prcpPropSum_sqrt")
-
-# fire occurence (0/1) in MTBS data, over 35 years
-forms_occur2 <-  map(paste(vars_occur, ' ~', paste(pred_vars2, collapse = "+")),
-                    as.formula)
-
-names(forms_occur2) <- str_replace(vars_occur, "occur_", "")
-# fitting random forests to dfs of response variables created with both methods
-rf_mods3 <- map(method, function(x) {
-  # fitting rfs for each formula 
-  map(forms_occur2, randomForest, ntree = 100, data = dfs_train[[x]],
-               nodesize = nodesize)
-}) %>% 
-  flatten_rename()
-
-```
-
-
-### Partial dependence plots
-
-The output is transformed to yearly fire probability. Rugs on plots show
-the percentiles of the predictor variable
-
-```{r fig.height=5, fig.width = 8, cache = TRUE, dependson='fit_rf'}
-
-pdp_all_rf_mods(mod_list = rf_mods3[1], df_train = train_pred)
-
-```
-
-# GLMs (all linear terms)
+# GLMs 
 
 
 ## fitting models
@@ -392,13 +314,16 @@ that repeated for each variable. So have models with 1 variable transformed,
 see documentation for glms_iterate_transforms, in the modelling_functions.R
 script
 
-```{r iterate_transform, warning = FALSE, dependson='train'}
+```{r iterate_transform, warning = FALSE, dependson='train', cache = TRUE}
+set.seed(1234)
 mods_glm_mtbs1 <- glms_iterate_transforms(
   preds = pred_vars, 
   df = dfs_train$paint,
   response_var = "mtbs_prop", 
   delta_aic = 4)
 
+mod <- glm(mtbs_prop ~ afgAGB + pfgAGB + shrCover + MAT + MAP + prcpPropSum,
+    family = 'binomial', weights = mtbs_n, data = dfs_train$paint)
 # not including the last element of the list which is final_formula
 mods_glm_mtbs2 <- mods_glm_mtbs1[-length(mods_glm_mtbs1)]
 
@@ -436,17 +361,22 @@ Using best model formula selected in the previous step
 
 #best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):MAT + I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + prcpPropSum*MAT + I(pfgAGB^2):prcpPropSum"
 
-best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover  + poly(MAP,2)  + I(pfgAGB^2):prcpPropSum + MAT"
+# best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover  + poly(MAP,2)  + I(pfgAGB^2):prcpPropSum + MAT"
+# 
+# best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + I(pfgAGB^2):prcpPropSum"
+# 
+# best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + I(pfgAGB^2):prcpPropSum + prcpPropSum"
 
-best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + I(pfgAGB^2):prcpPropSum"
+# this is the formula we used at the end of the denver meeting
 
-best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + I(pfgAGB^2):prcpPropSum + prcpPropSum"
+#best_form <- "~ poly(afgAGB,2) + poly(pfgAGB,2) + shrCover + MAT + poly(MAP,2) + prcpPropSum"
 
-forms_glm1 <-  map(paste(vars_prop, best_form), as.formula)
 
 best_form <- mods_glm_mtbs1$final_formula %>% 
   str_replace(".+(?=~)", "") # remove everything before ~ (i.e. response var)
-best_form <- "~ poly(afgAGB,2) + poly(pfgAGB,2) + shrCover + MAT + poly(MAP,2) + prcpPropSum"
+forms_glm1 <-  map(paste(vars_prop, best_form), as.formula)
+
+print(best_form)
 names(forms_glm1) <- names(vars_occur)
 mod_glm1 <- map(method, function(x) {
   # fitting glms for each formula 
@@ -454,10 +384,11 @@ mod_glm1 <- map(method, function(x) {
     glm(form, data = dfs_train[[x]], family = 'binomial', weights = mtbs_n)
   })
 }) 
+
+# should be the same AIC (i.e. refitting the same model)
 AIC(mod_glm1$paint$mtbs)
+mods_glm_mtbs1$step4$aic
 
-
-mods_glm_mtbs1$step4$aic[1]
 mod_glm1_flat <- flatten_rename(mod_glm1)
 summary(mod_glm1_flat$paint_mtbs)
 
@@ -466,7 +397,7 @@ summary(mod_glm1_flat$paint_mtbs)
 
 ## partial dependence & VIP
 
-```{r, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1'}
+```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1'}
 # vip::vip(bin_glm1) # variable importance
 vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
    out <- vip::vip(mod) +
@@ -474,16 +405,18 @@ vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
 })
 marrangeGrob(vip_plots1, ncol = 3, nrow = 3)
 map(mod_glm1_flat[1], pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
-              train = test_pred)
+              train = train_pred)
 ```
 
 
 ## observed vs. predicted
 
-Predicting on different rows than models fit using
+Predicting on the data
+Note now that dfs_train is the whole dataset, i'm predicting on the
+'training' dataframe
 
 ```{r}
-pred_glm1 <- map2(mod_glm1, dfs_test, function(mods, df) {
+pred_glm1 <- map2(mod_glm1, dfs_train, function(mods, df) {
   df_out <- df
   for(var in names(vars_prop)) {
     mod <- mods[[var]]
@@ -494,7 +427,7 @@ pred_glm1 <- map2(mod_glm1, dfs_test, function(mods, df) {
   df_out
 })
 
-dfs_test_warm <- map(dfs_test, function(df) mutate(df, MAT = MAT + 5))
+dfs_test_warm <- map(dfs_train, function(df) mutate(df, MAT = MAT + 5))
 
 pred_glm1_warm <- map2(mod_glm1, dfs_test_warm, function(mods, df) {
   df_out <- df
@@ -549,6 +482,8 @@ g +
 Binning predictor variables into deciles and looking at the mean
 predicted probability for each decile.
 
+Then predicting on an identical dataset but with 
+
 ```{r}
 vars_prop_pred <- paste0(vars_prop, "_pred")
 
@@ -578,7 +513,7 @@ map2(pred_glm1_deciles, names(pred_glm1_deciles), function(df, method) {
 # tryng
 map2(pred_glm1_deciles_warm, names(pred_glm1_deciles_warm), function(df, method) {
   map(vars_prop, decile_dotplot, df = df, method = method, 
-      add_predicted = TRUE)
+      add_predicted = TRUE, title = "data w/ +5 deg C warming")
 })
 
 ```
@@ -612,5 +547,3 @@ map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
 
 ```
 
-
-## GLMS with splines
