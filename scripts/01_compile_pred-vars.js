@@ -214,7 +214,7 @@ print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 var sw2Image = ee.Image('projects/gee-guest/assets/SEI/stepwat_change_rasters/ClimateOnly_Sagebrush_ChangePropHistoricalMax_RCP85_2070-2100_inmcm4');
 
 var sw2Projection = sw2Image.projection().crs().getInfo();
-var sw2Resolution = sw2Image.projection().nominalScale();  
+var sw2Resolution = sw2Image.projection().nominalScale().getInfo();  
 var sw2Region = ee.Geometry.Polygon(
         [[[-127.974999999999994, 29.233333333000004],
           [-127.974999999999994, 51.600000000000001],
@@ -240,7 +240,10 @@ var maskString = '_sagebrush-biome-mask_v1';
 
 var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
   .addBands(rapMed.select('SHR').rename('shrCover')); //Shrub cover
+  
 
+
+//if (false) {
 // export to drive 
 Export.image.toDrive({
   image: rapOut,
@@ -286,4 +289,6 @@ for (var i = 0; i < climList.length; i++) {
   });
 }
 
+
+//}
 
