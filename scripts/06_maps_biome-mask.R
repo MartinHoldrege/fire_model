@@ -5,7 +5,9 @@
 # Purpose: Create maps of spatial probability and fire occurrence datasets
 # (i.e. response variables), and of predictor variables (e.g., RAP
 # biomass cover datasets). This is for data masked to the extent of 
-# the sagebrush biome
+# the sagebrush biome.
+# additionally create maps of predicted fire probability based on
+# model objects created in 05_models_biome-mask_fire-prob.Rmd
 
 
 # dependencies ------------------------------------------------------------
@@ -36,6 +38,38 @@ rast_rap1
 
 rasts_clim1
 
+
+# * model objects ---------------------------------------------------------
+
+# created in 05_models_biome-mask_fire-prob.Rmd
+# (this object is very large ~2Gb)
+glm_mods1 <- readRDS("models/glm_binomial_models_v1.RDS")
+
+# predicted fire probability ----------------------------------------------
+# predictions from glms, predict on original data that includes NA (i.e
+# masked gridcells)
+glm_mods2 <- glm_mods1
+formula <- glm_mods1$formula # string of the model formula
+glm_mods2$formula <- NULL
+
+glm_preds1 <- map(glm_mods2, predict, newdata = df_biome0,
+                  type = "response")
+
+glm_preds_df <- bind_cols(glm_preds1) %>% 
+  pivot_longer(cols = everything(),
+               names_to = 'model',
+               values_to = 'probability') %>% 
+  drop_na()
+
+empty <- rast_rap1[[1]]
+empty[] <- NA
+# filling empty raster w/ predicted values
+rasts_pred1 <- map(glm_preds1, function(x) {
+  empty[] <- x
+  empty
+})
+rasts_pred2 <- rast(rasts_pred1)
+
 # maps --------------------------------------------------------------------
 
 tmap_mode("plot")
@@ -57,7 +91,9 @@ base <- tmap_options( # increase number of pixels plotted
     legend.position = c('center', 'top')) 
 
 
-# * Observed fire occurence --------------------------------------------------
+
+# * fire ------------------------------------------------------------------
+# ** Observed fire occurrence --------------------------------------------------
 
 breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 6.5, 37)
 labels <-  c(0, 1, 2, 3, 4, 6, '>=6')
@@ -95,12 +131,43 @@ maps_fire <- map2(rasts_fPerPixel, names(rasts_fPerPixel), function(r, name) {
 
 })
 
-# * combine into multi panel map ------------------------------------------
 
-pdf("figures/maps_fire_prob/fire_prob_biome-mask_v1.pdf",
+# ** predicted fire probability (sagebrush biome) -------------------------
+
+# *** histograms ----------------------------------------------------------
+
+pred_hist <- ggplot(glm_preds_df, aes(probability)) +
+  geom_histogram(bins = 300) +
+  facet_wrap(~model) +
+  coord_cartesian(xlim = c(0, 0.05)) +
+  labs(caption = "xlim restricted",
+       subtitle = "predicted yearly fire probability for all sagebrush biome pixels, for each GLM")
+
+
+
+# ***maps -----------------------------------------------------------------
+
+pred_maps <- map(names(rasts_pred2), function(lyr) {
+  out <- tm_shape(rasts_pred2[[lyr]], bbox = bbox) +
+    tm_raster(breaks = c(seq(0, 0.02, .002), 0.2),
+              title = 'fire probability') +
+    base +
+    tm_layout(main.title = paste("predicted fire probability from the",
+                                 lyr, "model\n", formula),
+              title.size = 0.75)
+  
+  out
+})
+
+# ** combine into multi panel map ------------------------------------------
+
+pdf("figures/maps_fire_prob/fire_prob_biome-mask_v2.pdf",
     width = 8, height = 7)
-  tmap_arrange(maps_fire[[1]], ncol = 2)
+  tmap_arrange(maps_fire[[1]], ncol = 2) # observed
+  tmap_arrange(pred_maps[1:4]) # predicted
   tmap_arrange(maps_fire[[2]], ncol = 2)
+  tmap_arrange(pred_maps[-(1:4)])
+  pred_hist
 dev.off()
 
 
