@@ -11,7 +11,7 @@
 *.sbx
 *.sbn
 *.lyr
-
+*.rds
 
 # figures
 *.png

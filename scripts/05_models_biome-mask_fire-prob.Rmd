@@ -391,7 +391,6 @@ summary(mod_glm1_flat$paint_mtbs)
 
 ```
 
-
 ## partial dependence & VIP
 
 ```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1' , cache.lazy = FALSE}
@@ -542,5 +541,13 @@ map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
          of annual fire probability, for a given fire dataset")
 })
 
+```
+
+# Save output
+
+```{r save_output}
+mods2save <- mod_glm1_flat
+mods2save$formula <- best_form
+saveRDS(mod_glm1_flat, "models/glm_binomial_models_v1.RDS")
 ```
 
