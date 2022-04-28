@@ -10,20 +10,27 @@
 
 library(googledrive)
 library(stringr)
+library(tidyverse)
 
 # get file paths drive --------------------------------------------------------
 
 # sagebrush biome masked data
 files_biome <- drive_ls(path = "cheatgrass_fire",
-                        pattern = "sagebrush-biome-mask")
+                        pattern = "(sagebrush-biome-mask)|(sw2sim-extent)")
 files_biome
 
 # download  ---------------------------------------------------------------
 
+files_biome <- files_biome %>% 
+  mutate(modifiedTime = map_chr(drive_resource, function(x) x$modifiedTime)) %>% 
+  # if multiple files with the same
+  # name only download the newer one
+  group_by(name) %>% 
+  filter(modifiedTime == max(modifiedTime))
 # * daymet ------------------------------------------------------------------
 
 daymet_files <- files_biome %>%
-  filter(str_detect(name, '^daymet'))
+  filter(str_detect(name, '^daymet')) 
 
 for (i in 1:nrow(daymet_files)) {
   drive_download(file = daymet_files$id[i], 
