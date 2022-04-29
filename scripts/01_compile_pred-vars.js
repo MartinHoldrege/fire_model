@@ -197,6 +197,30 @@ for (var i = 0; i < pfts.length; i++) {
 // shrub cover chart
 print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
+/************************************************
+ * 
+ * daymet data for extent of stepwat2 simulations
+ * 
+ *  region of the stepwat2 change rasters
+   extracted in R by running
+  r <- rast("../SEI/data_raw/stepwat_change_rasters/CheatgrassFire_Cheatgrass_ChangePropHistoricalMax_RCP45_2030-2060_CanESM2.tif")
+  r@ptr$extent$as.points() %>% print(digits = 20)
+ * 
+ ************************************************
+ */
+ 
+// reading upscaled stepwat upscaled data to get extent, resolution, and projection
+// note--the specific image doesn't matter, they should have all the same attributes
+var sw2Image = ee.Image('projects/gee-guest/assets/SEI/stepwat_change_rasters/ClimateOnly_Sagebrush_ChangePropHistoricalMax_RCP85_2070-2100_inmcm4');
+
+var sw2Projection = sw2Image.projection().crs().getInfo();
+var sw2Resolution = sw2Image.projection().nominalScale().getInfo();  
+var sw2Region = ee.Geometry.Polygon(
+        [[[-127.974999999999994, 29.233333333000004],
+          [-127.974999999999994, 51.600000000000001],
+          [-98.733333333999994, 51.600000000000001],
+          [-98.733333333999994, 29.233333333000004]]], sw2Projection, false);
+          
 
 /************************************************
  * 
@@ -216,7 +240,10 @@ var maskString = '_sagebrush-biome-mask_v1';
 
 var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
   .addBands(rapMed.select('SHR').rename('shrCover')); //Shrub cover
+  
 
+
+//if (false) {
 // export to drive 
 Export.image.toDrive({
   image: rapOut,
@@ -231,7 +258,7 @@ Export.image.toDrive({
 
 // daymet data
 
-var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm' + maskString;
+var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm';
 
 var climList = [clim.climYearlyAvg, clim.climSummerAvg, clim.climSpringAvg];
 var climDescription = ['climYearlyAvg', 'climSummerAvg', 'climSpringAvg'];
@@ -239,7 +266,7 @@ var climDescription = ['climYearlyAvg', 'climSummerAvg', 'climSpringAvg'];
 for (var i = 0; i < climList.length; i++) {
   Export.image.toDrive({
     image: climList[i].updateMask(mask),
-    description: 'daymet_' + climDescription[i] + s,
+    description: 'daymet_' + climDescription[i] + s + maskString,
     folder: 'cheatgrass_fire',
     maxPixels: 1e13, 
     scale: resolution,
@@ -247,6 +274,21 @@ for (var i = 0; i < climList.length; i++) {
     crs: crs,
     fileFormat: 'GeoTIFF'
   });
+  
+  // output for the extent of stepwat2 simulations
+  // for use with upscaled stepwat2 simulation data
+  Export.image.toDrive({
+    image: climList[i],
+    description: 'daymet_' + climDescription[i] + s + '_sw2sim-extent_v1',
+    folder: 'cheatgrass_fire',
+    maxPixels: 1e13, 
+    scale: sw2Resolution,
+    region: sw2Region,
+    crs: sw2Projection,
+    fileFormat: 'GeoTIFF'
+  });
 }
 
+
+//}
 
