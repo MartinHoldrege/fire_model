@@ -193,6 +193,61 @@ fit_bin_glms <- function(forms, df) {
   out
 }
 
+#' Fit a number of binomial gnms
+#'
+#' @param forms character vector where each element can be parsed to a 
+#' model formula, this function is specifically designed so that
+#' the first element of the formulat is afgNonLin(afgAGB),
+#' @param df dataframe to fit the model on
+#'
+#' @return list of models, one for each formula
+fit_bin_gnms <- function(forms, df) {
+  stopifnot('mtbs_n' %in% names(df))
+  
+  afgNonLin <- function(afgAGB){
+    list(predictors = list(beta1 = 1),
+         variables = list(substitute(afgAGB)),
+         term = function(predLabels, varLabels) {
+           sprintf("-1*exp(%s*%s)",
+                   predLabels[1], varLabels[1])
+         })
+  }
+  class(afgNonLin) <- "nonlin"
+  
+  
+  glm_list <- map(forms, function(form) {
+    char_form <- form
+    
+    # number of variables after the first 
+    # + normally seperates variables (or if interaction, then *)
+    num_other_vars <- str_count(char_form, '\\+|\\*') +
+      # plus add in every 2nd order polynomial (which adds a term)
+      # note this wouldn't work if poly(x, 3), were used in the formula
+      str_count(char_form, 'poly\\(')
+    
+    # wan't to provide a starting value for the non linear term
+    # which should be the first variable (after the intercept)
+    start <- c(NA, -0.2, rep(NA, num_other_vars))
+    
+    form <- as.formula(form)
+    # some of these won't fit so returns NA if throws error
+    # not using purrr::safely() didn't seem to work, maybe b/ 
+    # of environment issues?
+    out <- tryCatch(gnm(formula = form, data = df, 
+                        family = 'binomial', 
+                        weights = mtbs_n,
+                        start = start),
+                    error = function(e) NA)
+    if (any(is.na(out))) message(paste(char_form,  "model couldn't fit \n"))
+    out
+  })
+  # removing models that couldn't be fit b/ they through an error
+  out <- keep(glm_list, function(x) all(!is.na(x)))
+  out
+}
+
+
+
 #' fit glms with varying number of variables transformed
 #' 
 #' @description In the first step this
@@ -215,6 +270,7 @@ fit_bin_glms <- function(forms, df) {
 #' transformations are included that add variables (e.g. x + x^2)
 #' @delta_aic how many aic units better the model with an extra transformed
 #' model needs to be to consider it better
+#' @fit_mod the function that will do the model fitting
 #'
 #' @return list, containing a sub list for each step, which in turn 
 #' contains 'glm' element of all the glm objects, 'which is the model aic's'
@@ -222,7 +278,8 @@ fit_bin_glms <- function(forms, df) {
 #' Also contains an element 'final_formula; which is the formula of the 
 #' best model. 
 glms_iterate_transforms <- function(preds, df, response_var,
-                                    max_steps = NULL, delta_aic = 4) {
+                                    max_steps = NULL, delta_aic = 4,
+                                    fit_mod = fit_bin_glms) {
   stopifnot(
     is.data.frame(df),
     is.character(preds),
@@ -255,7 +312,7 @@ glms_iterate_transforms <- function(preds, df, response_var,
     names(pred_transforms2) <- names(pred_transforms1)
     
     # fitting glm's for each formula (all model objects)
-    glm_list <- fit_bin_glms(forms = pred_transforms2,df = df)
+    glm_list <- fit_mod(forms = pred_transforms2,df = df)
     
     # sorting AIC
     aic_sorted <- map_dbl(glm_list, AIC) %>% 

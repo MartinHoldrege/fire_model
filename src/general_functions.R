@@ -166,3 +166,51 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
     scale_color_manual(values = col_values)
   out
 }
+
+
+#' replace poly(x,2) in a formula string
+#'
+#' @param form string, representation of a formula
+#' @param keep_response whether to keep the response variable in the output
+#' formula (i.e whether to remove the left side of the formula)
+#'
+#' @return the formula with poly(x,2), replaced by x + I(x^2),
+#' doing this because predict.gnm seems to through errors with poly()
+#' @examples
+#' replace_poly("y ~x+poly(z,2)+sqrt(w) +poly(q,2)"),
+#' replace_poly("y ~x+poly(z,2)+sqrt(w) +poly(q,2)", FALSE)
+replace_poly <- function(form, keep_response = TRUE) {
+  
+  # split elements apart
+  form_split <- form %>% 
+    # remove response variable, and spaces
+    str_replace_all("(^.*~)|(\\s)", "") %>% 
+    str_split("\\+") %>% 
+    unlist()
+  
+  left_side <- str_extract(form, "^.*~")
+  # replace poly(x, 2) with x + I(x^2), this appears to be necessary
+  # because of an issue with predict.gnm method
+  is_poly <- str_detect(form_split, "poly\\(")
+  
+  # checking that these are all poly(x, 2), if poly(x, 3) etc.
+  # this function would be incorrect
+  stopifnot(all(str_detect(form_split[is_poly], '2')))
+  
+  poly_element <- form_split[is_poly] %>% 
+    str_extract("(?<=poly\\()[A-z]+")
+  
+  sqr_elements <- paste0(poly_element, " + ", "I(", poly_element, "^2)")
+  
+  form_split2 <- form_split
+  form_split2[is_poly] <- sqr_elements
+  
+  out <- paste(form_split2, collapse = " + ")
+  
+  #add left size of formula back in
+  if(keep_response) {
+    out <- paste0(left_side, out)
+  }
+
+  out
+}
