@@ -9,6 +9,10 @@
 # additionally create maps of predicted fire probability based on
 # model objects created in 05_models_biome-mask_fire-prob.Rmd
 
+# note--as the code is written right now it is a major memory hog,
+# and is using up to ~18Gb of memory--i.e. this code would need to be
+# improved (e.g. remove objects not used in downstream code), if it needed 
+# to be run on a machine with 16Gb RAM
 
 # dependencies ------------------------------------------------------------
 
@@ -56,11 +60,15 @@ rasts_sw2_clim_list <- map(paths_sw2_clim, rast)
 
 # * model objects ---------------------------------------------------------
 
-# created in 05_models_biome-mask_fire-prob.Rmd
-# (this object is very large ~2Gb)
+# model objects created in 05_models_biome-mask_fire-prob.Rmd
+
+# (these objects are very large ~2Gb)
+
 glm_mods1 <- readRDS("models/glm_binomial_models_v1.RDS")
 
-
+# generalized non-linear models.
+#non-linear term fit for afg
+gnm_mods1 <- readRDS("models/gnm_binomial_models_v1.RDS")
 # * sw2 biomass -----------------------------------------------------------
 
 rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_future_median_across_GCMs.tif")
@@ -70,29 +78,45 @@ rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_f
 
 # * biome-extent ----------------------------------------------------------
 
-# predictions from glms, predict on original data that includes NA (i.e
-# masked gridcells)
-glm_mods2 <- glm_mods1
-formula <- glm_mods1$formula # string of the model formula
-glm_mods2$formula <- NULL
 
-glm_preds1 <- map(glm_mods2, predict, newdata = df_biome0,
+# predictions from glms & gnms, predict on original data that includes NA (i.e
+# masked gridcells). Data is sturcture is to have lists, one list item for
+# glm models and the other for the gnms
+
+# list of list of models
+mods1 <- list(glm = glm_mods1, gnm = gnm_mods1) 
+mod_types <- names(mods1)
+formulas <- map(mods1, function(x) x$formula) # string of the model formula
+mods2 <- map(mods1, function(x) {
+  x$formula <- NULL
+  x
+})
+
+# model predictions for each model 
+mod_preds1 <- map_depth(mods2, .depth = 2, predict, newdata = df_biome0,
                   type = "response")
 
-glm_preds_df <- bind_cols(glm_preds1) %>% 
-  pivot_longer(cols = everything(),
-               names_to = 'model',
-               values_to = 'probability') %>% 
-  drop_na()
+# longform dataframe of predictions
+mod_preds_dfs <- map(mod_preds1, function(x) {
+  bind_cols(x) %>% 
+    pivot_longer(cols = everything(),
+                 names_to = 'model',
+                 values_to = 'probability') %>% 
+    drop_na()
+})
 
 empty <- rast_rap1[[1]]
 empty[] <- NA
+
 # filling empty raster w/ predicted values
-rasts_pred1 <- map(glm_preds1, function(x) {
+rasts_pred1 <- map_depth(mod_preds1, .depth = 2, function(x) {
   empty[] <- x
   empty
 })
-rasts_pred2 <- rast(rasts_pred1)
+
+# one raster w/ layer for each response variable for glm,
+# and same for gnm
+rasts_pred2 <- map(rasts_pred1, rast)
 
 
 # * sw2sim extent ---------------------------------------------------------
@@ -162,27 +186,38 @@ df_sw2sim1$prcpPropSum <- rasts_sw2_clim2[['prcpProp']] %>%
 
 df_sw2sim1$MAT <- df_sw2sim1$MAT + 273.15 # c to K
 
-df_sw2_sim2 <- df_sw2sim1 %>% 
-  drop_na()
+df_sw2_sim2 <- df_sw2sim1 
 
 
 # ** prediction -----------------------------------------------------------
 
-glm_sw2_preds1 <- map(glm_mods2, predict, newdata = df_sw2_sim2,
-                  type = "response")
+# predictions for glm and gnm models
+mod_sw2_preds1 <- map_depth(mods2, .depth = 2, .f = predict, 
+                            newdata = df_sw2_sim2, type = "response")
 
-glm_sw2_preds_df <- bind_cols(glm_sw2_preds1) %>% 
-  pivot_longer(cols = everything(),
-               names_to = 'model',
-               values_to = 'probability') 
+mod_sw2_preds_dfs <- map(mod_sw2_preds1, function(x) {
+  bind_cols(x) %>% 
+    pivot_longer(cols = everything(),
+                 names_to = 'model',
+                 values_to = 'probability') %>% 
+    drop_na()
+})
 
 # filling empty raster w/ predicted values
-rasts_sw2_pred1 <- map(glm_sw2_preds1, function(x) {
-  empty_sw2 <- rasts_bio1[[1]]
-  empty_sw2[!is.na(empty_sw2)] <- x
+empty_sw2 <- rasts_bio1[[1]]
+empty_sw2[] <- NA
+rasts_sw2_pred1 <- map_depth(mod_sw2_preds1, .depth = 2, .f = function(x) {
+  empty_sw2[] <- x
   empty_sw2
 })
 
+# combination of the names of the outer and inner lists
+# for later 'looping', this will break down if the gnm and glm
+# elements don't have the same names
+all_mod_names <- expand_grid(
+  type = names(rasts_sw2_pred1), #i.e. gnm, vs glm
+  mod = map(rasts_sw2_pred1, names) %>% unlist() %>% unique()
+)
 
 # maps --------------------------------------------------------------------
 
@@ -269,40 +304,53 @@ hist_base <- function(df) {
 }
 
 # biome wide
-pred_hist <- ggplot(glm_preds_df, aes(probability)) +
-  hist_base(glm_preds_df) +
-  labs(subtitle = "predicted yearly fire probability for all sagebrush biome pixels, for each GLM")
+pred_hists <- map(mod_types, function(x) {
+  df <- mod_preds_dfs[[x]]
+  ggplot(df, aes(probability)) +
+    hist_base(df) +
+    labs(title = paste(x, "models"),
+         subtitle = "predicted yearly fire probability for all sagebrush biome pixels")
+})
 
-#pred_hist
+#pred_hists
 # sw2 simulation extent
-pred_sw2_hist <- ggplot(glm_sw2_preds_df, aes(probability)) +
-  hist_base(glm_sw2_preds_df) +
-  labs(subtitle = "predicted yearly fire probability using SW2 afgAGB and pfgAGB, for each GLM")
-#pred_sw2_hist
-# ***maps -----------------------------------------------------------------
+pred_sw2_hists <- map(mod_types, function(x) {
+  df <- mod_sw2_preds_dfs[[x]]
+  ggplot(df, aes(probability)) +
+    hist_base(df) +
+    labs(title = paste(x, "models"),
+         subtitle = "predicted yearly fire probability using SW2 afgAGB and pfgAGB")
+})
+#pred_sw2_hists
 
+# ***maps -----------------------------------------------------------------
+# creating maps of both glm and gnm predictions
 breaks_prob <- c(seq(0, 0.02, .002), 0.2)
+
 # sagebrush biome
-pred_maps <- map(names(rasts_pred2), function(lyr) {
-  out <- tm_shape(rasts_pred2[[lyr]], bbox = bbox) +
+
+pred_maps <- pmap(all_mod_names, function(type, mod) {
+  formula <- formulas[type]
+  out <- tm_shape(rasts_pred2[[type]][[mod]], bbox = bbox) +
     tm_raster(breaks = breaks_prob,
               title = 'fire probability') +
     base +
-    tm_layout(main.title = paste("predicted fire probability (RAP input),",
-                                 lyr, "model\n", formula),
+    tm_layout(main.title = paste("predicted probability (RAP input),",
+                                 type, mod, "model\n", formula),
                 main.title.size = 0.5)
   
   out
 })
 
 # sw2 simulation extent
-pred_sw2_maps <- map(names(rasts_sw2_pred1), function(lyr) {
-  out <- tm_shape(rasts_sw2_pred1[[lyr]], bbox = bbox) +
+pred_sw2_maps <- pmap(all_mod_names, function(type, mod) {
+  formula <- formulas[type]
+  out <- tm_shape(rasts_sw2_pred1[[type]][[mod]], bbox = bbox) +
     tm_raster(breaks = breaks_prob,
               title = 'fire probability') +
     base +
-    tm_layout(main.title = paste("predicted fire probability (SW2 input), ",
-                                 lyr, "model\n", formula),
+    tm_layout(main.title = paste("predicted probability (SW2 input), ",
+                                 type, mod, "model\n", formula),
               main.title.size = 0.5)
   
   out
@@ -310,16 +358,28 @@ pred_sw2_maps <- map(names(rasts_sw2_pred1), function(lyr) {
 
 # ** combine into multi panel map ------------------------------------------
 
-pdf("figures/maps_fire_prob/fire_prob_biome-mask_v2.pdf",
+# get endices of model types, for map order below
+get_endices <- function(type, method) {
+  which(all_mod_names$type == type &  str_detect(all_mod_names$mod, method))
+}
+
+pdf("figures/maps_fire_prob/fire_prob_biome-mask_v3.pdf",
     width = 8, height = 7)
+  # paint method
+
   tmap_arrange(maps_fire[[1]], ncol = 2) # observed
-  tmap_arrange(pred_maps[1:4]) # predicted
-  tmap_arrange(pred_sw2_maps[1:4]) # predicted
-  tmap_arrange(maps_fire[[2]], ncol = 2)
-  tmap_arrange(pred_maps[-(1:4)])
-  tmap_arrange(pred_sw2_maps[-(1:4)])
-  pred_hist
-  pred_sw2_hist
+  tmap_arrange(pred_maps[get_endices('glm', 'paint')]) # predicted
+  tmap_arrange(pred_sw2_maps[get_endices('glm', 'paint')]) # predicted
+  tmap_arrange(pred_maps[get_endices('gnm', 'paint')]) # predicted
+  tmap_arrange(pred_sw2_maps[get_endices('gnm', 'paint')]) # predicted
+  # reduceToImage method
+  tmap_arrange(maps_fire[[2]], ncol = 2) # observed
+  tmap_arrange(pred_maps[get_endices('glm', 'reduceToImage')]) # predicted
+  tmap_arrange(pred_sw2_maps[get_endices('glm', 'reduceToImage')]) # predicted
+  tmap_arrange(pred_maps[get_endices('gnm', 'reduceToImage')]) # predicted
+  tmap_arrange(pred_sw2_maps[get_endices('gnm', 'reduceToImage')]) # predicted
+  pred_hists
+  pred_sw2_hists
 dev.off()
 
 
