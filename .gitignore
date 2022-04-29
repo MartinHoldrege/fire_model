@@ -17,6 +17,9 @@
 *.png
 *pdf
 
+# knitted rmd files
+*.html
+
 # History files
 .Rhistory
 .Rapp.history

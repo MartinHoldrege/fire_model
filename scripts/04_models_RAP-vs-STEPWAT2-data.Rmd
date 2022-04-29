@@ -1,0 +1,160 @@
+---
+title: "Models to convert RAP shrub cover to biomass"
+author: "Martin Holdrege"
+date: "`r lubridate::today()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+# Overview
+
+The rangeland analysis platform provides shrub cover but not shrub biomass.
+Therefore the models we developed to predict fire probability use shrub cover. 
+However, stepwat2 output is shrub biomass, therefore the goal here is to find
+a relationship between remotely sensed shrub cover and stepwat2 simulated biomass.
+
+Additionally here I will look at the relationship between RAP annual and perennial
+biomass and the respective biomass simulated by stepwat2--as an exercise
+in assessing the agreement between these very much independent data sources.
+
+I will be using RAP data that 1) falls within the biome mask, and 2) falls
+within the mask of the stepwat2 upscaling. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r dependencies, message = FALSE, warning=FALSE}
+library(tidyverse)
+library(terra)
+theme_set(theme_classic())
+```
+
+# Load data
+
+RAP data
+
+```{r}
+r_rap1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1984-2019_med-max_1000m_sw2sim-extent_v1.tif")
+names(r_rap1)
+
+# grabbing this to use as a mask for ths sw2sim-extent data
+r_rap_biome1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1984-2019_median_1000m_sagebrush-biome-mask_v1.tif")
+```
+
+STEPWAT2 data
+
+```{r}
+r_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_future_median_across_GCMs.tif")
+
+# layers of interest:
+lyrs_perennial <- paste0("c4on_", 
+                         c("C3Pgrass", "C4Pgrass", "Pforb"),
+                         "_biomass_Current_Current_Light")
+
+lyrs_annual <- paste0("c4on_", 
+                      c("Cheatgrass", "Aforb"),
+                      "_biomass_Current_Current_Light")
+
+lyrs_shrub <- "c4on_Shrub_biomass_Current_Current_Light"
+
+r_bio1 <- r_bio1[[c(lyrs_perennial, lyrs_annual, lyrs_shrub)]]
+```
+
+# Data Prep
+
+Makes extents equal, and mask out cells that
+are not part of the sagebrush-biome mask.
+
+
+
+```{r fix_extent}
+mask_biome1 <- r_rap_biome1[[1]]
+
+# r_rap_biome1 has slightly different resolution than the other 
+# rasters, so resampling to the same resolution
+# Note--this resampling does change which locations are masked out--slightly
+mask_biome2 <- resample(mask_biome1, r_bio1)
+
+r_bio1 <- crop(r_bio1, mask_biome2)
+
+r_rap2 <- crop(r_rap1, mask_biome2)
+
+r_rap2 <- mask(r_rap2, mask = mask_biome2)
+r_bio2 <- mask(r_bio1, mask_biome2)
+
+```
+
+
+Calculate afgAGB and pfgAGB from stepwat output
+
+```{r stepwat_sim_df}
+
+# simulated biomass
+df1 <- tibble(
+    # annuals
+  afgAGBsw2 = sum(r_bio2[[lyrs_annual]]) %>% 
+    values() %>% 
+    as.vector(),
+  # perennials
+  pfgAGBsw2 = pfgAGB <- sum(r_bio2[[lyrs_perennial]]) %>% 
+    values() %>% 
+    as.vector(),
+  # shrubs
+  shrAGBsw2 = r_bio2[[lyrs_shrub]] %>% 
+    values() %>% 
+    as.vector()
+)
+
+```
+
+Add RAP data to dataframe
+
+```{r}
+rap_lyrs1 <- names(r_rap1) 
+rap_lyrs2 <- paste0(rap_lyrs1, "_rap")
+
+rap_lyrs1
+
+for(i in seq_along(rap_lyrs1)) {
+  df1[[rap_lyrs2[i]]] <-  r_rap2[[rap_lyrs1[[i]]]] %>% 
+    values() %>% 
+    as.vector()
+}
+
+df2 <- drop_na(df1)
+remove('df1')
+
+```
+
+# Exploratory Analysis
+
+```{r}
+
+names(df2)
+# variables to compare (vector not used in the code at the moment)
+comparisons <- c(
+  "afgAGBMax_rap" = "afgAGBsw2",
+  "afgAGBMed_rap" = "afgAGBsw2",
+  "pfgAGBMax_rap" = "pfgAGBsw2",
+  "pfgAGBMed_rap" = "pfgAGBsw2",
+  "shrCoverMax_rap" = "shrAGBsw2",
+  "shrCoverMed_rap" = "shrAGBsw2"
+)
+
+ggplot(df2, aes(shrAGBsw2, shrCoverMax_rap)) +
+  geom_point(size = 0.2, alpha = 0.1) +
+  geom_smooth(se= FALSE) +
+  geom_smooth(method = 'lm', se = FALSE) +
+  labs(x = "Shrub biomass (STEPWAT2)",
+       y = "Max shrub cover (%; RAP)")
+
+
+```
+
+
+# Models
+
