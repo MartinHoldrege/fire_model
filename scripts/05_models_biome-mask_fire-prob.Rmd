@@ -533,7 +533,8 @@ map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
 })
 
 ```
-# GNM models
+
+# GNMs
 
 Fitting models where afgAGB is non-linear,
 and has the form -exp(Beta*afgAGB), where beta should be negative
