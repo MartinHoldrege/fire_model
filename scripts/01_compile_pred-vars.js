@@ -49,9 +49,36 @@ Map.addLayer(region, {}, 'region', false);
 // rangeland analysis platform, for cover data
 var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-cover-v3')
   .filterDate(startDate,  endDate)
-  .filterBounds(region);
-  
+  .map(function(image) {
+    return ee.Image(image).toFloat();
+  }); // to avoid incompatible data types on export
 
+  /************************************************
+ * 
+ * extent of stepwat2 simulations
+ * 
+ *  region of the stepwat2 change rasters
+   extracted in R by running
+  r <- rast("../SEI/data_raw/stepwat_change_rasters/CheatgrassFire_Cheatgrass_ChangePropHistoricalMax_RCP45_2030-2060_CanESM2.tif")
+  r@ptr$extent$as.points() %>% print(digits = 20)
+ * 
+ ************************************************
+ */
+ 
+// reading upscaled stepwat upscaled data to get extent, resolution, and projection
+// note--the specific image doesn't matter, they should have all the same attributes
+var sw2Image = ee.Image('projects/gee-guest/assets/SEI/stepwat_change_rasters/ClimateOnly_Sagebrush_ChangePropHistoricalMax_RCP85_2070-2100_inmcm4');
+
+var sw2Projection = sw2Image.projection().crs().getInfo();
+var sw2Resolution = sw2Image.projection().nominalScale().getInfo();  
+var sw2Region = ee.Geometry.Polygon(
+        [[[-127.974999999999994, 29.233333333000004],
+          [-127.974999999999994, 51.600000000000001],
+          [-98.733333333999994, 51.600000000000001],
+          [-98.733333333999994, 29.233333333000004]]], sw2Projection, false);
+
+Map.addLayer(region, {}, 'biome region', false);
+Map.addLayer(sw2Region, {}, "sw2Sim region", false);
 /************************************************
  * 
  * Prepare vegetation data
@@ -65,18 +92,22 @@ var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-c
 Map.addLayer(mask, {palette: ['black', 'white']}, 'mask', false);
 
 // masking out non-sagebrush
-var rap2 = rap1.map(function(image){
-  return ee.Image(image).updateMask(mask);
-});
+var rap2 = rap1
+  .filterBounds(region)
+  .map(function(image){
+    return ee.Image(image).updateMask(mask);
+  });
 
 var rapMed = rap2.median();
+var rapMedUnmasked = rap1.filterBounds(sw2Region).median();
+var rapMaxUnmasked = rap1.filterBounds(sw2Region).max();
 
 print('RAP', rapMed);
 
 Map.addLayer(rapMed.select('AFG'), coverVis, 'Annuals', false);
 Map.addLayer(rapMed.select('PFG'), coverVis, 'Perennials', false);
 Map.addLayer(rapMed.select('SHR'), coverVis, 'Shrubs', false);
-
+Map.addLayer(rapMaxUnmasked.select('SHR'), coverVis, 'Max Shrub cover', false);
 
 // rap biomass data ---------------------------------------
 // aboveground biomass of annual and perennial herbacious plants
@@ -124,7 +155,7 @@ var biomassFunction = function(image) {
     var matYear = mat.filterDate(year).first();
     var fANPP = (matYear.multiply(0.0129)).add(0.171).rename('fANPP'); // fraction of NPP to allocate aboveground
     
-    var agb = image.multiply(0.0001) // NPP scalar 
+    var agb = ee.Image(image).multiply(0.0001) // NPP scalar 
                 //.multiply(2.20462) // KgC to lbsC MH--i commented out these lines
                 //.multiply(4046.86) // m2 to acres MH--i commented out these lines
                 .multiply(1000) // MH--KgC to gC
@@ -133,15 +164,21 @@ var biomassFunction = function(image) {
                 .rename(['afgAGB', 'pfgAGB'])
                 .copyProperties(image, ['system:time_start'])
                 .set('year', year);
+               
 
     var herbaceous = ee.Image(agb).reduce(ee.Reducer.sum()).rename(['herbaceousAGB']);
     
-    agb = ee.Image(agb).addBands(herbaceous);
+    agb = ee.Image(agb)
+      .addBands(herbaceous);
 
     return agb;
 };
 
-var biomass = npp.map(biomassFunction);
+var biomass = npp
+  .map(biomassFunction)
+  .map(function(x) {
+    return ee.Image(x).toFloat(); // to avoid incompatible datatypes error
+  });
 
 // add 2019 perennial forb and grass biomass (pfgAGB) to map
 // bamako palette, from 'users/gena/packages:palettes'
@@ -164,6 +201,8 @@ var bioMasked = biomass.map(function(x) {
     return ee.Image(x).updateMask(mask);
 });
 var bioMed = bioMasked.median();
+var bioMedUnmasked = biomass.median();
+var bioMaxUnmasked = biomass.max();
 
 Map.addLayer(bioMed.select('pfgAGB'), 
   {min: 0, max: 4000, palette: bamakoReverse}, 
@@ -197,29 +236,7 @@ for (var i = 0; i < pfts.length; i++) {
 // shrub cover chart
 print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
-/************************************************
- * 
- * daymet data for extent of stepwat2 simulations
- * 
- *  region of the stepwat2 change rasters
-   extracted in R by running
-  r <- rast("../SEI/data_raw/stepwat_change_rasters/CheatgrassFire_Cheatgrass_ChangePropHistoricalMax_RCP45_2030-2060_CanESM2.tif")
-  r@ptr$extent$as.points() %>% print(digits = 20)
- * 
- ************************************************
- */
- 
-// reading upscaled stepwat upscaled data to get extent, resolution, and projection
-// note--the specific image doesn't matter, they should have all the same attributes
-var sw2Image = ee.Image('projects/gee-guest/assets/SEI/stepwat_change_rasters/ClimateOnly_Sagebrush_ChangePropHistoricalMax_RCP85_2070-2100_inmcm4');
 
-var sw2Projection = sw2Image.projection().crs().getInfo();
-var sw2Resolution = sw2Image.projection().nominalScale().getInfo();  
-var sw2Region = ee.Geometry.Polygon(
-        [[[-127.974999999999994, 29.233333333000004],
-          [-127.974999999999994, 51.600000000000001],
-          [-98.733333333999994, 51.600000000000001],
-          [-98.733333333999994, 29.233333333000004]]], sw2Projection, false);
           
 
 /************************************************
@@ -236,15 +253,43 @@ var sw2Region = ee.Geometry.Polygon(
  
 var crs = 'EPSG:4326';
 var maskString = '_sagebrush-biome-mask_v1';
+var extentStringSw2 = '_sw2sim-extent_v1';
+
 // rap data
 
 var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
   .addBands(rapMed.select('SHR').rename('shrCover')); //Shrub cover
   
+// rap data for soilwat2 extent, primaryily for assessing the relationship
+// between stepwat simulated biomass and RAP data
+var rapOutSw2 = bioMaxUnmasked
+  .select(['afgAGB', 'pfgAGB'])
+  .rename(['afgAGBMax', 'pfgAGBMax'])
+  .addBands(
+    bioMedUnmasked
+      .select(['afgAGB', 'pfgAGB'])
+      .rename(['afgAGBMed', 'pfgAGBMed'])
+  )
+  .addBands(rapMedUnmasked.select('SHR').rename('shrCoverMed'))
+  .addBands(rapMaxUnmasked.select('SHR').rename('shrCoverMax'));
 
-
-//if (false) {
 // export to drive 
+
+// RAP data (unmasked) for the whole extent of stepwat2 upscaling
+Export.image.toDrive({
+  image: rapOutSw2,
+  description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_med-max_' + resolution + 'm' + extentStringSw2,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: sw2Resolution,
+  region: sw2Region,
+  crs: sw2Projection,
+  fileFormat: 'GeoTIFF'
+});
+
+
+if (false) {
+// sagebrush biome mask
 Export.image.toDrive({
   image: rapOut,
   description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm' + maskString,
@@ -255,6 +300,7 @@ Export.image.toDrive({
   crs: crs,
   fileFormat: 'GeoTIFF'
 });
+
 
 // daymet data
 
@@ -290,5 +336,5 @@ for (var i = 0; i < climList.length; i++) {
 }
 
 
-//}
+}
 
