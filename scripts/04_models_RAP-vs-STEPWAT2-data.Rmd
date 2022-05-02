@@ -64,11 +64,32 @@ lyrs_shrub <- "c4on_Shrub_biomass_Current_Current_Light"
 r_bio1 <- r_bio1[[c(lyrs_perennial, lyrs_annual, lyrs_shrub)]]
 ```
 
+SEI data
+
+Using this data to create a mask of only core areas
+
+```{r}
+r_c9 <- rast("../SEI/data_processed/transitions/SEIv11_9ClassTransition_2017_2020_90_ClimateOnly_RCP85_2030-2060_median.tif")
+r_c9 <- r_c9[[1]]
+```
+
 # Data Prep
+
+Extract core areas. In this rasters 1 is stable core, 2, is core becomes grow,
+and 3 is core becomes other. so 1, 2, and 3, together make up 'current core'
+
+```{r}
+r_core1 <- r_c9
+# values from 1 to 3 will become 1, others become NA
+r_core2 <- classify(r_core1, 
+                    rcl =matrix(c(0.5, 3.5, 1), byrow = TRUE, nrow = 1),
+                    othersNA = TRUE)
+plot(r_core2)
+```
+
 
 Makes extents equal, and mask out cells that
 are not part of the sagebrush-biome mask.
-
 
 
 ```{r fix_extent}
@@ -78,14 +99,13 @@ mask_biome1 <- r_rap_biome1[[1]]
 # rasters, so resampling to the same resolution
 # Note--this resampling does change which locations are masked out--slightly
 mask_biome2 <- resample(mask_biome1, r_bio1)
-
+r_core3 <- resample(r_core2, r_bio1)
 r_bio1 <- crop(r_bio1, mask_biome2)
 
 r_rap2 <- crop(r_rap1, mask_biome2)
 
 r_rap2 <- mask(r_rap2, mask = mask_biome2)
 r_bio2 <- mask(r_bio1, mask_biome2)
-
 ```
 
 
@@ -106,9 +126,12 @@ df1 <- tibble(
   # shrubs
   shrAGBsw2 = r_bio2[[lyrs_shrub]] %>% 
     values() %>% 
-    as.vector()
-)
-
+    as.vector(),
+  core = r_core3[[1]] %>% 
+    values() %>% 
+    as.vector() 
+  )
+df1$core <- ifelse(is.na(df1$core), 'Note core', 'Core')
 ```
 
 Add RAP data to dataframe
@@ -130,10 +153,12 @@ remove('df1')
 
 ```
 
+
 # Exploratory Analysis
 
-```{r}
-
+```{r message = FALSE}
+df3 <- df2 %>% 
+  filter(shrAGBsw2 < 740)
 names(df2)
 # variables to compare (vector not used in the code at the moment)
 comparisons <- c(
@@ -145,16 +170,47 @@ comparisons <- c(
   "shrCoverMed_rap" = "shrAGBsw2"
 )
 
-ggplot(df2, aes(shrAGBsw2, shrCoverMax_rap)) +
-  geom_point(size = 0.2, alpha = 0.1) +
-  geom_smooth(se= FALSE) +
-  geom_smooth(method = 'lm', se = FALSE) +
-  labs(x = "Shrub biomass (STEPWAT2)",
-       y = "Max shrub cover (%; RAP)")
+df3 %>% 
+  ggplot( aes(shrAGBsw2, shrCoverMax_rap)) +
+    geom_point(size = 0.2, alpha = 0.1) +
+    geom_smooth(se= FALSE) +
+    geom_smooth(method = 'lm', se = FALSE) +
+    labs(x = "Shrub biomass (STEPWAT2)",
+         y = "Max shrub cover (%; RAP)",
+         subtitle = 'Max shrub cover') +
+    facet_wrap(~core)
 
+df3 %>% 
+  ggplot( aes(shrAGBsw2, shrCoverMed_rap)) +
+    geom_point(size = 0.2, alpha = 0.1) +
+    geom_smooth(se= FALSE) +
+    geom_smooth(method = 'lm', se = FALSE) +
+    labs(x = "Shrub biomass (STEPWAT2)",
+         y = "Median shrub cover (%; RAP)",
+         subtitle = 'Median shrub cover') +
+    facet_wrap(~core)
 
 ```
 
+## percentiles
+
+Grouping stepwat2 shrub biomass by unique value (i.e. by plot), and
+then taking the 95th percentile of 
+```{r warning = FALSE, message = FALSE}
+df3_pcent <- df3 %>% 
+  group_by(shrAGBsw2) %>% 
+  summarise(across(c("shrCoverMax_rap", "shrCoverMed_rap"), 
+                   .fns = quantile, probs = 0.9),
+            .groups = 'drop')
+
+ggplot(df3_pcent, aes(shrAGBsw2, shrCoverMed_rap)) +
+  geom_point() +
+  geom_smooth(method = 'glm') +
+#  facet_wrap(~core) +
+  labs(subtitle = '90th pcentile of shrub cover (RAP) across pixels, for each level of shrub biomass (SW2)')
+  
+  
+```
 
 # Models
 
