@@ -90,7 +90,7 @@ Now the training dataset is all the data.
 
 ```{r train, dependson='prep_data', cache = TRUE}
 set.seed(1234)
-pred_vars <- c("afgAGB", "pfgAGB", "shrCover", "MAT", "MAP", "prcpPropSum")
+pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
 # predictor vars are the same in both dfs
 df_pred <- dfs_biome3[[1]][, pred_vars]
@@ -569,7 +569,6 @@ set.seed(123)
 bin_gnm0 <- gnm(mtbs_prop ~ 
                   afgAGB + I(afgAGB^2) 
                 + pfgAGB + I(pfgAGB^2)
-                +  shrCover + I(shrCover^2)
                 + MAT + I(MAT^2) 
                 + MAP + I(MAP^2) + prcpPropSum,
                 weight = mtbs_n, family = binomial(link = "logit"), 
@@ -578,12 +577,11 @@ bin_gnm0 <- gnm(mtbs_prop ~
 # afgAGB is non-linear
 bin_gnm2 <- gnm(mtbs_prop ~ afgNonLin(afgAGB)
                 + pfgAGB + I(pfgAGB^2)
-                +  shrCover + I(shrCover^2)
                 + MAT + I(MAT^2) 
                 + MAP + I(MAP^2) + prcpPropSum, 
                 weight = mtbs_n, family = binomial(link = "logit"), 
                 data = dfs_train$paint,
-                start = c(NA, -0.1, rep(NA, 9)))
+                start = c(NA, -0.1, rep(NA, 7)))
 
 AIC(bin_gnm0) # all 'linear terms'--i.e. best glm model
 as.numeric(AIC(bin_gnm2)) # afgAGB is non linear (better model)
@@ -718,10 +716,10 @@ map2(pred_gnm1_deciles_warm, names(pred_gnm1_deciles_warm), function(df, method)
 # glm models
 mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
-saveRDS(mods2save, "models/glm_binomial_models_v1.RDS")
+saveRDS(mods2save, "models/glm_binomial_models_v1_no-shrCover.RDS")
 
 mods2save_gnm <- mod_gnm1_flat
 mods2save_gnm$formula <- best_form_gnm1
-saveRDS(mods2save_gnm, "models/gnm_binomial_models_v1.RDS")
+saveRDS(mods2save_gnm, "models/gnm_binomial_models_v1_no-shrCover.RDS")
 ```
 
