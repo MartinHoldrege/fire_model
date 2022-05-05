@@ -153,17 +153,17 @@ lyrs_annual <- paste0("c4on_",
                       c("Cheatgrass", "Aforb"),
                       "_biomass_Current_Current_Light")
 
-
 # simulated perennial grass & forb biomass
-pfgAGB <- sum(rasts_bio1[[lyrs_perennial]]) %>% 
-  values() %>% 
-  as.vector()
+r_pfgAGB_sw2 <- sum(rasts_bio1[[lyrs_perennial]])
+# simulated annual grass & forb
+r_afgAGB_sw2 <- sum(rasts_bio1[[lyrs_annual]]) 
+
 
 df_sw2sim1 <- tibble(
-  pfgAGB = pfgAGB
+  pfgAGB = values(r_pfgAGB_sw2) %>% as.vector()
 )
 
-df_sw2sim1$afgAGB <- sum(rasts_bio1[[lyrs_annual]]) %>% 
+df_sw2sim1$afgAGB <- r_afgAGB_sw2 %>% 
   values() %>% 
   as.vector()
 
@@ -439,6 +439,27 @@ tm_rap3 <- tm_shape(rast_rap1[["shrCover"]], bbox = bbox) +
                                title))
 
 
+# * STEPWAT2 biomass maps -------------------------------------------------
+
+title_sw2 <- "\nSTEPWAT2 (current, light graze, cheatgrass-fire)"
+# annuals
+tm_sw2_afg <- tm_shape(r_afgAGB_sw2, bbox = bbox) +
+  tm_raster(breaks = breaks_bio2,
+            palette = palette_bio2,
+            title = lab_bio0) +
+  base +
+  tm_layout(main.title = paste("Annual forb and grass biomass", 
+                               title_sw2))
+
+# perennials
+tm_sw2_pfg <- tm_shape(r_pfgAGB_sw2, bbox = bbox) +
+  tm_raster(breaks = breaks_bio1,
+            palette = palette_bio1,
+            title = lab_bio0) +
+  base +
+  tm_layout(main.title = paste("Perennial forb and grass biomass", 
+                               title_sw2))
+
 # ** histograms -----------------------------------------------------------
 bins = 100
 
@@ -479,9 +500,11 @@ h2_sw2 <- h0_sw2 +
   coord_cartesian(xlim = c(0, pfgAGB_max))
 
 # save maps & histograms
-pdf("figures/maps_veg/RAP_bio-cover_biome-mask_v1.pdf",
+pdf("figures/maps_veg/RAP_bio-cover_biome-mask_v2.pdf",
     width = 8, height = 6)
 tmap_arrange(tm_rap1, tm_rap2, tm_rap3, nrow = 2)
+# the pfg map is given twice on this panel, so map sizing remains the same
+tmap_arrange(tm_sw2_afg, tm_sw2_pfg, base, nrow = 2)
 gridExtra::grid.arrange(h1, h2, h3, h1_sw2, h2_sw2, ncol = 3)
 dev.off()
 
