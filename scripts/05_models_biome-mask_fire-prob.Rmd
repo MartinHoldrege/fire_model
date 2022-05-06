@@ -94,8 +94,8 @@ pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
 # predictor vars are the same in both dfs
 df_pred <- dfs_biome3[[1]][, pred_vars]
-# n = 100000 # set n to a s
-n = nrow(dfs_biome3[[1]])
+n = 10000 # set n to a s
+# n = nrow(dfs_biome3[[1]])
          
 row_nums <- 1:nrow(dfs_biome3[[1]])
 rows_train <- sample(row_nums, size = n, replace = FALSE)
@@ -205,18 +205,11 @@ vars_prop <- str_replace(vars_occur, "occur_", "") %>%
 
 names(vars_prop) <- names(vars_occur)
 
-# function to pivot dataframe into longer format
-# this function in defined here b/ it relies on pred_vars being in the
-# global environment
-predvars2long <- function(df, response_vars) {
-  df[, c(pred_vars, response_vars)] %>% 
-    pivot_longer(cols = all_of(pred_vars))
-}
-
 # longformat dataframes for making boxplots
 dfs_biome_long <- map(dfs_biome3, function(df) {
   # for some reason select() was giving me problems
-  predvars2long(df, response_vars = c(vars_nfire, vars_prop)) %>% 
+  predvars2long(df, response_vars = c(vars_nfire, vars_prop), 
+                pred_vars = pred_vars) %>% 
     mutate(across(all_of(vars_nfire), factor))
 })
 
@@ -248,7 +241,8 @@ was calculated)
 
 ```{r observed_deciles}
 
-dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop)
+dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop,
+                    pred_vars = pred_vars)
 # df <- dfs_deciles1[[1]]
 # yvar = vars_prop[[1]]
 
@@ -480,17 +474,11 @@ Then predicting on an identical dataset but with
 vars_prop_pred <- paste0(vars_prop, "_pred")
 response_vars <- c(vars_prop, vars_prop_pred)
 
-predvars2deciles <- function(df) {
-    # longformat df
-  long_df <- predvars2long(df, response_vars = response_vars)
-  # mean of deciles
-  out <- longdf2deciles(long_df, response_vars = response_vars)
-  out
-}
-
 pred_glm1_deciles <- map(pred_glm1, predvars2deciles)
 
-pred_glm1_deciles_warm <- map(pred_glm1_warm, predvars2deciles)
+pred_glm1_deciles_warm <- map(pred_glm1_warm, predvars2deciles,
+                              response_vars = response_vars,
+                              pred_vars = pred_vars)
 
 map2(pred_glm1_deciles, names(pred_glm1_deciles), function(df, method) {
   map(vars_prop, decile_dotplot, df = df, method = method, 
@@ -505,7 +493,7 @@ map2(pred_glm1_deciles_warm, names(pred_glm1_deciles_warm), function(df, method)
 
 ```
 
-Plot observed vs predicted values for the deciles
+Plot observed vs predicted values for the quantile
 
 ```{r}
 # long format, so have columns of predicted and observed
@@ -714,12 +702,12 @@ map2(pred_gnm1_deciles_warm, names(pred_gnm1_deciles_warm), function(df, method)
 
 ```{r save_output}
 # glm models
-mods2save <- mod_glm1_flat
-mods2save$formula <- best_form
-saveRDS(mods2save, "models/glm_binomial_models_v1_no-shrCover.RDS")
-
-mods2save_gnm <- mod_gnm1_flat
-mods2save_gnm$formula <- best_form_gnm1
-saveRDS(mods2save_gnm, "models/gnm_binomial_models_v1_no-shrCover.RDS")
+# mods2save <- mod_glm1_flat
+# mods2save$formula <- best_form
+# saveRDS(mods2save, "models/glm_binomial_models_v1_no-shrCover.RDS")
+# 
+# mods2save_gnm <- mod_gnm1_flat
+# mods2save_gnm$formula <- best_form_gnm1
+# saveRDS(mods2save_gnm, "models/gnm_binomial_models_v1_no-shrCover.RDS")
 ```
 
