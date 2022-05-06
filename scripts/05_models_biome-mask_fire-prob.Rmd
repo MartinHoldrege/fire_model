@@ -94,8 +94,8 @@ pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
 # predictor vars are the same in both dfs
 df_pred <- dfs_biome3[[1]][, pred_vars]
-n = 10000 # set n to a s
-# n = nrow(dfs_biome3[[1]])
+# n = 10000 # for testing
+n = nrow(dfs_biome3[[1]]) # fit models on all the data
          
 row_nums <- 1:nrow(dfs_biome3[[1]])
 rows_train <- sample(row_nums, size = n, replace = FALSE)
@@ -241,8 +241,7 @@ was calculated)
 
 ```{r observed_deciles}
 
-dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop,
-                    pred_vars = pred_vars)
+dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop)
 # df <- dfs_deciles1[[1]]
 # yvar = vars_prop[[1]]
 
@@ -468,13 +467,15 @@ g +
 Binning predictor variables into deciles (actually 0.5 percentiles) and looking at the mean
 predicted probability for each decile.
 
-Then predicting on an identical dataset but with 
+Then predicting on an identical dataset but with warming
 
 ```{r}
 vars_prop_pred <- paste0(vars_prop, "_pred")
 response_vars <- c(vars_prop, vars_prop_pred)
 
-pred_glm1_deciles <- map(pred_glm1, predvars2deciles)
+pred_glm1_deciles <- map(pred_glm1, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars)
 
 pred_glm1_deciles_warm <- map(pred_glm1_warm, predvars2deciles,
                               response_vars = response_vars,
@@ -521,6 +522,32 @@ map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
 })
 
 ```
+
+### Deciles Filtered 
+
+Filtered 'Decile' plots of data. These plots show each vegetation variable,
+but only based on data that falls into the upper and lower two deciles of
+each climate variable. 
+
+
+```{r glm_deciles_filtered, fig.height = 6}
+
+pred_glm1_deciles_filt <- map(pred_glm1, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars,
+                         filter_var = TRUE)
+
+pred_glm1_deciles_warm <- map(pred_glm1_warm, predvars2deciles,
+                              response_vars = response_vars,
+                              pred_vars = pred_vars)
+
+map2(pred_glm1_deciles_filt, names(pred_glm1_deciles_filt), function(df, method) {
+  map(vars_prop, decile_dotplot_filtered, df = df, method = method)
+})
+
+```
+
+
 
 # GNMs
 
@@ -592,8 +619,7 @@ But it gets transformed to exp(MAT), which leads to weird threshold
 type behavior in the model that doesn't seem right
 
 
-```{r gnm_iterate_transform,message=FALSE, cache=TRUE}
-
+```{r gnm_iterate_transform,message=FALSE, cache=TRUE, results='hide'}
 set.seed(1234)
 dfs_train_gnm <- map(dfs_biome3, function(df) {
   df[sample(1:nrow(df), 100000), ]
@@ -610,9 +636,10 @@ mods_gnm_mtbs1 <- glms_iterate_transforms(
   delta_aic = 15,
   fit_mod = fit_bin_gnms)
 
-"mtbs_prop ~ afgNonLin(afgAGB) + poly(pfgAGB,2) + shrCover + MAT + poly(MAP,2) + prcpPropSum"
+```
 
 
+```{r }
 best_form_gnm1 <- mods_gnm_mtbs1$final_formula
 best_form_gnm1
 best_form_gnm2 <- replace_poly(best_form_gnm1, keep_response = FALSE)
@@ -626,7 +653,7 @@ best_form_gnm2
 Response variables are the proportion of years in which fires occurred.
 Using best model formula selected in the previous step
 
-```{r fit_gnm1, dependson='gnm_iterate_transform', cache=TRUE,message=FALSE}
+```{r fit_gnm1, dependson='gnm_iterate_transform', cache=TRUE,message=FALSE, results='hide'}
 forms_gnm1 <-  map(paste(vars_prop, "~",  best_form_gnm2), as.formula)
 
 names(forms_gnm1) <- names(vars_occur)
@@ -643,9 +670,11 @@ mod_gnm1 <- map(method, function(x) {
         weights = mtbs_n,
         start = start)
   })
-}) 
+})
+```
 
 
+```{r}
 mod_gnm1_flat <- flatten_rename(mod_gnm1)
 summary(mod_gnm1_flat$paint_mtbs)
 
@@ -682,32 +711,64 @@ predicted probability for each decile.
 Then predicting on an identical dataset but with + 5C warmed MAT
 
 ```{r gnm_deciles}
-pred_gnm1_deciles <- map(pred_gnm1, predvars2deciles)
 
-pred_gnm1_deciles_warm <- map(pred_gnm1_warm, predvars2deciles)
+pred_gnm1_deciles <- map(pred_gnm1, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars)
+
+pred_gnm1_deciles_warm <- map(pred_gnm1_warm, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars)
 
 map2(pred_gnm1_deciles, names(pred_gnm1_deciles), function(df, method) {
   map(vars_prop, decile_dotplot, df = df, method = method, 
       add_predicted = TRUE)
 })
 
-# tryng
+# same but with + 5 degrees of warming
 map2(pred_gnm1_deciles_warm, names(pred_gnm1_deciles_warm), function(df, method) {
   map(vars_prop, decile_dotplot, df = df, method = method, 
       add_predicted = TRUE, title = "data w/ +5 deg C warming")
 })
 
 ```
+
+
+### Deciles Filtered 
+
+Filtered 'Decile' plots of data. These plots show each vegetation variable,
+but only based on data that falls into the upper and lower two deciles of
+each climate variable. 
+
+
+```{r gnm_deciles_filtered, fig.height = 6}
+
+pred_gnm1_deciles_filt <- map(pred_gnm1, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars,
+                         filter_var = TRUE)
+
+pred_gnm1_deciles_warm <- map(pred_gnm1_warm, predvars2deciles,
+                              response_vars = response_vars,
+                              pred_vars = pred_vars)
+
+map2(pred_gnm1_deciles_filt, names(pred_gnm1_deciles_filt), function(df, method) {
+  map(vars_prop, decile_dotplot_filtered, df = df, method = method)
+})
+
+```
+
+
 # Save output
 
 ```{r save_output}
 # glm models
-# mods2save <- mod_glm1_flat
-# mods2save$formula <- best_form
-# saveRDS(mods2save, "models/glm_binomial_models_v1_no-shrCover.RDS")
-# 
-# mods2save_gnm <- mod_gnm1_flat
-# mods2save_gnm$formula <- best_form_gnm1
-# saveRDS(mods2save_gnm, "models/gnm_binomial_models_v1_no-shrCover.RDS")
+mods2save <- mod_glm1_flat
+mods2save$formula <- best_form
+saveRDS(mods2save, "models/glm_binomial_models_v1_no-shrCover.RDS")
+
+mods2save_gnm <- mod_gnm1_flat
+mods2save_gnm$formula <- best_form_gnm1
+saveRDS(mods2save_gnm, "models/gnm_binomial_models_v1_no-shrCover.RDS")
 ```
 

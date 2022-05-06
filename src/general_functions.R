@@ -225,6 +225,12 @@ predvars2long <- function(df, response_vars,
   out <- df[, select_cols] %>% 
     pivot_longer(cols = all_of(new_pred_vars))
   
+  # turn into an ordered factor
+  ordered <- c("afgAGB", "pfgAGB", "herbAGB", "MAT", "MAP", 
+               "prcpPropSum")
+  if(all(new_pred_vars %in% ordered) & all(ordered %in% new_pred_vars)) {
+    out$name <- factor(out$name, levels = ordered)
+  }
   out
 }
 
@@ -280,11 +286,7 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE) {
   out
 }
 
-# CONTINUE WORKING HERE
-# df <- predvars2long(filter_by_climate(pred_glm1$paint),
-#                     response_vars = response_vars,
-#                     filter_var = TRUE) %>%
-#   longdf2deciles(response_vars = response_vars, filter_var = TRUE)
+
 
 #' wide format data frame, to longformat dataframe summarized to quantiles
 #'
@@ -293,7 +295,7 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE) {
 #' @param df 
 #' @param response_vars character vector of response vars
 #' @param pre_vars character vector of response vars
-#' @param filter_var whether to creat a filter var (i.e. filter by the
+#' @param filter_var whether to create a filter var (i.e. filter by the
 #' climate variables, so group data into high and low percentiles
 #' of each climate variable)
 predvars2deciles <- function(df, response_vars, pred_vars,
@@ -309,10 +311,11 @@ predvars2deciles <- function(df, response_vars, pred_vars,
                            filter_var = filter_var)
   # mean of deciles
   out <- longdf2deciles(long_df, response_vars = response_vars,
-                        pred_vars = pred_vars,
                         filter_var = filter_var)
   out
 }
+
+
 
 #' create dotplot of data summarized to deciles, faceted by predictor variable
 #'
@@ -327,10 +330,15 @@ predvars2deciles <- function(df, response_vars, pred_vars,
 #' to the plot. this requires the dataframe to 
 decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)',
                            add_predicted = FALSE, title = NULL) {
+  
+  if('filter_var' %in% names(df)) {
+    stop('filter_var column present, you should used decile_dotplot_filtered()')
+  }
+  
   g <- ggplot(df, aes_string(x = 'mean_value', y = yvar)) +
-    geom_point(aes(color = "Observed")) +
+    geom_point(aes(color = "Observed", shape = "Observed")) +
     facet_wrap(~name, scales = 'free_x') +
-    labs(x = "mean of decile of predictor variable",
+    labs(x = "mean of quantile of predictor variable",
          y = ylab,
          caption = "each panel shows a different predictor variable",
          subtitle = paste0('y variable is ', yvar, " (", method, " method)"),
@@ -340,6 +348,7 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
   g
   
   col_values <- c("Observed" = "black")
+  shape_values <- c("Observed" = 19)
   
   # whether to also add dots for predicted probability
   # this requires predicted value columns to have the same name as yvar
@@ -348,14 +357,69 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
     yvar_pred <- paste0(yvar, "_pred")
     
     g <- g +
-      geom_point(aes_string(y = yvar_pred), color = "blue", alpha = 0.5) 
+      geom_point(aes_string(y = yvar_pred), color = "blue", alpha = 0.5,
+                 shape = 17) 
     col_values <- c("Observed" = "black", "Predicted" = "blue")
+    shape_values <- c(shape_values, "Predicted" = 17)
   }
   
   out <- g +
-    scale_color_manual(values = col_values)
+    scale_color_manual(name = 'legend', values = col_values) +
+    scale_shape_manual(name = 'legend', values = shape_values)
   out
 }
+
+#' create dotplot of data summarized to quantiles
+#' 
+#' @description for each vegetation 
+#' variable, only showing data that falls in the highest or lowest deciles
+#' of each of the climate variables
+#'
+#' @param yvar name of the yvar to be plotted (string) (must be present in df) 
+#' @param df dataframe longform in longform, should be output of 
+#' predvars2deciles with the filter_var argument set to TRUE
+#' @param method string, to be pasted into subtitle (method used to convert
+#' polygons to rasters)
+#' @param ylab string--y axis label
+decile_dotplot_filtered <- function(yvar, df, method, ylab = 'fire probability (per year)',
+                           add_predicted = FALSE, title = NULL) {
+  df2 <- df %>% 
+    filter(name %in% c("afgAGB", "pfgAGB", "herbAGB")) %>% 
+    select(name, filter_var, percentile_category, decile, mean_value,
+           all_of(yvar), all_of(paste0(yvar, "_pred"))) %>% 
+    pivot_longer(cols = all_of(c(yvar, paste0(yvar, "_pred"))),
+                 names_to = 'source',
+                 values_to = 'probability') %>% 
+    mutate(source = ifelse(str_detect(source, "_pred$"),
+                           "predicted", "observed"),
+           percentile_category = paste0(percentile_category, " (", source, ")"))
+  
+  g <- ggplot(df2, aes(x = mean_value, y = probability)) +
+    geom_point(aes(color = percentile_category,
+                   shape = percentile_category)) +
+    facet_grid(filter_var~name, scales = 'free_x') +
+    labs(x = "mean of quantile of predictor variable",
+         y = ylab,
+         caption = paste0("Columns show the predictor variable\n",
+                          "Rows show the variable data was filtered by", 
+                          " (i.e., only pixels falling in the lowest or highest two deciles were kept)"),
+         subtitle = paste0('y variable is ', yvar, " (", method, " method)"),
+         title = title) +
+    theme(legend.position = 'top',
+          legend.title = element_blank()) +
+    # different colors for each combination of percentile and observed vs predicted,
+    # shapes are observed (circles) vs predicted (triangles)
+    scale_colour_manual(name = 'percentile_category',
+                        values = c("#f03b20","#feb24c", "#0570b0", "#74a9cf"))+
+    scale_shape_manual(name = 'percentile_category',
+                       values = c(19, 17, 19, 17))
+  g
+}
+
+# df <- predvars2deciles(filter_by_climate(pred_glm1$paint),
+#                        response_vars = response_vars,
+#                        pred_vars = pred_vars,
+#                        filter_var = TRUE) 
 
 
 
