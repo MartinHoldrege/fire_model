@@ -382,6 +382,10 @@ pdf("figures/maps_fire_prob/fire_prob_biome-mask_v4_afgAGB-MAP_inter.pdf",
   pred_sw2_hists
 dev.off()
 
+jpeg("figures/maps_fire_prob/mtbs_observed_predicted_maps_v1.jpeg",
+     width = 8, height = 3.2, res = 600, units = 'in')
+  tmap_arrange(maps_fire$paint[[1]], pred_maps[[1]], nrow = 1)
+dev.off()
 
 # * examine cover ---------------------------------------------------------
 # the cover dataset has some values that are x.5% values, but

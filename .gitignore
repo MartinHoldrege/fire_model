@@ -16,6 +16,7 @@
 # figures
 *.png
 *pdf
+*.jpeg
 
 # knitted rmd files
 *.html
