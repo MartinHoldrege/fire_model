@@ -307,13 +307,19 @@ that repeated for each variable. So have models with 1 variable transformed,
 see documentation for glms_iterate_transforms, in the modelling_functions.R
 script
 
-```{r iterate_transform, warning = FALSE, dependson='train', cache = TRUE, cache.lazy = FALSE}
+```{r iterate_transform, warning = FALSE, dependson='train', cache = TRUE}
 set.seed(1234)
+
+# adding an interaction term to help deal with overpredicting fire probability
+# at pixils with high afgaGB and high MAP. perentheses around interaction
+# term are included so that glms_iterate_transforms doesn't transform
+# the interaction term. 
+pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)")
 mods_glm_mtbs1 <- glms_iterate_transforms(
-  preds = pred_vars, 
+  preds = pred_vars_inter, 
   df = dfs_train$paint[ , ],
   response_var = "mtbs_prop", 
-  delta_aic = 4)
+  delta_aic = 10)
 
 # not including the last element of the list which is final_formula
 mods_glm_mtbs2 <- mods_glm_mtbs1[-length(mods_glm_mtbs1)]
@@ -386,7 +392,7 @@ summary(mod_glm1_flat$paint_mtbs)
 
 ## partial dependence & VIP
 
-```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1' , cache.lazy = FALSE}
+```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1'}
 # vip::vip(bin_glm1) # variable importance
 vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
    out <- vip::vip(mod) +
@@ -624,7 +630,7 @@ set.seed(1234)
 dfs_train_gnm <- map(dfs_biome3, function(df) {
   df[sample(1:nrow(df), 100000), ]
 })
-pred_vars_gnm <- pred_vars
+pred_vars_gnm <- pred_vars_inter
 
 # manually choosing the nonlinear form of afgAGB ( -e^(beta*afgAGB))
 pred_vars_gnm['afgAGB'] <- 'afgNonLin(afgAGB)'
@@ -765,10 +771,26 @@ map2(pred_gnm1_deciles_filt, names(pred_gnm1_deciles_filt), function(df, method)
 # glm models
 mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
-saveRDS(mods2save, "models/glm_binomial_models_v1_no-shrCover.RDS")
+saveRDS(mods2save, "models/glm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
 
 mods2save_gnm <- mod_gnm1_flat
 mods2save_gnm$formula <- best_form_gnm1
-saveRDS(mods2save_gnm, "models/gnm_binomial_models_v1_no-shrCover.RDS")
+saveRDS(mods2save_gnm, "models/gnm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
+
+```
+
+# session info
+
+Hash of current commit (i.e. to ID the version of the code used)
+
+```{r}
+system("git rev-parse HEAD", intern=TRUE)
+```
+
+Packages etc.
+
+```{r}
+sessionInfo()
+
 ```
 

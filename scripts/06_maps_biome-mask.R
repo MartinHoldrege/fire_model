@@ -64,11 +64,11 @@ rasts_sw2_clim_list <- map(paths_sw2_clim, rast)
 
 # (these objects are very large ~2Gb)
 
-glm_mods1 <- readRDS("models/glm_binomial_models_v1_no-shrCover.RDS")
+glm_mods1 <- readRDS("models/glm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
 
 # generalized non-linear models.
 #non-linear term fit for afg
-gnm_mods1 <- readRDS("models/gnm_binomial_models_v1_no-shrCover.RDS")
+gnm_mods1 <- readRDS("models/gnm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
 # * sw2 biomass -----------------------------------------------------------
 
 rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_future_median_across_GCMs.tif")
@@ -363,7 +363,7 @@ get_endices <- function(type, method) {
   which(all_mod_names$type == type &  str_detect(all_mod_names$mod, method))
 }
 
-pdf("figures/maps_fire_prob/fire_prob_biome-mask_v3_no-shrCover.pdf",
+pdf("figures/maps_fire_prob/fire_prob_biome-mask_v4_afgAGB-MAP_inter.pdf",
     width = 8, height = 7)
   # paint method
 
