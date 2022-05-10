@@ -13,6 +13,9 @@
 *.lyr
 *.rds
 
+# misc.
+*.docx
+
 # figures
 *.png
 *pdf
