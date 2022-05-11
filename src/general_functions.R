@@ -230,6 +230,11 @@ predvars2long <- function(df, response_vars,
                "prcpPropSum")
   if(all(new_pred_vars %in% ordered) & all(ordered %in% new_pred_vars)) {
     out$name <- factor(out$name, levels = ordered)
+  
+    # otherwise just order the veg variables
+  } else if(all(ordered[1:3] %in% new_pred_vars)) {
+    levels <- c(ordered[1:3], new_pred_vars[!new_pred_vars %in% ordered[1:3]])
+    out$name <- factor(out$name, levels = levels)
   }
   out
 }
