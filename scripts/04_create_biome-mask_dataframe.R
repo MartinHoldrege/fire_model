@@ -90,8 +90,8 @@ shrCover2 <- shrCover1 + runif(n = length(shrCover1),
                                min = -0.01, max = 0.01)
 shrCover3 <- round(shrCover2)
 # note, the two means are nearly identical
-mean(shrCover1, na.rm = TRUE)
-mean(shrCover3, na.rm = TRUE)
+# mean(shrCover1, na.rm = TRUE)
+# mean(shrCover3, na.rm = TRUE)
 
 # data frame with predictor variables
 df_biome0 <- tibble(

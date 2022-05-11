@@ -315,7 +315,33 @@ predvars2deciles <- function(df, response_vars, pred_vars,
   out
 }
 
+#' calculate rmse for decile plot
+#'
+#' @param df dataframe with name column (containing names of predictor variables)
+#' and columns corresponding to yvar and yvar_pred, where yvar is a fire
+#' response variable
+#' @param yvar string (e.g. mtbs_prop)
+#'
+#' @return dataframe, giving root mean squared error of quantile level
+#' values
+rmse4dotplot <- function(df, yvar) {
+  df_list <- split(df, df$name) 
+  observed <- yvar
+  predicted <- paste0(yvar, "_pred")
+  rmse_vector <- map_dbl(df_list, function(df){
+    squared_error = (df[[observed]] - df[[predicted]])^2
+    rmse <- sqrt(mean(squared_error))
+  })
+  rmse_vector
+  
+  # convert to dataframe for use in ggplot
+  out <- tibble(name = names(rmse_vector),
+                rmse = rmse_vector)
+  out$rmse <- formatC(out$rmse, digits = 2, format = 'e')
+  out
+}
 
+# rmse4dotplot(df, 'mtbs_prop')
 
 #' create dotplot of data summarized to deciles, faceted by predictor variable
 #'
@@ -329,18 +355,22 @@ predvars2deciles <- function(df, response_vars, pred_vars,
 #' @param add_predicted logical, whether to also add model predicted data
 #' to the plot. this requires the dataframe to 
 decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)',
-                           add_predicted = FALSE, title = NULL) {
+                           add_predicted = FALSE, title = NULL,
+                           size = 0.75,
+                           add_rmse = TRUE) {
   
   if('filter_var' %in% names(df)) {
     stop('filter_var column present, you should used decile_dotplot_filtered()')
   }
   
+  caption <- "Each panel shows a different predictor variable"
+  
   g <- ggplot(df, aes_string(x = 'mean_value', y = yvar)) +
-    geom_point(aes(color = "Observed", shape = "Observed")) +
+    geom_point(aes(color = "Observed", shape = "Observed"),
+               size = size) +
     facet_wrap(~name, scales = 'free_x') +
     labs(x = "mean of quantile of predictor variable",
          y = ylab,
-         caption = "each panel shows a different predictor variable",
          subtitle = paste0('y variable is ', yvar, " (", method, " method)"),
          title = title) +
     theme(legend.position = 'top',
@@ -358,14 +388,26 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
     
     g <- g +
       geom_point(aes_string(y = yvar_pred), color = "blue", alpha = 0.5,
-                 shape = 17) 
+                 shape = 17, size = size) 
     col_values <- c("Observed" = "black", "Predicted" = "blue")
     shape_values <- c(shape_values, "Predicted" = 17)
   }
   
+  if (add_predicted & add_rmse) {
+    rmse_df <- rmse4dotplot(df = df, yvar = yvar)
+    caption = paste0(caption, 
+                    "\nRMSE of quantile averages shown in each panel")
+    g <- g +
+      geom_text(data = rmse_df, 
+                aes(x = -Inf, y = Inf, label = rmse, hjust = -0.05,
+                    vjust = 1.5), size = 3)
+    g
+  }
+  
   out <- g +
     scale_color_manual(name = 'legend', values = col_values) +
-    scale_shape_manual(name = 'legend', values = shape_values)
+    scale_shape_manual(name = 'legend', values = shape_values) +
+    labs(caption = caption)
   out
 }
 
@@ -382,7 +424,8 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
 #' polygons to rasters)
 #' @param ylab string--y axis label
 decile_dotplot_filtered <- function(yvar, df, method, ylab = 'fire probability (per year)',
-                           add_predicted = FALSE, title = NULL) {
+                           add_predicted = FALSE, title = NULL,
+                           size = 0.75) {
   df2 <- df %>% 
     filter(name %in% c("afgAGB", "pfgAGB", "herbAGB")) %>% 
     select(name, filter_var, percentile_category, decile, mean_value,
@@ -396,7 +439,8 @@ decile_dotplot_filtered <- function(yvar, df, method, ylab = 'fire probability (
   
   g <- ggplot(df2, aes(x = mean_value, y = probability)) +
     geom_point(aes(color = percentile_category,
-                   shape = percentile_category)) +
+                   shape = percentile_category),
+               size = size) +
     facet_grid(filter_var~name, scales = 'free_x') +
     labs(x = "mean of quantile of predictor variable",
          y = ylab,

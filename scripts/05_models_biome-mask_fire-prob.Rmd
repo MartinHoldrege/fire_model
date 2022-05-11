@@ -171,22 +171,6 @@ ggpairs(test_pred %>% select(-matches("_")),
         lower = list(continuous = GGally::wrap("points", alpha = 0.1,    size=0.2)))
 ```
 
-## transformed pred vars
-
-```{r pred_v_pred_transform, cache=TRUE, dependson='train'}
-
-train_pred_trans <- test_pred %>% 
-  mutate(afgAGB_sq = afgAGB^2,
-         pfgAGB_sq = pfgAGB^2,
-         MAT_exp = exp(MAT),
-         MAP_sq = MAP^2,
-         prcpPropSum_exp = exp(prcpPropSum))
-
-train_pred_trans[, c("afgAGB_sq", "pfgAGB_sq", "MAT", "MAP_sq", "prcpPropSum_exp")] %>% 
-  ggpairs(lower = list(continuous = GGally::wrap("points", alpha = 0.1,   
-                                                 size=0.2)))
-```
-
 ## boxplots-- # of fires vs predictor variables
 
 ```{r n_fires_boxplots, fig.height=9, fig.width=8, cache = TRUE, dependson='prep_data'}
@@ -247,7 +231,7 @@ dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop)
 
 map2(dfs_deciles1, names(dfs_deciles1), function(df, method) {
   map(vars_prop, decile_dotplot, df = df, method = method,
-      ylab = "mean observed fire probability (nfires/nyears)")
+      ylab = "fire probability (per year)")
 })
 
 ```
@@ -554,217 +538,6 @@ map2(pred_glm1_deciles_filt, names(pred_glm1_deciles_filt), function(df, method)
 ```
 
 
-
-# GNMs
-
-Fitting models where afgAGB is non-linear,
-and has the form -exp(Beta*afgAGB), where beta should be negative
-so this forms a saturating relationship:
-
-$$logit(p)=\beta_0-e^{\beta_1*afgAGB}+other\ linear\ terms$$
-
-## Fitting models
-
-### is a non-linear term better?
-
-Fitting the model, with all linear terms except afgAGB is a negative exponential
-term. (-exp(beta1*x))
-
-Based on AIC the non-linear term makes the model way better
-
-```{r gnm_best_transform, dependson='train', cache=TRUE}
-
-afgNonLin <- function(afgAGB){
-    list(predictors = list(beta1 = 1),
-         variables = list(substitute(afgAGB)),
-         term = function(predLabels, varLabels) {
-             sprintf("-1*exp(%s*%s)",
-                     predLabels[1], varLabels[1])
-         })
-}
-class(afgNonLin) <- "nonlin"
-
-set.seed(123)
-
-# fitting all linear terms (i.e. this just the glm)
-bin_gnm0 <- gnm(mtbs_prop ~ 
-                  afgAGB + I(afgAGB^2) 
-                + pfgAGB + I(pfgAGB^2)
-                + MAT + I(MAT^2) 
-                + MAP + I(MAP^2) + prcpPropSum,
-                weight = mtbs_n, family = binomial(link = "logit"), 
-                data = dfs_train$paint)
-
-# afgAGB is non-linear
-bin_gnm2 <- gnm(mtbs_prop ~ afgNonLin(afgAGB)
-                + pfgAGB + I(pfgAGB^2)
-                + MAT + I(MAT^2) 
-                + MAP + I(MAP^2) + prcpPropSum, 
-                weight = mtbs_n, family = binomial(link = "logit"), 
-                data = dfs_train$paint,
-                start = c(NA, -0.1, rep(NA, 7)))
-
-AIC(bin_gnm0) # all 'linear terms'--i.e. best glm model
-as.numeric(AIC(bin_gnm2)) # afgAGB is non linear (better model)
-
-```
-
-
-### Fitting various transforms
-
-Holding the transform for afgAGB constant, but trying various transforms
-for the other variables (they are still linear terms in the models
-as in the GLMS above)
-
-Fitting on a subset of the data b/ fitting these would take super long
-for the full dataset
-
-Trying a higher delta AIC to reduce the spurious transforms. Note that this
-means that MAT doesn't get transformed (which it does with a low AIC value).
-But it gets transformed to exp(MAT), which leads to weird threshold
-type behavior in the model that doesn't seem right
-
-
-```{r gnm_iterate_transform,message=FALSE, cache=TRUE, results='hide'}
-set.seed(1234)
-dfs_train_gnm <- map(dfs_biome3, function(df) {
-  df[sample(1:nrow(df), 100000), ]
-})
-pred_vars_gnm <- pred_vars_inter
-
-# manually choosing the nonlinear form of afgAGB ( -e^(beta*afgAGB))
-pred_vars_gnm['afgAGB'] <- 'afgNonLin(afgAGB)'
-
-mods_gnm_mtbs1 <- glms_iterate_transforms(
-  preds = pred_vars_gnm, 
-  df = dfs_train_gnm$paint,
-  response_var = "mtbs_prop", 
-  delta_aic = 15,
-  fit_mod = fit_bin_gnms)
-
-```
-
-
-```{r }
-best_form_gnm1 <- mods_gnm_mtbs1$final_formula
-best_form_gnm1
-best_form_gnm2 <- replace_poly(best_form_gnm1, keep_response = FALSE)
-best_form_gnm2 
-
-```
-
-
-### same model for all response variables
-
-Response variables are the proportion of years in which fires occurred.
-Using best model formula selected in the previous step
-
-```{r fit_gnm1, dependson='gnm_iterate_transform', cache=TRUE,message=FALSE, results='hide'}
-forms_gnm1 <-  map(paste(vars_prop, "~",  best_form_gnm2), as.formula)
-
-names(forms_gnm1) <- names(vars_occur)
-
-n_other_vars <- str_count(best_form_gnm2, "\\+")
-
-# providing start value for non-linear term (based on testing
-# by only including afgAGB in the model)
-start <- c(NA, -0.2, rep(NA, n_other_vars))
-mod_gnm1 <- map(method, function(x) {
-  # fitting glms for each formula 
-  map(forms_gnm1, function(form) {
-    gnm(form, data = dfs_train[[x]], family = 'binomial', 
-        weights = mtbs_n,
-        start = start)
-  })
-})
-```
-
-
-```{r}
-mod_gnm1_flat <- flatten_rename(mod_gnm1)
-summary(mod_gnm1_flat$paint_mtbs)
-
-```
-
-## Partial dependence plots 
-
-variable importance plots didn't work with the gnm model objects
-
-```{r pdp_gnm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_gnm1'}
-map(mod_gnm1_flat, pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
-              train = train_pred)
-```
-
-## observed vs. predicted
-
-Predicting on the data, for each model, and then again 
-on the data with 5 degrees added to MAT
-
-```{r}
-pred_gnm1 <- map2(mod_gnm1, dfs_train, predict_by_response)
-
-pred_gnm1_warm <- map2(mod_gnm1, dfs_test_warm, predict_by_response)
-
-```
-
-
-
-### Deciles
-
-Binning predictor variables into deciles and looking at the mean
-predicted probability for each decile.
-
-Then predicting on an identical dataset but with + 5C warmed MAT
-
-```{r gnm_deciles}
-
-pred_gnm1_deciles <- map(pred_gnm1, predvars2deciles, 
-                         response_vars = response_vars,
-                         pred_vars = pred_vars)
-
-pred_gnm1_deciles_warm <- map(pred_gnm1_warm, predvars2deciles, 
-                         response_vars = response_vars,
-                         pred_vars = pred_vars)
-
-map2(pred_gnm1_deciles, names(pred_gnm1_deciles), function(df, method) {
-  map(vars_prop, decile_dotplot, df = df, method = method, 
-      add_predicted = TRUE)
-})
-
-# same but with + 5 degrees of warming
-map2(pred_gnm1_deciles_warm, names(pred_gnm1_deciles_warm), function(df, method) {
-  map(vars_prop, decile_dotplot, df = df, method = method, 
-      add_predicted = TRUE, title = "data w/ +5 deg C warming")
-})
-
-```
-
-
-### Deciles Filtered 
-
-Filtered 'Decile' plots of data. These plots show each vegetation variable,
-but only based on data that falls into the upper and lower two deciles of
-each climate variable. 
-
-
-```{r gnm_deciles_filtered, fig.height = 6}
-
-pred_gnm1_deciles_filt <- map(pred_gnm1, predvars2deciles, 
-                         response_vars = response_vars,
-                         pred_vars = pred_vars,
-                         filter_var = TRUE)
-
-pred_gnm1_deciles_warm <- map(pred_gnm1_warm, predvars2deciles,
-                              response_vars = response_vars,
-                              pred_vars = pred_vars)
-
-map2(pred_gnm1_deciles_filt, names(pred_gnm1_deciles_filt), function(df, method) {
-  map(vars_prop, decile_dotplot_filtered, df = df, method = method)
-})
-
-```
-
-
 # Save output
 
 ```{r save_output}
@@ -772,10 +545,6 @@ map2(pred_gnm1_deciles_filt, names(pred_gnm1_deciles_filt), function(df, method)
 mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
 saveRDS(mods2save, "models/glm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
-
-mods2save_gnm <- mod_gnm1_flat
-mods2save_gnm$formula <- best_form_gnm1
-saveRDS(mods2save_gnm, "models/gnm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
 
 ```
 
