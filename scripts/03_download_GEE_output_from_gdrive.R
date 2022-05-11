@@ -61,6 +61,17 @@ for (i in 1:nrow(rap_files)) {
                  overwrite = TRUE)
 }
 
+
+# * human modification ----------------------------------------------------
+
+hMod_files <- files_biome %>%
+  filter(str_detect(name, '^HM_US')) 
+
+for (i in 1:nrow(hMod_files)) {
+  drive_download(file = hMod_files$id[i], 
+                 path = file.path("data_processed/human_mod", hMod_files$name[i]),
+                 overwrite = TRUE)
+}
 # * old data downloads below ----------------------------------------------
 
 # files masked to pastick et al fire probability data set
