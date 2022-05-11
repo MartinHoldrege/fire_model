@@ -79,6 +79,7 @@ var sw2Region = ee.Geometry.Polygon(
 
 Map.addLayer(region, {}, 'biome region', false);
 Map.addLayer(sw2Region, {}, "sw2Sim region", false);
+
 /************************************************
  * 
  * Prepare vegetation data
@@ -236,8 +237,16 @@ for (var i = 0; i < pfts.length; i++) {
 // shrub cover chart
 print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
-
-          
+/************************************************
+ * 
+ * Prepare human modification data
+ * 
+ ************************************************
+ */
+ 
+// at the moment looks like I only have access to the 2019 human modification file
+var hMod = ee.Image('users/DavidTheobald8/HM/HM_US_v3_dd_' + '2019' + '_90_60ssagebrush');
+Map.addLayer(hMod, {}, 'humanMod', false)
 
 /************************************************
  * 
@@ -274,7 +283,20 @@ var rapOutSw2 = bioMaxUnmasked
   .addBands(rapMaxUnmasked.select('SHR').rename('shrCoverMax'));
 
 // export to drive 
+// human modification dataset
+Export.image.toDrive({
+  image: hMod,
+  description: 'HM_US_v3_dd_2019_60ssagebrush_' + resolution + 'm' + maskString,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
 
+
+if (false) {
 // RAP data (unmasked) for the whole extent of stepwat2 upscaling
 Export.image.toDrive({
   image: rapOutSw2,
@@ -288,7 +310,7 @@ Export.image.toDrive({
 });
 
 
-if (false) {
+
 // sagebrush biome mask
 Export.image.toDrive({
   image: rapOut,
