@@ -395,6 +395,10 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
   
   if (add_predicted & add_rmse) {
     rmse_df <- rmse4dotplot(df = df, yvar = yvar)
+    
+    if(is.factor(df$name)){
+      rmse_df$name <- factor(rmse_df$name, levels = levels(df$name))
+    }
     caption = paste0(caption, 
                     "\nRMSE of quantile averages shown in each panel")
     g <- g +
