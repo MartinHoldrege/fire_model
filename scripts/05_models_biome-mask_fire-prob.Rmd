@@ -546,7 +546,7 @@ map2(pred_glm1_deciles_filt, names(pred_glm1_deciles_filt), function(df, method)
 # glm models
 mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
-saveRDS(mods2save, "models/glm_binomial_models_v3_afgAGB-prcpPropSum-interaction.RDS")
+saveRDS(mods2save, "models/glm_binomial_models_v4.RDS")
 
 ```
 

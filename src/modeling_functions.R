@@ -28,8 +28,10 @@ pdp_all_vars <- function(mod, mod_vars = NULL, ylab = NULL, ...) {
       ylab(ylab)
   })
   
-  
-  gridExtra::marrangeGrob(plots, nrow = 2, ncol = 2)
+  # giving layout matrix so that it fills by row, not column
+  gridExtra::marrangeGrob(plots, nrow = 2, ncol = 2,
+                          layout_matrix = matrix(seq_len(4), nrow = 2, ncol = 2,
+                                 byrow = TRUE))
 }
 
 #' partial dependence plots for a list of RF models

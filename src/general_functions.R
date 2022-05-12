@@ -280,8 +280,8 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE) {
     select(-cdf) %>% 
     unnest(cols = c("data", "percentile")) %>% 
     group_by(across(all_of(group_vars))) %>% 
-    mutate(decile = cut(percentile, seq(0, 1, 0.005),
-                        labels = 1:200)) %>% 
+    mutate(decile = cut(percentile, seq(0, 1, 0.01),
+                        labels = 1:100)) %>% 
     # calculate mean of response variables for each decile of each predictor
     # variable
     group_by(across(all_of(c(group_vars, 'decile')))) %>% 

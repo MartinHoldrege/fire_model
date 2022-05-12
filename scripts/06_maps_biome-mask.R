@@ -64,11 +64,11 @@ rasts_sw2_clim_list <- map(paths_sw2_clim, rast)
 
 # (these objects are very large ~2Gb)
 
-glm_mods1 <- readRDS("models/glm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
+glm_mods1 <- readRDS("models/glm_binomial_models_v4.RDS")
 
 # generalized non-linear models.
 #non-linear term fit for afg
-gnm_mods1 <- readRDS("models/gnm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
+# gnm_mods1 <- readRDS("models/gnm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
 # * sw2 biomass -----------------------------------------------------------
 
 rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_future_median_across_GCMs.tif")
@@ -84,7 +84,8 @@ rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_f
 # glm models and the other for the gnms
 
 # list of list of models
-mods1 <- list(glm = glm_mods1, gnm = gnm_mods1) 
+# mods1 <- list(glm = glm_mods1, gnm = gnm_mods1) 
+mods1 <- list(glm = glm_mods1) 
 mod_types <- names(mods1)
 formulas <- map(mods1, function(x) x$formula) # string of the model formula
 mods2 <- map(mods1, function(x) {
@@ -363,26 +364,22 @@ get_endices <- function(type, method) {
   which(all_mod_names$type == type &  str_detect(all_mod_names$mod, method))
 }
 
-pdf("figures/maps_fire_prob/fire_prob_biome-mask_v4_afgAGB-MAP_inter.pdf",
+pdf("figures/maps_fire_prob/fire_prob_biome-mask_v5.pdf",
     width = 8, height = 7)
   # paint method
 
   tmap_arrange(maps_fire[[1]], ncol = 2) # observed
   tmap_arrange(pred_maps[get_endices('glm', 'paint')]) # predicted
   tmap_arrange(pred_sw2_maps[get_endices('glm', 'paint')]) # predicted
-  tmap_arrange(pred_maps[get_endices('gnm', 'paint')]) # predicted
-  tmap_arrange(pred_sw2_maps[get_endices('gnm', 'paint')]) # predicted
   # reduceToImage method
   tmap_arrange(maps_fire[[2]], ncol = 2) # observed
   tmap_arrange(pred_maps[get_endices('glm', 'reduceToImage')]) # predicted
   tmap_arrange(pred_sw2_maps[get_endices('glm', 'reduceToImage')]) # predicted
-  tmap_arrange(pred_maps[get_endices('gnm', 'reduceToImage')]) # predicted
-  tmap_arrange(pred_sw2_maps[get_endices('gnm', 'reduceToImage')]) # predicted
   pred_hists
   pred_sw2_hists
 dev.off()
 
-jpeg("figures/maps_fire_prob/mtbs_observed_predicted_maps_v1.jpeg",
+jpeg("figures/maps_fire_prob/mtbs_observed_predicted_maps_v2.jpeg",
      width = 8, height = 3.2, res = 600, units = 'in')
   tmap_arrange(maps_fire$paint[[1]], pred_maps[[1]], nrow = 1)
 dev.off()
@@ -406,7 +403,7 @@ plot(r_frac)
 # * RAP maps ----------------------------------------------------------------
 # rangeland analysis platform biomass and cover data
 
-title <- "\nMedian values (1984-2019)"
+title <- "\nMedian values (1986-2019)"
 
 breaks_bio1 <- c(0, 10, 20, 50, 100, 200, 300)
 palette_bio1 <- RColorBrewer::brewer.pal(length(breaks_bio1), 'YlGn')
