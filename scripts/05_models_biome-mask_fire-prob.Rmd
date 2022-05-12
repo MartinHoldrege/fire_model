@@ -298,7 +298,9 @@ set.seed(1234)
 # at pixils with high afgaGB and high MAP. perentheses around interaction
 # term are included so that glms_iterate_transforms doesn't transform
 # the interaction term. 
-pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)")
+pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
+                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
+
 mods_glm_mtbs1 <- glms_iterate_transforms(
   preds = pred_vars_inter, 
   df = dfs_train$paint[ , ],
@@ -544,7 +546,7 @@ map2(pred_glm1_deciles_filt, names(pred_glm1_deciles_filt), function(df, method)
 # glm models
 mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
-saveRDS(mods2save, "models/glm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
+saveRDS(mods2save, "models/glm_binomial_models_v3_afgAGB-prcpPropSum-interaction.RDS")
 
 ```
 
