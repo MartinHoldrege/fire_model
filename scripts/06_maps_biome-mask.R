@@ -120,6 +120,20 @@ rasts_pred1 <- map_depth(mod_preds1, .depth = 2, function(x) {
 rasts_pred2 <- map(rasts_pred1, rast)
 
 
+# **+5c prediction --------------------------------------------------------
+# predicted fire probability for +5c 
+
+df_biome5c <- dfs_biome0$paint
+df_biome5c$MAT <- df_biome5c$MAT + 5
+
+pred_5c <- predict(mods1$glm$paint_mtbs, newdata = df_biome5c, 
+                   type = 'response')
+r_pred_5c <- empty
+r_pred_5c[] <- pred_5c
+
+# difference in predicted fire probabilyt, current vs + 5C
+r_delta_5c <- r_pred_5c - rasts_pred2$glm$paint_mtbs
+
 # * sw2sim extent ---------------------------------------------------------
 # predictions, given stepwat simulation output as predictor variables
 
@@ -220,6 +234,21 @@ all_mod_names <- expand_grid(
   mod = map(rasts_sw2_pred1, names) %>% unlist() %>% unique()
 )
 
+
+# scatterplots ------------------------------------------------------------
+
+
+# * delta 5c --------------------------------------------------------------
+
+jpeg("figures/delta_fire-prob_vs_MAT_v1.jpeg")
+plot(dfs_biome0$paint$MAT - 273.15, as.numeric(values(r_delta_5c)),
+     ylab = "Delta fire probability", 
+     xlab = 'MAT (deg C)',
+     main = "Change in predicted fire probability with 5C warming")
+dev.off()
+
+hist(as.numeric(values(r_delta_5c)),
+     main = "Change in predicted fire probability with 5C warming")
 # maps --------------------------------------------------------------------
 
 tmap_mode("plot")
@@ -325,7 +354,7 @@ pred_sw2_hists <- map(mod_types, function(x) {
 #pred_sw2_hists
 
 # ***maps -----------------------------------------------------------------
-# creating maps of both glm and gnm predictions
+# creating maps of both glm predictions
 breaks_prob <- c(seq(0, 0.02, .002), 0.2)
 
 # sagebrush biome
@@ -357,6 +386,28 @@ pred_sw2_maps <- pmap(all_mod_names, function(type, mod) {
   out
 })
 
+# predicted for + 5c (sagebrush extent)
+tm_5c = tm_shape(r_pred_5c, bbox = bbox) +
+  tm_raster(breaks = breaks_prob, 
+            title = 'fire probability') +
+  base +
+  tm_layout(main.title = 'Predicted fire probability for +5C',
+            main.title.size = 0.5)
+
+breaks_delta <- c(-0.04, -.02, -.01, -.005, -.004, -.003, -.002, -0.001, 0, 
+                  rev(c(.01, .003, .002, 0.001)))
+cols_delta <- c(rev(brewer.pal(8, 'OrRd')),
+                brewer.pal(7, 'YlGn')[-(1:3)])
+
+# change in fire probabilyt with 5 c warming
+tm_delta = tm_shape(r_delta_5c, bbox = bbox) +
+  tm_raster(title = 'Delta probability',
+            breaks = breaks_delta,
+            palette = cols_delta) +
+  base +
+  tm_layout(main.title = 'Change fire probability with 5C warming',
+            main.title.size = 0.5)
+
 # ** combine into multi panel map ------------------------------------------
 
 # get endices of model types, for map order below
@@ -383,6 +434,13 @@ jpeg("figures/maps_fire_prob/mtbs_observed_predicted_maps_v2.jpeg",
      width = 8, height = 3.2, res = 600, units = 'in')
   tmap_arrange(maps_fire$paint[[1]], pred_maps[[1]], nrow = 1)
 dev.off()
+
+jpeg("figures/maps_fire_prob/mtbs_observed_predicted_maps_v2_5c.jpeg",
+     width = 8, height = 6.5, res = 600, units = 'in')
+tmap_arrange(maps_fire$paint[[1]], pred_maps[[1]],
+             tm_5c, tm_delta, nrow = 2)
+dev.off()
+
 
 # * examine cover ---------------------------------------------------------
 # the cover dataset has some values that are x.5% values, but
