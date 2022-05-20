@@ -92,8 +92,10 @@ Now the training dataset is all the data.
 set.seed(1234)
 pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
+# so that herbAGB is in the final dataframes
+pred_vars2 <- unique(c(pred_vars, 'herbAGB'))
 # predictor vars are the same in both dfs
-df_pred <- dfs_biome3[[1]][, pred_vars]
+df_pred <- dfs_biome3[[1]][, pred_vars2]
 # n = 10000 # for testing
 n = nrow(dfs_biome3[[1]]) # fit models on all the data
          
@@ -121,7 +123,7 @@ dfs_test <- map(dfs_biome3, function(df) as.data.frame(df[rows_test, ]))
 # all variables (transformed or not, that could be predictor vars)
 all_pred_vars <- names(dfs_biome3[[1]]) %>% 
   str_subset(pattern = paste0("(", 
-                              paste0(pred_vars, collapse = ")|("), 
+                              paste0(pred_vars2, collapse = ")|("), 
                               ")")
              )
 train_pred <- dfs_train[[1]][, all_pred_vars]
@@ -339,21 +341,6 @@ Response variables are the proportion of years in which fires occurred.
 Using best model formula selected in the previous step
 
 ```{r fit_glm1, dependson='iterate_transform'}
-
-
-
-#best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):MAT + I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + prcpPropSum*MAT + I(pfgAGB^2):prcpPropSum"
-
-# best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover  + poly(MAP,2)  + I(pfgAGB^2):prcpPropSum + MAT"
-# 
-# best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + I(pfgAGB^2):prcpPropSum"
-# 
-# best_form <- "~ poly(afgAGB,2)+ I(afgAGB^2):prcpPropSum +  poly(pfgAGB,2) + shrCover + MAT:I(MAP^2) + poly(MAP,2) + I(pfgAGB^2):prcpPropSum + prcpPropSum"
-
-# this is the formula we used at the end of the denver meeting
-
-#best_form <- "~ poly(afgAGB,2) + poly(pfgAGB,2) + shrCover + MAT + poly(MAP,2) + prcpPropSum"
-
 
 best_form <- mods_glm_mtbs1$final_formula %>% 
   str_replace(".+(?=~)", "") # remove everything before ~ (i.e. response var)

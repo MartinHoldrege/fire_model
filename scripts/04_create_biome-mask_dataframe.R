@@ -97,6 +97,7 @@ shrCover3 <- round(shrCover2)
 df_biome0 <- tibble(
   afgAGB = as.vector(values(rast_rap1$afgAGB)), # biomass of annuals
   pfgAGB = as.vector(values(rast_rap1$pfgAGB)), # biomass of perennials
+  herbAGB = afgAGB + pfgAGB, # total herbaceous biomass
   # rounding because a small subset cells has decimal cover (x.5%),
   # but must are integers (and this causes problems with percentiles)
   shrCover = shrCover3, # cover of shrubs
