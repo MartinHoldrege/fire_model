@@ -41,6 +41,7 @@ RAP data
 r_rap1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1984-2019_med-max_1000m_sw2sim-extent_v1.tif")
 names(r_rap1)
 
+
 # grabbing this to use as a mask for ths sw2sim-extent data
 r_rap_biome1 <- rast("data_processed/RAP/RAP_afgAGB-pfgAGB-shrCover_1984-2019_median_1000m_sagebrush-biome-mask_v1.tif")
 ```
@@ -83,6 +84,11 @@ r_core1 <- r_c9
 # values from 1 to 3 will become 1, others become NA
 r_core2 <- classify(r_core1, 
                     rcl =matrix(c(0.5, 3.5, 1), byrow = TRUE, nrow = 1),
+                    othersNA = TRUE)
+
+# core areas are 1, growth areas are 2
+r_core_grow1 <- classify(r_core1, 
+                    rcl =matrix(c(0.5, 3.5, 1, 3.5, 6.5, 2, 6.5, 9.5, 3), byrow = TRUE, nrow = 3),
                     othersNA = TRUE)
 plot(r_core2)
 ```
@@ -152,9 +158,53 @@ df2 <- drop_na(df1)
 remove('df1')
 
 ```
+## biome mask--for AGB by SEI
+
+Compiling RAP data, with SEI categorizating for the given pixel. 
+Note this is doen at 1km resolution, so some inaccuracies will exist. 
+
+```{r}
+
+# r_rap_biome1 has slightly different resolution than the other 
+# rasters, so resampling to the same resolution
+# Note--this resampling does change which locations are masked out--slightly
+r_core_grow1 <- resample(r_core_grow1, r_rap_biome1)
+
+r_core_grow2 <- crop(r_core_grow1, r_rap_biome1)
+
+df_agb_sei1 <- tibble(
+  SEI = as.vector(values(r_core_grow2)),
+  afgAGB = as.vector(values(r_rap_biome1[['afgAGB']])),
+  pfgAGB = as.vector(values(r_rap_biome1[['pfgAGB']]))
+)
+
+df_agb_sei2 <- df_agb_sei1 %>% 
+  mutate(SEI = case_when(SEI == 1 ~ "Core",
+                         SEI == 2 ~ "Growth",
+                         SEI == 3 ~ "Other")) %>% 
+  filter(!is.na(SEI))
+```
+
+# Histograms (RAP by SEI)
+
+```{r}
+g <- ggplot(df_agb_sei2) +
+  facet_wrap(~SEI, nrow = 2, scales = 'free_y') +
+  labs(caption = "RAP data across the Doherty et al. sagebrush biome mask,
+       grouped by SEI classification")
+
+g + 
+  geom_histogram(aes(x = afgAGB), bins = 200) + 
+  coord_cartesian(xlim = c(0, 50))
+g + 
+  geom_histogram(aes(x = pfgAGB), bins = 200) + 
+  coord_cartesian(xlim = c(0, 150))
+
+```
 
 
-# Exploratory Analysis
+
+# Exploratory Analysis--RAP vs SW2
 
 ```{r message = FALSE}
 df3 <- df2 %>% 
