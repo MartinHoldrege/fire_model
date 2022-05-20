@@ -1,0 +1,186 @@
+---
+title: "Models of fire probability for the sagebrush biome"
+subtitle: "Resampled/stratified data"
+author: "Martin Holdrege"
+date: "`r lubridate::today()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE)
+```
+
+# Dependencies 
+
+Sourcing the script that creates a dataframe of historical
+fore occurrence, as well as biotic and climate
+predictors for those same grid-cells. 
+
+```{r source_data, warning=FALSE, message=FALSE, cache = TRUE}
+source("scripts/04_create_biome-mask_dataframe.R")
+```
+
+```{r warning=FALSE, message=FALSE}
+source("src/general_functions.R")
+source("src/fig_params.R")
+source("src/modeling_functions.R")
+source("src/resample_functions.R")
+library(randomForest)
+library(tidyverse)
+library(margins) # for cplot()
+library(GGally) # for ggpairs()
+library(gnm) # generalized non-linear models
+library(pdp) # for partial dependence plots
+library(splines) # for ns() (splines) inside formulas of glm()
+library(gridExtra)
+library(knitr)
+theme_set(theme_classic())
+```
+
+
+# Prep data
+
+```{r prep_data, cache=TRUE}
+
+# converting a fire count into a factor (true if at least 1 fire occured)
+occur_factor <- function(nfire){
+  factor(nfire > 0, levels = c("TRUE", "FALSE"))
+}
+dfs_biome3 <- map(dfs_biome2, function(df) {
+  out <- df %>% 
+  # probability of fire in a given year
+    mutate(# number of years the mtbs count data corresponds to (for binomial glm)
+           # all count datasets (mtbs and ifph) are 35 years (change if updated)
+           mtbs_n = 36, 
+           # proportion of years with fires
+           mtbs_prop = nfire_mtbs/mtbs_n,
+           ifph_prop = nfire_ifph/mtbs_n,
+           comb_prop = nfire_comb/mtbs_n,
+           lba_prop = nfire_lba/mtbs_n
+           ) %>% 
+    # creating true/false occurrence cols for each datasets
+    mutate(across(matches("^nfire_"), .fns = list(occur = occur_factor),
+                  .names = "{.fn}_{.col}")) %>% 
+    rename_with(.fn = str_replace, .cols = matches("^occur_"),
+                pattern = "_nfire", replacement = "")
+})
+
+method <- names(dfs_biome3)
+names(method) <- method
+
+# Create transformed variables
+dfs_biome3 <- map(dfs_biome3, function(df) {
+  df %>% 
+    mutate(afgAGB_sqrt = sqrt(afgAGB),
+           afgAGB_ln = log(afgAGB),
+           prcpPropSum_exp = exp(prcpPropSum),
+           prcpPropSum_sqrt = sqrt(prcpPropSum),
+           prcpPropSum_sq = prcpPropSum^2,
+           MAP_sqrt = sqrt(MAP))
+})
+```
+
+```{r}
+set.seed(1234)
+pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
+names(pred_vars) <- pred_vars
+# so that herbAGB is in the final dataframes
+pred_vars2 <- unique(c(pred_vars, 'herbAGB'))
+
+# predictor vars are the same in both dfs
+df_pred <- dfs_biome3[[1]][, pred_vars2]
+```
+
+
+## Bin data
+
+```{r}
+df_pred_bin1 <- bin_df(df_pred, cols = pred_vars)
+head(df_pred_bin1)
+```
+
+
+## training data
+
+Note--previously a small sample for now to make model fitting quicker.
+Now the training dataset is all the data.
+
+```{r train, dependson='prep_data', cache = TRUE}
+
+
+# n = 10000 # for testing
+n = nrow(dfs_biome3[[1]]) # fit models on all the data
+         
+row_nums <- 1:nrow(dfs_biome3[[1]])
+rows_train <- sample(row_nums, size = n, replace = FALSE)
+
+# rows for test dataset
+# note set up this way, in case the training
+# dataset is all the data
+rows2sample <- if(n == length(rows_train)) {
+  row_nums
+} else {
+  row_nums[!row_nums %in% rows_train]
+}
+
+# rows used in testing dataset
+rows_test <- sample(rows2sample, size = 40000, replace = FALSE)
+
+# selecting rows this was so both dataframes in list have same rows
+# and differences in models will only be b/ of differences in response
+
+dfs_train <- map(dfs_biome3, function(df) as.data.frame(df[rows_train, ]))
+dfs_test <- map(dfs_biome3, function(df) as.data.frame(df[rows_test, ]))
+
+# all variables (transformed or not, that could be predictor vars)
+all_pred_vars <- names(dfs_biome3[[1]]) %>% 
+  str_subset(pattern = paste0("(", 
+                              paste0(pred_vars2, collapse = ")|("), 
+                              ")")
+             )
+train_pred <- dfs_train[[1]][, all_pred_vars]
+test_pred <- dfs_test[[1]][, all_pred_vars]
+```
+
+# Explore bins
+
+Number of unique bins
+
+```{r}
+df_pred_bin1$bin_all %>% 
+  unique %>% 
+  length()
+
+```
+
+The 10 bins with the most 
+
+```{r}
+n_per_bin_table <- table(df_pred_bin1$bin_all)
+
+n_per_bin <- as.vector(n_per_bin_table)
+
+summary(n_per_bin)
+names(n_per_bin) <- dimnames(n_per_bin_table)[[1]]
+
+
+sort(n_per_bin, decreasing = TRUE)[1:10]
+```
+
+Histograms of the number of observations per bin
+
+```{r}
+  hist(n_per_bin, breaks = 200,
+       main = 'number of observations in each multi-dimensional bin',
+       xlab = "Number of observations in bin")
+
+  hist(n_per_bin[n_per_bin < 100], breaks = 100,
+       main = 'number of observations in each multi-dimensional bin \n(xlim restricted)',
+       xlab = "Number of observations in bin")
+```
+
+
