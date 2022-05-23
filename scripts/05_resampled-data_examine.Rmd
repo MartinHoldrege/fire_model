@@ -1,0 +1,220 @@
+---
+title: "Resampling observed fire probability data from the sagebrush biome"
+author: "Martin Holdrege"
+date: "`r lubridate::today()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+Here the training data is resampled to be more balanced (i.e., upsampling
+bins of rare data, downsampling bins of common data). 
+
+Note a concern with the up-sampling is that many bins start with only one
+datapoint in them, which is then repeated many times in the resampled datset.
+Apparently, having duplicated points like this can increase the risk of 
+over-fitting. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache.lazy = FALSE,
+                      message = FALSE)
+```
+
+# Dependencies 
+
+Sourcing the script that creates a dataframe of historical
+fore occurrence, as well as biotic and climate
+predictors for those same grid-cells. 
+
+```{r source_data, warning=FALSE, message=FALSE}
+source("scripts/04_create_biome-mask_dataframe.R")
+```
+
+```{r warning=FALSE, message=FALSE}
+source("src/general_functions.R")
+source("src/modeling_functions.R")
+source("src/resample_functions.R")
+theme_set(theme_classic())
+```
+
+
+# Prep data
+
+```{r prep_data}
+
+method <- names(dfs_biome3)
+names(method) <- method
+
+```
+
+```{r}
+set.seed(1234)
+pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
+names(pred_vars) <- pred_vars
+# so that herbAGB is in the final dataframes
+pred_vars2 <- unique(c(pred_vars, 'herbAGB' = 'herbAGB'))
+
+# predictor vars are the same in both dfs
+df_pred <- dfs_biome3[[1]][, pred_vars2]
+```
+
+
+## Bin data
+
+```{r}
+dfs_bin <- list()
+dfs_bin$bin3 <- bin_df(dfs_biome3$paint, cols = pred_vars,
+                        n_categories = 3)
+dfs_bin$bin5 <- bin_df(dfs_biome3$paint, cols = pred_vars,
+                        n_categories = 5)
+
+dfs_bin$bin10 <- bin_df(dfs_biome3$paint, cols = pred_vars,
+                        n_categories = 10)
+
+dfs_bin$bin20 <- bin_df(dfs_biome3$paint, cols = pred_vars,
+                        n_categories = 20)
+```
+
+## Explore bins
+
+Number of unique bins
+
+```{r}
+n_bins <- map_dbl(dfs_bin, function(df){ 
+  df$bin_all %>% 
+    unique %>% 
+    length()
+  })
+n_bins
+
+```
+
+Percent of total possible number of bins filled
+
+```{r}
+(n_bins/c(3^5, 5^5, 10^5, 20^5)*100) %>% 
+  round()
+```
+
+
+Number of observations per bin
+
+```{r}
+n_per_bin <- map(dfs_bin, function(df) {
+  as.vector(table(df$bin_all))
+})
+
+map(n_per_bin, summary)
+```
+
+
+## Resample data
+
+Resampling multiple times, to get a sense for the variability
+between random draws
+
+```{r resample, message = FALSE}
+
+samples <- letters[1:3]
+
+dfs_resampled <- list()
+
+for(x in samples) {
+  dfs_resampled[[x]] <- map(dfs_bin, resample_bins)
+}
+
+dfs_resampled <- flatten_rename(dfs_resampled)
+
+```
+
+
+# Quantile plots
+
+Calculating mean values per percentile of each predictor variable, for both
+the original data and the resampled data
+
+```{r}
+
+response_vars <- "mtbs_prop"
+deciles_obs <- predvars2deciles(dfs_biome3$paint, 
+                               response_vars = response_vars,
+                               pred_vars = pred_vars) %>% 
+  mutate(resample = "Original data")
+
+deciles_resampled1 <- map_dfr(dfs_resampled, predvars2deciles,
+                         response_vars = response_vars,
+                         pred_vars = pred_vars,
+                         .id = 'resample')
+
+deciles_comb <- bind_rows(deciles_obs,
+                          deciles_resampled1) %>% 
+  mutate(replicate = str_extract(resample, "^[a-z](?=_)"),
+         type = str_replace(resample, "^[a-z]_", ""))
+deciles_comb %>% 
+  arrange(mean_value)
+
+```
+
+creating the plots.
+
+Note multiple lines per type, shows the multiple random samplings,
+which are all almost identical. 
+
+```{r, fig.height=8, fig.width = 9}
+
+# colors--I don't like the lightest color, so not using it
+cols <- RColorBrewer::brewer.pal(length(dfs_bin) + 1, "YlOrBr")[-1]
+names(cols) <- names(dfs_bin)
+cols <- c("Original data" = "black",
+          cols)
+
+decile_base <- function(x) {
+  list(    
+    facet_wrap(~name, scales = 'free_x'),
+  labs(x = "mean of quantile of predictor variable",
+       y = "Observed fire probability (mtbs)",
+       subtitle = "Original and resampled data",
+       caption = "bin(n) refers to the number of bins each
+       predictor variable was split into"),
+  theme(legend.position = 'top',
+        legend.title = element_blank()),
+  scale_color_manual(
+    values = cols))
+
+}
+
+g <- ggplot(deciles_comb, aes(x = mean_value, y = mtbs_prop,
+            color = type, group = resample)) +
+   geom_smooth(se = FALSE, size =0.75) +
+   decile_base() 
+  
+g
+```
+
+Decile plots showing points for just a single bin size at a time
+
+```{r, fig.height=7, fig.width = 8}
+
+bin_names <- deciles_resampled1$resample %>% 
+  unique() %>% 
+  str_subset("^a_")
+
+for(x in bin_names) {
+  print(x)
+  df <- deciles_comb %>% 
+    filter(resample %in% c("Original data", x))
+  
+  g <- ggplot(df, aes(x = mean_value, y = mtbs_prop,
+            color = type, group = resample)) +
+   geom_smooth(se = FALSE, size =0.75) +
+    geom_point() +
+    decile_base() 
+  
+  print(g)
+  
+}
+
+```
+

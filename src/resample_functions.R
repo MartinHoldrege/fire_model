@@ -4,7 +4,7 @@
 # variables, to try and deal with the imbalence problem. 
  
 library(tidyr)
-
+library(dplyr)
 
 #' Bin values into n equal sized bins
 #' 
@@ -71,5 +71,41 @@ bin_df <- function(df, cols, n_categories = 10) {
   }
   out <- unite(out, col = 'bin_all', all_of(new_cols), 
                sep = "_")
+  out
+}
+
+
+#' Re-sample df based on bins
+#' 
+#' @param df data frame (output from bin_df())
+#'
+#' @return df with ~ same num of rows as the input, but each unique bin_all
+#' value has the same number of rows
+#' @example 
+#' n = 40
+#' df <- tibble(
+#'   x3 = runif(n),
+#'   x4 = 3*x3 + runif(n, 0, 0.01)
+#' )
+#' df2 <- bin_df(df, names(df))
+#' resample_bins(df2)
+#' 
+#' 
+resample_bins <- function(df) {
+  
+  stopifnot(
+    "bin_all" %in% names(df)
+  )
+  
+  n_bins <- length(unique(df$bin_all))
+  n_obs <- nrow(df)
+  
+  out <- df %>% 
+    group_by(bin_all) %>% 
+    slice_sample(
+      # making each bin the same size so end up with
+      # ~ as many rows as the original dataset
+      n = round(n_obs/n_bins),
+      replace = TRUE)
   out
 }
