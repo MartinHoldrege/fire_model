@@ -123,3 +123,28 @@ dfs_biome0 <- map(rasts_fPerPixel, function(r) {
 # were masked)
 dfs_biome2 <- map(dfs_biome0, drop_na)
 
+# calculate observed fire probability -------------------------------------
+
+# converting a fire count into a factor (true if at least 1 fire occured)
+occur_factor <- function(nfire){
+  factor(nfire > 0, levels = c("TRUE", "FALSE"))
+}
+
+dfs_biome3 <- map(dfs_biome2, function(df) {
+  out <- df %>% 
+    # probability of fire in a given year
+    mutate(# number of years the mtbs count data corresponds to (for binomial glm)
+      # all count datasets (mtbs and ifph) are 35 years (change if updated)
+      mtbs_n = 36, 
+      # proportion of years with fires
+      mtbs_prop = nfire_mtbs/mtbs_n,
+      ifph_prop = nfire_ifph/mtbs_n,
+      comb_prop = nfire_comb/mtbs_n,
+      lba_prop = nfire_lba/mtbs_n
+    ) %>% 
+    # creating true/false occurrence cols for each datasets
+    mutate(across(matches("^nfire_"), .fns = list(occur = occur_factor),
+                  .names = "{.fn}_{.col}")) %>% 
+    rename_with(.fn = str_replace, .cols = matches("^occur_"),
+                pattern = "_nfire", replacement = "")
+})
