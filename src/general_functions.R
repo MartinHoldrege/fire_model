@@ -431,9 +431,13 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
 #' predvars2deciles with the filter_var argument set to TRUE
 #' @param method string, to be pasted into subtitle (method used to convert
 #' polygons to rasters)
+#' @param add_smooth logical--whether to add splines
+#' @param title plot title
+#' @param size size of points
 #' @param ylab string--y axis label
 decile_dotplot_filtered <- function(yvar, df, method, ylab = 'fire probability (per year)',
-                           add_predicted = FALSE, title = NULL,
+                           add_smooth = FALSE,
+                           title = NULL,
                            size = 0.75) {
   df2 <- df %>% 
     filter(name %in% c("afgAGB", "pfgAGB", "herbAGB")) %>% 
@@ -466,6 +470,11 @@ decile_dotplot_filtered <- function(yvar, df, method, ylab = 'fire probability (
                         values = c("#f03b20","#feb24c", "#0570b0", "#74a9cf"))+
     scale_shape_manual(name = 'percentile_category',
                        values = c(19, 17, 19, 17))
+  if(add_smooth) {
+    g <- g +
+      geom_smooth(aes(color = percentile_category),
+                  se = FALSE)
+  }
   g
 }
 

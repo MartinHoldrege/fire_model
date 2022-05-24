@@ -66,6 +66,8 @@ names(pred_vars) <- pred_vars
 # so that herbAGB is in the final dataframes
 pred_vars2 <- unique(c(pred_vars, 'herbAGB'))
 
+dfs_biome3_orig <- dfs_biome3 # dfs_biome is resampled below
+
 # predictor vars are the same in both dfs
 df_pred <- dfs_biome3[[1]][, pred_vars2]
 ```
@@ -154,7 +156,7 @@ Now the training dataset is all the data.
 ```{r train, dependson='prep_data', cache = TRUE}
 
 
-# n = 10000 # for testing
+#n = 10000 # for testing
 n = nrow(dfs_biome3[[1]]) # fit models on all the data
          
 row_nums <- 1:nrow(dfs_biome3[[1]])
@@ -505,8 +507,9 @@ g +
 
 ### Deciles
 
-Binning predictor variables into deciles (actually 0.5 percentiles) and looking at the mean
-predicted probability for each decile.
+Binning predictor variables into deciles (actually percentiles) and looking at the mean
+predicted probability for each percentile. The use of the word deciles
+is just a legacy thing (they started out being actual deciles)
 
 Then predicting on an identical dataset but with warming
 
@@ -564,6 +567,28 @@ map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
 
 ```
 
+### Deciles--original data
+
+Observed/predicted quantiles for the original (non resampled) dataset
+
+```{r}
+
+# just doing for $paint method data
+pred_glm_orig <- map2(mod_glm1[1], dfs_biome3_orig[1], predict_by_response)
+
+pred_glm_deciles_orig <- map(pred_glm_orig, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars)
+
+
+map2(pred_glm_deciles_orig[1], names(pred_glm_deciles_orig)[1], function(df, method) {
+  map(vars_prop, decile_dotplot, df = df, method = method, 
+      add_predicted = TRUE, title = "Original data")
+})
+```
+
+
+
 ### Deciles Filtered 
 
 Filtered 'Decile' plots of data. These plots show each vegetation variable,
@@ -571,7 +596,7 @@ but only based on data that falls into the upper and lower two deciles of
 each climate variable. 
 
 
-```{r glm_deciles_filtered, fig.height = 6}
+```{r glm_deciles_filtered, fig.height = 6, message = FALSE}
 
 pred_glm1_deciles_filt <- map(pred_glm1, predvars2deciles, 
                          response_vars = response_vars,
@@ -583,11 +608,32 @@ pred_glm1_deciles_warm <- map(pred_glm1_warm, predvars2deciles,
                               pred_vars = pred_vars)
 
 map2(pred_glm1_deciles_filt, names(pred_glm1_deciles_filt), function(df, method) {
-  map(vars_prop, decile_dotplot_filtered, df = df, method = method)
+  map(vars_prop, decile_dotplot_filtered, df = df, method = method,
+      add_smooth = TRUE)
 })
 
 ```
 
+
+### Deciles Filtered --Orig
+
+Filtered deciles for values predicted on the original data.
+
+
+```{r glm_orig_deciles_filtered, fig.height = 6}
+
+# just runningfor the paint method data 
+pred_glm_orig_deciles_filt <- map(pred_glm_orig[1], predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars,
+                         filter_var = TRUE)
+
+map2(pred_glm_orig_deciles_filt, names(pred_glm_orig_deciles_filt), function(df, method) {
+  map(vars_prop, decile_dotplot_filtered, df = df, method = method,
+      title = "Original (not resampled) data")
+})
+
+```
 
 # Save output
 
