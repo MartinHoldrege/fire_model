@@ -47,6 +47,7 @@ theme_set(theme_classic())
 method <- names(dfs_biome3)
 names(method) <- method
 
+# dfs_biome3 <- map(dfs_biome3, slice_sample, n = 1000) # for testing
 ```
 
 ```{r}
@@ -54,8 +55,8 @@ set.seed(1234)
 pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
 # so that herbAGB is in the final dataframes
-pred_vars2 <- unique(c(pred_vars, 'herbAGB' = 'herbAGB'))
-
+pred_vars2 <- c("afgAGB", "pfgAGB", 'herbAGB', "MAT", "MAP", "prcpPropSum")
+names(pred_vars2) <- pred_vars2
 # predictor vars are the same in both dfs
 df_pred <- dfs_biome3[[1]][, pred_vars2]
 ```
@@ -65,16 +66,15 @@ df_pred <- dfs_biome3[[1]][, pred_vars2]
 
 ```{r}
 dfs_bin <- list()
-dfs_bin$bin3 <- bin_df(dfs_biome3$paint, cols = pred_vars,
-                        n_categories = 3)
-dfs_bin$bin5 <- bin_df(dfs_biome3$paint, cols = pred_vars,
-                        n_categories = 5)
+bin_values <- c(5, 10, 20, 29)
+bin_names <- paste0("bin", bin_values)
 
-dfs_bin$bin10 <- bin_df(dfs_biome3$paint, cols = pred_vars,
-                        n_categories = 10)
+names(bin_values) <- bin_names
+dfs_bin <- map(bin_values, function(x) {
+  bin_df(dfs_biome3$paint, cols = pred_vars,
+                        n_categories = x)
+})
 
-dfs_bin$bin20 <- bin_df(dfs_biome3$paint, cols = pred_vars,
-                        n_categories = 20)
 ```
 
 ## Explore bins
@@ -94,8 +94,8 @@ n_bins
 Percent of total possible number of bins filled
 
 ```{r}
-(n_bins/c(3^5, 5^5, 10^5, 20^5)*100) %>% 
-  round()
+(n_bins/(bin_values^5)*100) %>% 
+  round(1)
 ```
 
 
@@ -106,13 +106,21 @@ n_per_bin <- map(dfs_bin, function(df) {
   as.vector(table(df$bin_all))
 })
 
+
+
 map(n_per_bin, summary)
 ```
 
+Percent of bins with 1 observation
+
+```{r}
+map_dbl(n_per_bin, function(x) mean(x ==1)*100)
+
+```
 
 ## Resample data
 
-Resampling multiple times, to get a sense for the variability
+Re-sampling multiple times, to get a sense for the variability
 between random draws
 
 ```{r resample, message = FALSE}
@@ -197,11 +205,8 @@ Decile plots showing points for just a single bin size at a time
 
 ```{r, fig.height=7, fig.width = 8}
 
-bin_names <- deciles_resampled1$resample %>% 
-  unique() %>% 
-  str_subset("^a_")
-
-for(x in bin_names) {
+bin_names_a <- paste0("a_", bin_names)
+for(x in bin_names_a) {
   print(x)
   df <- deciles_comb %>% 
     filter(resample %in% c("Original data", x))
@@ -217,4 +222,44 @@ for(x in bin_names) {
 }
 
 ```
+
+# Histograms
+
+Combining into a single dataframe. (only using one random sample of
+the bin resampling)
+
+```{r }
+
+# grabbing just the first random sample
+df_comb <- dfs_resampled[bin_names_a] %>% 
+  # selecting certain rows just resulting dataframe is smaller
+  map(function(df) df[pred_vars2]) %>% 
+  bind_rows(.id = "resample") %>% 
+  mutate(resample = str_replace(resample, "a_", "")) %>% 
+  bind_rows(dfs_biome3$paint[pred_vars2] %>% 
+              mutate(resample = "Original data")) %>% 
+  mutate(resample = factor(resample, levels = names(cols)))
+
+comb_means <- df_comb %>% 
+  group_by(resample) %>% 
+  summarise(across(all_of(pred_vars2), mean))
+  
+```
+
+Histograms of each predictor variable, 
+
+```{r histograms, fig.height = 8}
+map(pred_vars2, function(x) {
+  g <- ggplot(df_comb) +
+    geom_histogram(aes_string(x = x), bins = 100) +
+    facet_wrap(~resample, ncol = 2, scales = 'free_y') +
+    geom_vline(data = comb_means, aes_string(xintercept = x),
+               linetype = 2) +
+    labs(title = x,
+        subtitle = "Histograms of original and resampled data",
+         caption = "Vertical line shows the mean value")
+  g
+})
+```
+
 
