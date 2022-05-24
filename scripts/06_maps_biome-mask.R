@@ -67,7 +67,12 @@ rasts_sw2_clim_list <- map(paths_sw2_clim, rast)
 glm_mods1 <- readRDS("models/glm_binomial_models_v4.RDS")
 
 # glm models fit to resampled/balanced data
-glm_mods_resample1 <- readRDS("models/glm_binomial_models_resample_v1.RDS")
+
+# here the bin_string refers to how many bins each predictor variable
+# was split into before resampling
+bin_string <- "bin20"
+glm_mods_resample1 <- readRDS(
+  paste0("models/glm_binomial_models_resample_v2_", bin_string, ".RDS"))
 
 # generalized non-linear models.
 #non-linear term fit for afg
@@ -87,8 +92,11 @@ rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_f
 
 # list of list of models
 # mods1 <- list(glm = glm_mods1, gnm = gnm_mods1) 
-mods1 <- list(glm = glm_mods1,
-              glm_resample = glm_mods_resample1) 
+mods1 <- list(glm_mods1,
+              glm_mods_resample1) 
+
+names(mods1) <- c("glm",
+                  paste0("glm_resample_", bin_string))
 
 mod_types <- names(mods1)
 formulas <- map(mods1, function(x) x$formula) # string of the model formula
@@ -449,7 +457,8 @@ get_endices <- function(type, method) {
   which(all_mod_names$type == type &  str_detect(all_mod_names$mod, method))
 }
 
-pdf("figures/maps_fire_prob/fire_prob_biome-mask_v6.pdf",
+pdf(paste0("figures/maps_fire_prob/fire_prob_biome-mask_v6_", bin_string, 
+           ".pdf"),
     width = 8, height = 7)
   # paint method
 
@@ -458,7 +467,9 @@ pdf("figures/maps_fire_prob/fire_prob_biome-mask_v6.pdf",
   tmap_arrange(pred_sw2_maps[get_endices('glm', 'paint')]) # predicted
   # glm resample
   tmap_arrange(pred_maps[get_endices(names_5c[2], 'paint')]) # predicted
-  # reduceToImage method
+  tmap_arrange(pred_sw2_maps[get_endices(names_5c[2], 'paint')]) # predicted
+ 
+   # reduceToImage method
   tmap_arrange(maps_fire[[2]], ncol = 2) # observed
   tmap_arrange(pred_maps[get_endices('glm', 'reduceToImage')]) # predicted
   tmap_arrange(pred_sw2_maps[get_endices('glm', 'reduceToImage')]) # predicted
