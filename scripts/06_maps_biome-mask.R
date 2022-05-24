@@ -66,6 +66,9 @@ rasts_sw2_clim_list <- map(paths_sw2_clim, rast)
 
 glm_mods1 <- readRDS("models/glm_binomial_models_v4.RDS")
 
+# glm models fit to resampled/balanced data
+glm_mods_resample1 <- readRDS("models/glm_binomial_models_resample_v1.RDS")
+
 # generalized non-linear models.
 #non-linear term fit for afg
 # gnm_mods1 <- readRDS("models/gnm_binomial_models_v3_afgAGB-MAP-interaction.RDS")
@@ -78,14 +81,15 @@ rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_f
 
 # * biome-extent ----------------------------------------------------------
 
-
 # predictions from glms & gnms, predict on original data that includes NA (i.e
 # masked gridcells). Data is sturcture is to have lists, one list item for
 # glm models and the other for the gnms
 
 # list of list of models
 # mods1 <- list(glm = glm_mods1, gnm = gnm_mods1) 
-mods1 <- list(glm = glm_mods1) 
+mods1 <- list(glm = glm_mods1,
+              glm_resample = glm_mods_resample1) 
+
 mod_types <- names(mods1)
 formulas <- map(mods1, function(x) x$formula) # string of the model formula
 mods2 <- map(mods1, function(x) {
@@ -126,13 +130,27 @@ rasts_pred2 <- map(rasts_pred1, rast)
 df_biome5c <- dfs_biome0$paint
 df_biome5c$MAT <- df_biome5c$MAT + 5
 
-pred_5c <- predict(mods1$glm$paint_mtbs, newdata = df_biome5c, 
+# mods for doing +5c predictions on
+mods_5c <- map(mods1,function(x) x$paint_mtbs) 
+
+names_5c <- names(mods_5c)
+names(names_5c) <- names_5c
+pred_5c <- map(mods_5c, predict, newdata = df_biome5c, 
                    type = 'response')
-r_pred_5c <- empty
-r_pred_5c[] <- pred_5c
+
+r_pred_5c <- map(pred_5c, function(x) {
+  out <- empty
+  out[] <- x
+  out
+})
+
 
 # difference in predicted fire probabilyt, current vs + 5C
-r_delta_5c <- r_pred_5c - rasts_pred2$glm$paint_mtbs
+
+r_delta_5c <- map(names_5c, function(name) {
+  r_pred_5c[[name]] - rasts_pred2[[name]]$paint_mtbs
+
+})
 
 # * sw2sim extent ---------------------------------------------------------
 # predictions, given stepwat simulation output as predictor variables
@@ -230,7 +248,7 @@ rasts_sw2_pred1 <- map_depth(mod_sw2_preds1, .depth = 2, .f = function(x) {
 # for later 'looping', this will break down if the gnm and glm
 # elements don't have the same names
 all_mod_names <- expand_grid(
-  type = names(rasts_sw2_pred1), #i.e. gnm, vs glm
+  type = names(rasts_sw2_pred1), #e.g., gnm, vs glm
   mod = map(rasts_sw2_pred1, names) %>% unlist() %>% unique()
 )
 
@@ -240,15 +258,22 @@ all_mod_names <- expand_grid(
 
 # * delta 5c --------------------------------------------------------------
 
-jpeg("figures/delta_fire-prob_vs_MAT_v1.jpeg")
-plot(dfs_biome0$paint$MAT - 273.15, as.numeric(values(r_delta_5c)),
-     ylab = "Delta fire probability", 
-     xlab = 'MAT (deg C)',
-     main = "Change in predicted fire probability with 5C warming")
-dev.off()
+map(names_5c, function(x) {
+  jpeg(paste0("figures/delta_fire-prob_vs_MAT_v2_", x, ".jpeg"))
+  plot(dfs_biome0$paint$MAT - 273.15, as.numeric(values(r_delta_5c[[x]])),
+       ylab = "Delta fire probability", 
+       xlab = 'MAT (deg C)',
+       main = paste0("Change in predicted fire probability with 5C warming\n",
+                    x),
+       col = rgb(red = 0, green = 0, blue = 0, alpha = 0.1),
+       cex = 0.2)
+  dev.off()
+})
 
-hist(as.numeric(values(r_delta_5c)),
-     main = "Change in predicted fire probability with 5C warming")
+
+# hist(as.numeric(values(r_delta_5c[[1]])),
+#      main = "Change in predicted fire probability with 5C warming")
+
 # maps --------------------------------------------------------------------
 
 tmap_mode("plot")
@@ -387,26 +412,35 @@ pred_sw2_maps <- pmap(all_mod_names, function(type, mod) {
 })
 
 # predicted for + 5c (sagebrush extent)
-tm_5c = tm_shape(r_pred_5c, bbox = bbox) +
+pred_maps_5c = map(names_5c, function(x) {
+  tm_shape(r_pred_5c[[x]], bbox = bbox) +
   tm_raster(breaks = breaks_prob, 
             title = 'fire probability') +
   base +
-  tm_layout(main.title = 'Predicted fire probability for +5C',
+  tm_layout(main.title = paste('Predicted fire probability for +5C\n',
+                               x),
             main.title.size = 0.5)
+})
 
 breaks_delta <- c(-0.04, -.02, -.01, -.005, -.004, -.003, -.002, -0.001, 0, 
                   rev(c(.01, .003, .002, 0.001)))
-cols_delta <- c(rev(brewer.pal(8, 'OrRd')),
-                brewer.pal(7, 'YlGn')[-(1:3)])
+cols_delta <- c(rev(brewer.pal(8, 'YlGn')),
+                brewer.pal(7, 'OrRd')[-(1:3)])
 
-# change in fire probabilyt with 5 c warming
-tm_delta = tm_shape(r_delta_5c, bbox = bbox) +
-  tm_raster(title = 'Delta probability',
-            breaks = breaks_delta,
-            palette = cols_delta) +
-  base +
-  tm_layout(main.title = 'Change fire probability with 5C warming',
-            main.title.size = 0.5)
+
+# change in fire probability with 5 c warming
+
+delta_maps <- map(names_5c, function(x) {
+  tm_shape(r_delta_5c[[x]], bbox = bbox) +
+    tm_raster(title = 'Delta probability',
+              breaks = breaks_delta,
+              palette = cols_delta) +
+    base +
+    tm_layout(main.title = paste0('Change fire probability with 5C warming\n', 
+                                  x),
+              main.title.size = 0.5)
+})
+
 
 # ** combine into multi panel map ------------------------------------------
 
@@ -415,13 +449,15 @@ get_endices <- function(type, method) {
   which(all_mod_names$type == type &  str_detect(all_mod_names$mod, method))
 }
 
-pdf("figures/maps_fire_prob/fire_prob_biome-mask_v5.pdf",
+pdf("figures/maps_fire_prob/fire_prob_biome-mask_v6.pdf",
     width = 8, height = 7)
   # paint method
 
   tmap_arrange(maps_fire[[1]], ncol = 2) # observed
   tmap_arrange(pred_maps[get_endices('glm', 'paint')]) # predicted
   tmap_arrange(pred_sw2_maps[get_endices('glm', 'paint')]) # predicted
+  # glm resample
+  tmap_arrange(pred_maps[get_endices(names_5c[2], 'paint')]) # predicted
   # reduceToImage method
   tmap_arrange(maps_fire[[2]], ncol = 2) # observed
   tmap_arrange(pred_maps[get_endices('glm', 'reduceToImage')]) # predicted
@@ -430,16 +466,25 @@ pdf("figures/maps_fire_prob/fire_prob_biome-mask_v5.pdf",
   pred_sw2_hists
 dev.off()
 
-jpeg("figures/maps_fire_prob/mtbs_observed_predicted_maps_v2.jpeg",
-     width = 8, height = 3.2, res = 600, units = 'in')
-  tmap_arrange(maps_fire$paint[[1]], pred_maps[[1]], nrow = 1)
-dev.off()
+# single page sets of maps, observed, predicted
+for(x in names_5c) {
+  jpeg(paste0("figures/maps_fire_prob/mtbs_observed_predicted_maps_",
+              x,"_v3.jpeg"),
+       width = 8, height = 3.2, res = 600, units = 'in')
+  print(tmap_arrange(maps_fire$paint[[1]], 
+                     pred_maps[[get_endices(x, 'paint_mtbs')]], nrow = 1))
+  dev.off()
+  
+  # also predicted for +5c, and delta with 5c warming
+  jpeg(paste0("figures/maps_fire_prob/mtbs_observed_predicted_maps_",
+              x,"_v2_5c.jpeg"),
+       width = 8, height = 6.5, res = 600, units = 'in')
+  print(tmap_arrange(maps_fire$paint[[1]], pred_maps[[get_endices(x, 'paint_mtbs')]],
+                     pred_maps_5c[[x]], delta_maps[[x]], nrow = 2))
+  dev.off()
+}
 
-jpeg("figures/maps_fire_prob/mtbs_observed_predicted_maps_v2_5c.jpeg",
-     width = 8, height = 6.5, res = 600, units = 'in')
-tmap_arrange(maps_fire$paint[[1]], pred_maps[[1]],
-             tm_5c, tm_delta, nrow = 2)
-dev.off()
+
 
 
 # * examine cover ---------------------------------------------------------
