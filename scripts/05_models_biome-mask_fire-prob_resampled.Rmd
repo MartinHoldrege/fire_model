@@ -75,8 +75,10 @@ df_pred <- dfs_biome3[[1]][, pred_vars2]
 
 ## Bin data
 
+29 is lowest number of bins that causes median bin size to be 1
+
 ```{r}
-n_categories <- 20
+n_categories <- 29 
 df_pred_bin1 <- bin_df(df_pred, cols = pred_vars,
                        n_categories = n_categories)
 head(df_pred_bin1)

@@ -70,7 +70,7 @@ glm_mods1 <- readRDS("models/glm_binomial_models_v4.RDS")
 
 # here the bin_string refers to how many bins each predictor variable
 # was split into before resampling
-bin_string <- "bin20"
+bin_string <- "bin29"
 glm_mods_resample1 <- readRDS(
   paste0("models/glm_binomial_models_resample_v2_", bin_string, ".RDS"))
 
