@@ -18,7 +18,7 @@ Apparently, having duplicated points like this can increase the risk of
 over-fitting. 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache.lazy = FALSE,
+knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE)
 ```
 
@@ -48,6 +48,7 @@ method <- names(dfs_biome3)
 names(method) <- method
 
 # dfs_biome3 <- map(dfs_biome3, slice_sample, n = 1000) # for testing
+
 ```
 
 ```{r}
@@ -106,8 +107,6 @@ n_per_bin <- map(dfs_bin, function(df) {
   as.vector(table(df$bin_all))
 })
 
-
-
 map(n_per_bin, summary)
 ```
 
@@ -117,6 +116,7 @@ Percent of bins with 1 observation
 map_dbl(n_per_bin, function(x) mean(x ==1)*100)
 
 ```
+
 
 ## Resample data
 
@@ -223,6 +223,9 @@ for(x in bin_names_a) {
 
 ```
 
+
+
+
 # Histograms
 
 Combining into a single dataframe. (only using one random sample of
@@ -261,5 +264,95 @@ map(pred_vars2, function(x) {
   g
 })
 ```
+
+### bin frequency
+
+Plots showing how many times each of the bins of a given variable
+occurred in the re-sampled datasets.
+
+```{r fig.width = 8, fig.height = 6}
+
+bins_comb <- dfs_resampled[bin_names_a] %>% 
+  # selecting certain rows just resulting dataframe is smaller
+  map(function(df) df[, "bin_all"]) %>% 
+  bind_rows(.id = "resample") %>% 
+  mutate(resample = str_replace(resample, "a_", "")) %>% 
+  separate(bin_all, into = pred_vars, sep = "_") %>% 
+  mutate(across(-resample,
+                function(x) str_extract(x, "\\d+$"))) %>% 
+  mutate(across(-resample, 
+                function(x) factor(as.numeric(x))),
+         resample = factor(resample, levels = bin_names)
+         )
+
+map(pred_vars, function(x) {
+  ggplot(bins_comb, aes_string(x)) +
+    geom_bar() +
+    facet_wrap(~resample, drop = TRUE, scales = "free") +
+    labs(x = paste("bin of", x),
+         title = x,
+         caption = "Number of occurrences of each bin in the resampled
+         dataset")
+})
+
+```
+
+# Pairwise comparisons
+
+## GAMs
+
+```{r gams, fig.height = 4, fig.width =6}
+
+pairwise_vars <- expand_grid(x = pred_vars,
+                             y = pred_vars) 
+
+# keeping only the rows so that have unique combos of x and y
+# (e.g., so not plotting afgAGB ~ pfgAGB & pfgAGB ~ afgAGB)
+rows2keep <- matrix(1:25, ncol = 5) %>% 
+  lower.tri(diag = FALSE) %>% 
+  as.vector()
+
+pairwise_vars <- pairwise_vars[rows2keep, ]
+
+pairwise_vars %>% 
+  knitr::kable()
+
+```
+
+```{r eval=TRUE}
+# something about delay evaluation (maybe), is causing
+# aes_string not to work when filling a list 
+for(i in 1:nrow(pairwise_vars)) {
+  
+  x <- pairwise_vars$x[i]
+  y <- pairwise_vars$y[i]
+
+  g <- ggplot(df_comb, aes_string(x, y)) +
+    geom_smooth(aes(color = resample), se = FALSE) +
+    scale_color_manual(values = cols)
+  
+  print(g)
+
+}
+```
+
+
+## 2d density
+
+```{r density_plots}
+for(i in 1:nrow(pairwise_vars)) {
+  
+  x <- pairwise_vars$x[i]
+  y <- pairwise_vars$y[i]
+
+  g <- ggplot(df_comb, aes_string(x, y)) +
+    geom_density_2d() +
+    facet_wrap(~resample) 
+    
+  print(g)
+
+}
+```
+
 
 
