@@ -70,7 +70,7 @@ glm_mods1 <- readRDS("models/glm_binomial_models_v4.RDS")
 
 # here the bin_string refers to how many bins each predictor variable
 # was split into before resampling
-bin_string <- "bin29"
+bin_string <- "bin20"
 glm_mods_resample1 <- readRDS(
   paste0("models/glm_binomial_models_resample_v2_", bin_string, ".RDS"))
 
@@ -307,12 +307,14 @@ base <- tmap_options( # increase number of pixels plotted
 # * fire ------------------------------------------------------------------
 # ** Observed fire occurrence --------------------------------------------------
 
-breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 6.5, 37)
-labels <-  c(0, 1, 2, 3, 4, 6, '>=6')
-palette <- c('grey', RColorBrewer::brewer.pal(6, "YlOrRd"))
+breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 37)
+labels <-  c(0, 1, 2, 3, 4, 5, '>5')
+prop_change <- c(round(0:5/36, 3), ">0.139")
+labels <- paste0(labels, " (", prop_change, ")")
+palette <- c('grey', RColorBrewer::brewer.pal(7, "YlOrRd")[-1])
 
 base_raster <- function() {
-  tm_raster(title = "N fires",
+  tm_raster(title = "N fires (probability)",
             breaks = breaks,
             labels = labels,
             palette = palette) +
@@ -432,8 +434,11 @@ pred_maps_5c = map(names_5c, function(x) {
 
 breaks_delta <- c(-0.04, -.02, -.01, -.005, -.004, -.003, -.002, -0.001, 0, 
                   rev(c(.01, .003, .002, 0.001)))
-cols_delta <- c(rev(brewer.pal(8, 'YlGn')),
-                brewer.pal(7, 'OrRd')[-(1:3)])
+breaks_delta0 <- c( 0.001, .002, .003, .005, .01, .04)
+breaks_delta <- c(-rev(breaks_delta0), 0, breaks_delta0)
+
+cols_delta <- c(rev(brewer.pal(8, 'Greens')[-(1:2)]),
+                brewer.pal(8, 'OrRd')[-(1:2)])
 
 
 # change in fire probability with 5 c warming

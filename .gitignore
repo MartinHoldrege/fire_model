@@ -15,11 +15,13 @@
 
 # misc.
 *.docx
+*.pptx
 
 # figures
 *.png
 *pdf
 *.jpeg
+*.jpg
 
 # knitted rmd files
 *.html
