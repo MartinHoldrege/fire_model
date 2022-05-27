@@ -299,10 +299,7 @@ map(pred_vars, function(x) {
 
 # Pairwise comparisons
 
-## GAMs
-
-```{r gams, fig.height = 4, fig.width =6}
-
+```{r}
 pairwise_vars <- expand_grid(x = pred_vars,
                              y = pred_vars) 
 
@@ -319,7 +316,9 @@ pairwise_vars %>%
 
 ```
 
-```{r eval=TRUE}
+## GAMs
+
+```{r gams, eval=TRUE, cache=TRUE}
 # something about delay evaluation (maybe), is causing
 # aes_string not to work when filling a list 
 for(i in 1:nrow(pairwise_vars)) {
@@ -339,15 +338,15 @@ for(i in 1:nrow(pairwise_vars)) {
 
 ## 2d density
 
-```{r density_plots}
+```{r density_plots, fig.height=7, fig.width = 9}
 for(i in 1:nrow(pairwise_vars)) {
   
   x <- pairwise_vars$x[i]
   y <- pairwise_vars$y[i]
 
   g <- ggplot(df_comb, aes_string(x, y)) +
-    geom_density_2d() +
-    facet_wrap(~resample) 
+    geom_density_2d(bins = 25) +
+    facet_wrap(~resample, scales = 'free') 
     
   print(g)
 
