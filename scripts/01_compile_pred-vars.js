@@ -14,6 +14,7 @@ Data is masked to the extent of the sagebrush biome
 
 // User defined variables -------------------------------------
 
+var createCharts = false; //whether to create timeseries charts
 // whether to run the code the exports the files
 var run = false; 
 // date range
@@ -109,7 +110,7 @@ var rapMed = rap2.median();
 var rapMedUnmasked = rap1.filterBounds(sw2Region).median();
 var rapMaxUnmasked = rap1.filterBounds(sw2Region).max();
 
-print('RAP', rapMed);
+//print('RAP', rapMed);
 
 Map.addLayer(rapMed.select('AFG'), coverVis, 'Annuals', false);
 Map.addLayer(rapMed.select('PFG'), coverVis, 'Perennials', false);
@@ -189,6 +190,7 @@ Map.addLayer(bioMed.select('afgAGB'),
   
 // Examine RAP time series ----------------------------------------------
 
+if (createCharts) {
 var createChart = function(image, title, vAxis){
   var out = ui.Chart.image.series(image, region, ee.Reducer.mean(), resolution)
     .setOptions({
@@ -212,6 +214,8 @@ for (var i = 0; i < pfts.length; i++) {
 // shrub cover chart
 print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
+  
+}
 /************************************************
  * 
  * Prepare human modification data
