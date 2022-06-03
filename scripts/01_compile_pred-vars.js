@@ -14,6 +14,8 @@ Data is masked to the extent of the sagebrush biome
 
 // User defined variables -------------------------------------
 
+// whether to run the code the exports the files
+var run = false; 
 // date range
 var startYear = 1984;
 //var startYear = 2018; // short time period for testing
@@ -221,6 +223,7 @@ print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 var hMod = ee.Image('users/DavidTheobald8/HM/HM_US_v3_dd_' + '2019' + '_90_60ssagebrush');
 Map.addLayer(hMod, {}, 'humanMod', false)
 
+
 /************************************************
  * 
  * Export data
@@ -230,7 +233,12 @@ Map.addLayer(hMod, {}, 'humanMod', false)
  * 
  ************************************************
  */
- if (false) {
+ 
+ // export files so that this script can be sourced from other scripts
+exports.bioMasked = bioMasked;
+ 
+ 
+ if (run) {
  // export files to drive
  
 var crs = 'EPSG:4326';
