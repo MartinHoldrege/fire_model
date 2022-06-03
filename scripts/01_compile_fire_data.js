@@ -272,39 +272,28 @@ var ifphPercAreaByYear = ifphImageByYearM.map(calcPercArea);
  * ***********************************************
  */
  
- cwfByYear = yearsString.map(function(year) {
+var cwfByYear = years.map(function(year) {
   return cwf.filter(ee.Filter.eq('Fire_Yr', year));
 });
 
+// convert polygons to image (rasters)
+var cwfImageByYear = cwfByYear.map(fc2image)
+  .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
+  .map(setTimeStart); //
 
-/**************************************************
- * 
- *  Combine Monitoring trends in burn severity and
- *  Interagency fire perimeter data
- * 
- * ***********************************************
- */
+// total number of fires per pixel
+var cwfFiresPerPixel = ee.ImageCollection(cwfImageByYear).sum().toDouble();
+Map.addLayer(cwfFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'cwf fires per pixel', false);
 
-var combImageByYear = ifphImageByYear.zip(mtbsImageByYear).map(function(x) {
-  var ifphImage = ee.Image(ee.List(x).get(0)); // ifph fires (presence/absence for the given year)
-  var imtbsImage = ee.Image(ee.List(x).get(1)); // mtbs fires (pres/abs) for the same year
-  // pixels where ifph and/or imtbs dataset shows it burned. 
-  var out = ifphImage.add(imtbsImage).gte(1);
-  return out;
-});
-
-// sum across years
-var combFiresPerPixel = ee.ImageCollection(combImageByYear).sum().toDouble();
-
-// apply mask
-var combImageByYearM = combImageByYear.map(function(x) {
+// mask
+var cwfImageByYearM = cwfImageByYear.map(function(x) {
     return ee.Image(x).updateMask(mask);  
 });
 
-var combFiresPerPixelM = combFiresPerPixel.updateMask(mask);
+var cwfFiresPerPixelM = cwfFiresPerPixel.updateMask(mask);
 
-// % of area burned per year
-var combPercAreaByYear = combImageByYearM.map(calcPercArea);
+
+var cwfPercAreaByYear = cwfImageByYearM.map(calcPercArea);
 
 /**************************************************
  * 
@@ -339,20 +328,18 @@ var lbaFiresPerPixelM = lbaFiresPerPixel.updateMask(mask);
 var lbaPercAreaByYear = lbaImageByYearM.map(calcPercArea);
 
 
-
-
 // figures ---------------------------------------------
 
 // creating time series of % burned area by year, for each
 // data set
 
-var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, combPercAreaByYear,
-                  lbaPercAreaByYear];
+var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, 
+                  lbaPercAreaByYear, cwfPercAreaByYear];
 
 var titleList = ['% of area burned per year (MTBS)', 
   '% of area burned per year (IFPH)',
-  '% of area burned per year (IFPH and MTBS combined)',
-  '% of area burned per year (LBA)'];
+  '% of area burned per year (LBA)',
+  '% of area burned per year (CWF)'];
   
 // Note here putting EE objects inside of javascript lists
 // this normally isn't a good idea but seems to work 
@@ -387,8 +374,8 @@ for (var i = 0; i < arrayList.length; i++) {
 // combining into a single image to export
 var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
   .addBands(ifphFiresPerPixel.rename('ifph'))
-  .addBands(combFiresPerPixel.rename('comb'))
-  .addBands(lbaFiresPerPixel.rename('lba'));
+  .addBands(lbaFiresPerPixel.rename('lba'))
+  .addBands(cwfFiresPerPixel.rename('cwf'));
   
 // export for use in other scripts
 exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
@@ -413,7 +400,7 @@ if (run) { // set to true of want to export.
   
 Export.image.toDrive({
   image: allFiresPerPixelM,
-  description: 'mtbs-ifph-lba_fires-per-pixel' + s,
+  description: 'cwf-mtbs-ifph-lba_fires-per-pixel' + s,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
   scale: resolution,
