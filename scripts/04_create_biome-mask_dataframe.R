@@ -46,9 +46,9 @@ rast_rap1 <- rast(
 # two paths, based on the two ways that polygons were converted to
 # rasters (i.e. paint() and reduceToImage() methods)
 
-method <- c("paint", "reduceToImage")
+method <- c("paint")
 fire_paths <- paste0(
-  "data_processed/fire_probability/mtbs-ifph-lba_fires-per-pixel_1984-2019_1000m", 
+  "data_processed/fire_probability/cwf-mtbs-ifph-lba_fires-per-pixel_1984-2019_1000m", 
   maskString, method, "_v1.tif")
 names(fire_paths) <- method
 
@@ -64,11 +64,11 @@ rasts_fPerPixel <- map(fire_paths, terra::rast)
 
 # the compare Geom function only seems to be working with comparing 3 S
 # Spatrasters at a time
-compareGeom(rasts_clim1[[1]], rasts_clim1[[2]], rast_rap1,
+compareGeom(rasts_clim1[[1]], rast_rap1,
             lyrs = FALSE, crs = TRUE, ext = TRUE,
             rowcol = TRUE)
 
-compareGeom(rast_rap1, rasts_fPerPixel[[1]], rasts_fPerPixel[[2]],
+compareGeom(rast_rap1, rasts_fPerPixel[[1]],
             lyrs = FALSE, 
             crs = TRUE, ext = TRUE, rowcol = TRUE)
 
@@ -111,9 +111,9 @@ df_biome0 <- tibble(
 dfs_biome0 <- map(rasts_fPerPixel, function(r) {
   out <- df_biome0 %>% 
     mutate(
+      nfire_cwf = as.vector(values(r[['cwf']])), # mtbs data
       nfire_mtbs = as.vector(values(r[['mtbs']])), # mtbs data
       nfire_ifph = as.vector(values(r[['ifph']])), # ifph data
-      nfire_comb = as.vector(values(r[['comb']])), # combined ifph and mtbs
       nfire_lba = as.vector(values(r[['lba']])) # landsat burned area
     )
   out
@@ -137,9 +137,9 @@ dfs_biome3 <- map(dfs_biome2, function(df) {
       # all count datasets (mtbs and ifph) are 35 years (change if updated)
       mtbs_n = 36, 
       # proportion of years with fires
+      cwf_prop = nfire_cwf/mtbs_n,
       mtbs_prop = nfire_mtbs/mtbs_n,
       ifph_prop = nfire_ifph/mtbs_n,
-      comb_prop = nfire_comb/mtbs_n,
       lba_prop = nfire_lba/mtbs_n
     ) %>% 
     # creating true/false occurrence cols for each datasets

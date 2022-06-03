@@ -18,6 +18,13 @@ datapoint in them, which is then repeated many times in the resampled datset.
 Apparently, having duplicated points like this can increase the risk of 
 over-fitting. 
 
+This code is set up to fit models seperately to fire data compiled
+in a couple of ways (e.g. paint method, vs reduceToImage), and also
+multiple fire dataset (e.g. mtbs, ifph etc). Meaning this code
+iterates over lists. Right now these lists are of length 1 because I'm only
+looking at the cwf (usgs combined wildfire dataset--which is the best there is),
+and the paint method to convert polygons to rasters (in GEE)
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE)
 ```
@@ -53,7 +60,10 @@ theme_set(theme_classic())
 # Prep data
 
 ```{r prep_data, cache=FALSE}
-
+# only interested in cws data source at the moment (the others are worse
+# and make the code slower)
+dfs_biome3 <- map(dfs_biome3, select, -matches("(occur|nfire)_(ifph|lba|mtbs)"),
+                  -matches("(ifph|lba|mtbs)_prop"))
 method <- names(dfs_biome3)
 names(method) <- method
 
@@ -75,10 +85,14 @@ df_pred <- dfs_biome3[[1]][, pred_vars2]
 
 ## Bin data
 
-29 is lowest number of bins that causes median bin size to be 1
+29 is lowest number of bins that causes median bin size to be 1,
+and therefore gets very close to the original data
+
+20 bins strikes a good balance, where data isn't very distorted by still more
+balanced
 
 ```{r}
-n_categories <- 29 
+n_categories <- 20 
 df_pred_bin1 <- bin_df(df_pred, cols = pred_vars,
                        n_categories = n_categories)
 head(df_pred_bin1)
@@ -369,20 +383,20 @@ pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
 
 # pred_vars_inter <- pred_vars
 
-mods_glm_mtbs1 <- glms_iterate_transforms(
+mods_glm_cwf1 <- glms_iterate_transforms(
   preds = pred_vars_inter, 
   df = dfs_train$paint[ , ],
-  response_var = "mtbs_prop", 
+  response_var = "cwf_prop", 
   delta_aic = 10)
 
 # not including the last element of the list which is final_formula
-mods_glm_mtbs2 <- mods_glm_mtbs1[-length(mods_glm_mtbs1)]
+mods_glm_cwf2 <- mods_glm_cwf1[-length(mods_glm_cwf1)]
 
-map_dfc(mods_glm_mtbs2, ~ names(.$aic[1:5])) %>% 
+map_dfc(mods_glm_cwf2, ~ names(.$aic[1:5])) %>% 
   kable(caption = "5 best transformations at each step")
-best_aic_by_step <- map_dbl(mods_glm_mtbs2, ~.$aic[1])
+best_aic_by_step <- map_dbl(mods_glm_cwf2, ~.$aic[1])
 
-best_aic_by_step <- c(step0 = mods_glm_mtbs1$step1$aic[['convert_none']], 
+best_aic_by_step <- c(step0 = mods_glm_cwf1$step1$aic[['convert_none']], 
                       best_aic_by_step)
 # AIC improvement by step
 diff(best_aic_by_step)
@@ -396,7 +410,7 @@ plot(y = best_aic_by_step,
 Best transformation each step.
 
 ```{r}
-var_transformed <- map(mods_glm_mtbs2, function(x) x$var_transformed)
+var_transformed <- map(mods_glm_cwf2, function(x) x$var_transformed)
 var_transformed
 ```
 
@@ -408,7 +422,7 @@ Using best model formula selected in the previous step
 
 ```{r fit_glm1, dependson='iterate_transform'}
 
-best_form <- mods_glm_mtbs1$final_formula %>% 
+best_form <- mods_glm_cwf1$final_formula %>% 
   str_replace(".+(?=~)", "") # remove everything before ~ (i.e. response var)
 forms_glm1 <-  map(paste(vars_prop, best_form), as.formula)
 
@@ -422,10 +436,10 @@ mod_glm1 <- map(method, function(x) {
 }) 
 
 # should be the same AIC (i.e. refitting the same model)
-AIC(mod_glm1$paint$mtbs)
+AIC(mod_glm1$paint$cwf)
 
 mod_glm1_flat <- flatten_rename(mod_glm1)
-summary(mod_glm1_flat$paint_mtbs)
+summary(mod_glm1_flat$paint_cwf)
 
 ```
 
@@ -648,8 +662,8 @@ map2(pred_glm_orig_deciles_filt, names(pred_glm_orig_deciles_filt), function(df,
 mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
 saveRDS(mods2save, 
-        paste0("models/glm_binomial_models_resample_v2_bin",
-               n_categories, ".RDS"))
+        paste0("models/glm_binomial_models_resample_v3_bin",
+               n_categories, "_cwf_.RDS"))
 
 ```
 
