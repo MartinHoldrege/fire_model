@@ -283,7 +283,6 @@ var cwfImageByYear = cwfByYear.map(fc2image)
 
 // total number of fires per pixel
 var cwfFiresPerPixel = ee.ImageCollection(cwfImageByYear).sum().toDouble();
-Map.addLayer(cwfFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'cwf fires per pixel', false);
 
 // mask
 var cwfImageByYearM = cwfImageByYear.map(function(x) {
@@ -291,6 +290,7 @@ var cwfImageByYearM = cwfImageByYear.map(function(x) {
 });
 
 var cwfFiresPerPixelM = cwfFiresPerPixel.updateMask(mask);
+Map.addLayer(cwfFiresPerPixelM, {min:0, max: 5, palette: ['white', 'black']}, 'cwf fires per pixel', false);
 
 
 var cwfPercAreaByYear = cwfImageByYearM.map(calcPercArea);
@@ -382,6 +382,7 @@ exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for ot
 exports.startYear = startYear;
 exports.endYear = endYear;
 exports.cwfImageByYearM = cwfImageByYearM; 
+exports.
 
 var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
