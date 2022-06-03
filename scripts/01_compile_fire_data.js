@@ -70,6 +70,13 @@ var ifph = ee.FeatureCollection(path + 'fire_perims/InteragencyFirePerimeterHist
 
 Map.addLayer(ifph, {}, 'ifph', false);
 
+// combined wildland fire dataset
+// data from https://www.sciencebase.gov/catalog/item/61aa537dd34eb622f699df81
+// I filtered this to only include data from 1984-2019, and exclude prescribed fire
+// interagency fire perimeter history
+var cwf = ee.FeatureCollection(path + 'fire_perims/usgs_combined_wildland_fire')
+  .filterBounds(region);
+
 // landsat burned area algorithm (used as part of the input to the Pastick paper)
 // More info here: https://samapriya.github.io/awesome-gee-community-datasets/projects/lba/
 // These were shapefiles which Pastick sent me that I ingested into ee 
@@ -255,6 +262,19 @@ var ifphFiresPerPixelM = ifphFiresPerPixel.updateMask(mask);
 
 var ifphPercAreaByYear = ifphImageByYearM.map(calcPercArea);
 
+/**************************************************
+ * 
+ * USGS combined wildland fire dataset
+ * (this is now considered the best dataset), the
+ * other datasets here are more of a legacy from when I didn't know
+ * about this dataset (which combined MTBS and a number of other datasets
+ * 
+ * ***********************************************
+ */
+ 
+ cwfByYear = yearsString.map(function(year) {
+  return cwf.filter(ee.Filter.eq('Fire_Yr', year));
+});
 
 
 /**************************************************
@@ -317,6 +337,9 @@ var lbaImageByYearM = lbaImageByYear.map(function(x) {
 var lbaFiresPerPixelM = lbaFiresPerPixel.updateMask(mask);
 
 var lbaPercAreaByYear = lbaImageByYearM.map(calcPercArea);
+
+
+
 
 // figures ---------------------------------------------
 
