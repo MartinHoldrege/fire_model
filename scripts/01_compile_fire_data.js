@@ -382,6 +382,7 @@ exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for ot
 exports.startYear = startYear;
 exports.endYear = endYear;
 exports.cwfImageByYearM = cwfImageByYearM; 
+exports.cwfFiresPerPixelM = cwfFiresPerPixelM;
 
 var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
