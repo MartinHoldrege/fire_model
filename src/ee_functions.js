@@ -88,3 +88,18 @@ exports.biomassFunction = function(image) {
     return agb;
 };
 
+/**
+ * set start time property of an image
+ * 
+ * @param {ee.List} x (input) is a list with two items, the first is an 
+ * image the 2nd is the year 
+ * @return {ee.Image} image with  start date of an image to Jan 1 of a given year
+ * 
+*/
+exports.setTimeStart = function(x) {
+    var year = ee.List(x).get(1);
+    var startDate = ee.Date.fromYMD(year, 1, 1); 
+    var image = ee.Image(ee.List(x).get(0))
+      .set('system:time_start', startDate);
+    return image;
+};
