@@ -18,10 +18,10 @@
  * It was acquired from here:
  * https://data-nifc.opendata.arcgis.com/datasets/nifc::interagency-fire-perimeter-history-all-years/about
  * 
- * 3rd--for each year determine if a cell burned according to MTBS and/or 
- * the interagency fire perim dataset. Then sum that to get a count of number of years
- * burned. This could be helpful to get a more complete measure of the 
- * total amount of area burned. 
+ * 3rd--use landsat burned area algorithm data and compile
+ * 
+ * 4th--do same as for mtbs but using the usgs combined wildfire dataset (this
+ * is the new best dataset and is the one we should be working with going forward)
  * 
  * Note--consider carefully whether to call a pixel burned only if the pixel
  * center intersect the fire polygon (i.e. paint()), or if any part of it intersects the polygon.
@@ -44,10 +44,9 @@ var resolution = 1000;
 // to rasters
 var usePaint = true; 
 
-var createCharts = true; //whether to create timeseries charts
+var createCharts = false; //whether to create timeseries charts
 // logical--whether to run export images
-var run = true;
-
+var run = false;
 // read in data -------------------------------------------------
 
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
@@ -290,6 +289,7 @@ var cwfImageByYearM = cwfImageByYear.map(function(x) {
     return ee.Image(x).updateMask(mask);  
 });
 
+
 var cwfFiresPerPixelM = cwfFiresPerPixel.updateMask(mask);
 
 
@@ -377,13 +377,13 @@ var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
   .addBands(lbaFiresPerPixel.rename('lba'))
   .addBands(cwfFiresPerPixel.rename('cwf'));
   
-// export for use in other scripts
-exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
-exports.startYear = startYear;
-exports.endYear = endYear;
-
 var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
+// export for use in other scripts
+exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
+exports.cwfImageByYearM = cwfImageByYearM;
+exports.startYear = startYear;
+exports.endYear = endYear;
 
 var crs = 'EPSG:4326';
 
