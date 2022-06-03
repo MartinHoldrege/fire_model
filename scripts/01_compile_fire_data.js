@@ -290,7 +290,7 @@ var cwfImageByYearM = cwfImageByYear.map(function(x) {
 });
 
 var cwfFiresPerPixelM = cwfFiresPerPixel.updateMask(mask);
-Map.addLayer(cwfFiresPerPixelM, {min:0, max: 5, palette: ['white', 'black']}, 'cwf fires per pixel', false);
+Map.addLayer(cwfFiresPerPixel, {min:0, max: 5, palette: ['white', 'black']}, 'cwf fires per pixel', false);
 
 
 var cwfPercAreaByYear = cwfImageByYearM.map(calcPercArea);
