@@ -50,6 +50,8 @@ var run = false;
 
 // read in data -------------------------------------------------
 
+var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
+
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
 // read in annual grass data
 
@@ -110,6 +112,8 @@ var lbaByYear = ee.List(lbaByYear);
 
 // functions etc -------------------------------------------------
 
+var setTimeStart = fns.setTimeStart;
+
 var fc2imageReduceToImage = function(fc) {
       var fc2 = ee.FeatureCollection(fc)
       .map(function(feature) {
@@ -136,16 +140,7 @@ var fc2image = function(fc) {
   return out;
 };
   
-// set the start date of an image to Jan 1 of a given year
-// x (input) is a list with two items, the first is an 
-// image the 2nd is the year 
-var setTimeStart = function(x) {
-    var year = ee.List(x).get(1);
-    var startDate = ee.Date.fromYMD(year, 1, 1); 
-    var image = ee.Image(ee.List(x).get(0))
-      .set('system:time_start', startDate);
-    return image;
-  };
+
   
 // total area of interest (i.e. unmasked pixels)
 var calcTotalArea = function(area, key) {
@@ -381,6 +376,7 @@ var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
 exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
 exports.startYear = startYear;
 exports.endYear = endYear;
+exports.yearsString = yearsString;
 exports.cwfImageByYearM = cwfImageByYearM; 
 exports.cwfFiresPerPixelM = cwfFiresPerPixelM;
 
