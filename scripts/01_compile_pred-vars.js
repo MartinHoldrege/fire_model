@@ -14,6 +14,9 @@ Data is masked to the extent of the sagebrush biome
 
 // User defined variables -------------------------------------
 
+var createCharts = false; //whether to create timeseries charts
+// whether to run the code the exports the files
+var run = false; 
 // date range
 var startYear = 1984;
 //var startYear = 2018; // short time period for testing
@@ -29,10 +32,14 @@ var fireVis = {min: 0, max: 100, palette: ['white', 'red']};
 var coverVis = {min: 0, max: 100, palette: ['white', 'green']}; 
 
 
+
 // read in data -------------------------------------------------
 
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
 // read in annual grass data
+
+// functions
+var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
 
 // Climate (daymet) data
 var clim = require("users/mholdrege/cheatgrass_fire:scripts/00_daymet_summaries.js");
@@ -103,7 +110,7 @@ var rapMed = rap2.median();
 var rapMedUnmasked = rap1.filterBounds(sw2Region).median();
 var rapMaxUnmasked = rap1.filterBounds(sw2Region).max();
 
-print('RAP', rapMed);
+//print('RAP', rapMed);
 
 Map.addLayer(rapMed.select('AFG'), coverVis, 'Annuals', false);
 Map.addLayer(rapMed.select('PFG'), coverVis, 'Perennials', false);
@@ -143,40 +150,9 @@ var npp = ee.ImageCollection("projects/rangeland-analysis-platform/npp-partition
   .select(['afgNPP', 'pfgNPP'])
   .filterDate(startDate,  endDate)
   .filterBounds(region);
-var mat = ee.ImageCollection("projects/rangeland-analysis-platform/gridmet-MAT");
-
-
-// biomass conversion function
-// input: two band image (afgNPP, pfgNPP) from projects/rangeland-analysis-platform/npp-partitioned-v2
-// output: three band image, aboveground biomass (afgAGB, pfgAGB, herbaceousAGB)
-// MH--function updated so that it calculates biomass as g/m^2
-var biomassFunction = function(image) {
-    
-    var year = ee.Date(image.get('system:time_start')).format('YYYY');
-    var matYear = mat.filterDate(year).first();
-    var fANPP = (matYear.multiply(0.0129)).add(0.171).rename('fANPP'); // fraction of NPP to allocate aboveground
-    
-    var agb = ee.Image(image).multiply(0.0001) // NPP scalar 
-                //.multiply(2.20462) // KgC to lbsC MH--i commented out these lines
-                //.multiply(4046.86) // m2 to acres MH--i commented out these lines
-                .multiply(1000) // MH--KgC to gC
-                .multiply(fANPP)  // fraction of NPP aboveground
-                .multiply(2.1276) // C to biomass
-                .rename(['afgAGB', 'pfgAGB'])
-                .copyProperties(image, ['system:time_start'])
-                .set('year', year);
-               
-
-    var herbaceous = ee.Image(agb).reduce(ee.Reducer.sum()).rename(['herbaceousAGB']);
-    
-    agb = ee.Image(agb)
-      .addBands(herbaceous);
-
-    return agb;
-};
 
 var biomass = npp
-  .map(biomassFunction)
+  .map(fns.biomassFunction)
   .map(function(x) {
     return ee.Image(x).toFloat(); // to avoid incompatible datatypes error
   });
@@ -214,6 +190,7 @@ Map.addLayer(bioMed.select('afgAGB'),
   
 // Examine RAP time series ----------------------------------------------
 
+if (createCharts) {
 var createChart = function(image, title, vAxis){
   var out = ui.Chart.image.series(image, region, ee.Reducer.mean(), resolution)
     .setOptions({
@@ -237,6 +214,8 @@ for (var i = 0; i < pfts.length; i++) {
 // shrub cover chart
 print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 
+  
+}
 /************************************************
  * 
  * Prepare human modification data
@@ -248,6 +227,7 @@ print(createChart(rap2.select('SHR'), 'Shrub cover', '% cover'));
 var hMod = ee.Image('users/DavidTheobald8/HM/HM_US_v3_dd_' + '2019' + '_90_60ssagebrush');
 Map.addLayer(hMod, {}, 'humanMod', false)
 
+
 /************************************************
  * 
  * Export data
@@ -258,6 +238,11 @@ Map.addLayer(hMod, {}, 'humanMod', false)
  ************************************************
  */
  
+ // export files so that this script can be sourced from other scripts
+exports.bioMasked = bioMasked;
+ 
+ 
+ if (run) {
  // export files to drive
  
 var crs = 'EPSG:4326';
@@ -296,7 +281,7 @@ Export.image.toDrive({
 });
 
 
-if (false) {
+
 // RAP data (unmasked) for the whole extent of stepwat2 upscaling
 Export.image.toDrive({
   image: rapOutSw2,

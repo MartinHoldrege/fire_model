@@ -44,11 +44,13 @@ var resolution = 1000;
 // to rasters
 var usePaint = true; 
 
-var createCharts = true; //whether to create timeseries charts
+var createCharts = false; //whether to create timeseries charts
 // logical--whether to run export images
-var run = true;
+var run = false;
 
 // read in data -------------------------------------------------
+
+var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
 
 var path = 'projects/gee-guest/assets/cheatgrass_fire/';
 // read in annual grass data
@@ -69,6 +71,13 @@ var ifph = ee.FeatureCollection(path + 'fire_perims/InteragencyFirePerimeterHist
   .filterBounds(region);
 
 Map.addLayer(ifph, {}, 'ifph', false);
+
+// combined wildland fire dataset
+// data from https://www.sciencebase.gov/catalog/item/61aa537dd34eb622f699df81
+// I filtered this to only include data from 1984-2019, and exclude prescribed fire
+// interagency fire perimeter history
+var cwf = ee.FeatureCollection(path + 'fire_perims/usgs_combined_wildland_fire')
+  .filterBounds(region);
 
 // landsat burned area algorithm (used as part of the input to the Pastick paper)
 // More info here: https://samapriya.github.io/awesome-gee-community-datasets/projects/lba/
@@ -103,6 +112,8 @@ var lbaByYear = ee.List(lbaByYear);
 
 // functions etc -------------------------------------------------
 
+var setTimeStart = fns.setTimeStart;
+
 var fc2imageReduceToImage = function(fc) {
       var fc2 = ee.FeatureCollection(fc)
       .map(function(feature) {
@@ -129,16 +140,7 @@ var fc2image = function(fc) {
   return out;
 };
   
-// set the start date of an image to Jan 1 of a given year
-// x (input) is a list with two items, the first is an 
-// image the 2nd is the year 
-var setTimeStart = function(x) {
-    var year = ee.List(x).get(1);
-    var startDate = ee.Date.fromYMD(year, 1, 1); 
-    var image = ee.Image(ee.List(x).get(0))
-      .set('system:time_start', startDate);
-    return image;
-  };
+
   
 // total area of interest (i.e. unmasked pixels)
 var calcTotalArea = function(area, key) {
@@ -255,36 +257,38 @@ var ifphFiresPerPixelM = ifphFiresPerPixel.updateMask(mask);
 
 var ifphPercAreaByYear = ifphImageByYearM.map(calcPercArea);
 
-
-
 /**************************************************
  * 
- *  Combine Monitoring trends in burn severity and
- *  Interagency fire perimeter data
+ * USGS combined wildland fire dataset
+ * (this is now considered the best dataset), the
+ * other datasets here are more of a legacy from when I didn't know
+ * about this dataset (which combined MTBS and a number of other datasets
  * 
  * ***********************************************
  */
-
-var combImageByYear = ifphImageByYear.zip(mtbsImageByYear).map(function(x) {
-  var ifphImage = ee.Image(ee.List(x).get(0)); // ifph fires (presence/absence for the given year)
-  var imtbsImage = ee.Image(ee.List(x).get(1)); // mtbs fires (pres/abs) for the same year
-  // pixels where ifph and/or imtbs dataset shows it burned. 
-  var out = ifphImage.add(imtbsImage).gte(1);
-  return out;
+ 
+var cwfByYear = years.map(function(year) {
+  return cwf.filter(ee.Filter.eq('Fire_Yr', year));
 });
 
-// sum across years
-var combFiresPerPixel = ee.ImageCollection(combImageByYear).sum().toDouble();
+// convert polygons to image (rasters)
+var cwfImageByYear = cwfByYear.map(fc2image)
+  .zip(years) // combine two lists into one (each element of list is a list w/ 2 elements)
+  .map(setTimeStart); //
 
-// apply mask
-var combImageByYearM = combImageByYear.map(function(x) {
+// total number of fires per pixel
+var cwfFiresPerPixel = ee.ImageCollection(cwfImageByYear).sum().toDouble();
+
+// mask
+var cwfImageByYearM = cwfImageByYear.map(function(x) {
     return ee.Image(x).updateMask(mask);  
 });
 
-var combFiresPerPixelM = combFiresPerPixel.updateMask(mask);
+var cwfFiresPerPixelM = cwfFiresPerPixel.updateMask(mask);
+Map.addLayer(cwfFiresPerPixelM, {min:0, max: 5, palette: ['white', 'black']}, 'cwf fires per pixel', false);
 
-// % of area burned per year
-var combPercAreaByYear = combImageByYearM.map(calcPercArea);
+
+var cwfPercAreaByYear = cwfImageByYearM.map(calcPercArea);
 
 /**************************************************
  * 
@@ -318,18 +322,19 @@ var lbaFiresPerPixelM = lbaFiresPerPixel.updateMask(mask);
 
 var lbaPercAreaByYear = lbaImageByYearM.map(calcPercArea);
 
+
 // figures ---------------------------------------------
 
 // creating time series of % burned area by year, for each
 // data set
 
-var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, combPercAreaByYear,
-                  lbaPercAreaByYear];
+var arrayList = [mtbsPercAreaByYear, ifphPercAreaByYear, 
+                  lbaPercAreaByYear, cwfPercAreaByYear];
 
 var titleList = ['% of area burned per year (MTBS)', 
   '% of area burned per year (IFPH)',
-  '% of area burned per year (IFPH and MTBS combined)',
-  '% of area burned per year (LBA)'];
+  '% of area burned per year (LBA)',
+  '% of area burned per year (CWF)'];
   
 // Note here putting EE objects inside of javascript lists
 // this normally isn't a good idea but seems to work 
@@ -364,13 +369,16 @@ for (var i = 0; i < arrayList.length; i++) {
 // combining into a single image to export
 var allFiresPerPixel = mtbsFiresPerPixel.rename('mtbs')
   .addBands(ifphFiresPerPixel.rename('ifph'))
-  .addBands(combFiresPerPixel.rename('comb'))
-  .addBands(lbaFiresPerPixel.rename('lba'));
+  .addBands(lbaFiresPerPixel.rename('lba'))
+  .addBands(cwfFiresPerPixel.rename('cwf'));
   
 // export for use in other scripts
 exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for other extents
 exports.startYear = startYear;
 exports.endYear = endYear;
+exports.yearsString = yearsString;
+exports.cwfImageByYearM = cwfImageByYearM; 
+exports.cwfFiresPerPixelM = cwfFiresPerPixelM;
 
 var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
@@ -390,7 +398,7 @@ if (run) { // set to true of want to export.
   
 Export.image.toDrive({
   image: allFiresPerPixelM,
-  description: 'mtbs-ifph-lba_fires-per-pixel' + s,
+  description: 'cwf-mtbs-ifph-lba_fires-per-pixel' + s,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
   scale: resolution,
