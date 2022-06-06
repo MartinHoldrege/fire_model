@@ -16,7 +16,7 @@ Data is masked to the extent of the sagebrush biome
 
 var createCharts = false; //whether to create timeseries charts
 // whether to run the code the exports the files
-var run = true; 
+var run = false; 
 // date range
 var startYear = 1986;
 //var startYear = 2018; // short time period for testing
