@@ -27,7 +27,7 @@ and prior to
 
 
 // user defined variables
-var resolution = 100000 // set to 1000 but for now to speed computation
+var resolution = 1000 // set to 1000 but for now to speed computation
 
 // region
 var mask = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js")
@@ -35,19 +35,13 @@ var mask = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js")
  
 // for testing setting the region to a small area
 var region = 
-    /* color: #d63000 */
-    /* displayProperties: [
-      {
-        "type": "rectangle"
-      }
-    ] */
     ee.Geometry.Polygon(
-        [[[-119.67368848912835, 43.63807917713379],
-          [-119.67368848912835, 40.77431886708674],
-          [-114.42222364537835, 40.77431886708674],
-          [-114.42222364537835, 43.63807917713379]]], null, false);
+        [[[-116, 41],
+          [-116, 40],
+          [-114, 40],
+          [-114, 41]]], null, false);
 
-
+Map.addLayer(region, {}, 'region', false)
 // read in fire data
 var fire = require("users/mholdrege/cheatgrass_fire:scripts/01_compile_fire_data.js");
 
@@ -84,6 +78,8 @@ var cwfCumByYear = years.map(function(yr) {
   return out;
 });
 
+var cwfCumByYearCol = ee.ImageCollection(cwfCumByYear);
+
 // this map should look identical to the 'cwf fires per pixel' map that is loaded
 // when 'require' above is run. Here this is the cumulative number of fires that have occured by 2019
 
@@ -93,9 +89,10 @@ step 2
 
 */
 // cumulative fires in the last year (i.e., this is the total number of fires over the time period)
-var cwfLastYear = ee.Image(cwfCumByYear.get(-1))
+var cwfLastYear = ee.Image(cwfCumByYear.get(-1));
 Map.addLayer(cwfLastYear, {min: 0, max:5 , palette: ['white', 'black']}, 'cwf cumulative fires', false);
 
+// max number of fires to have occurred in any grid cell
 var maxFires =   cwfLastYear.reduceRegion({
     reducer: ee.Reducer.max(),
     geometry: region,
@@ -104,7 +101,41 @@ var maxFires =   cwfLastYear.reduceRegion({
     bestEffort: true
   });
   
-var maxFires = ee.Number(maxFires.get('first'))
-var numFiresSeq = ee.List.sequence(1, maxFires)
-print(maxFires);
+var maxFires = ee.Number(maxFires.get('first')); // convert to a number
+
+var numFireSeq = ee.List.sequence(ee.Number(0), maxFires)
+//print(numFiresSeq);
+
+
+var sumFireYrs = function(numFire) {
+  var numYrs = cwfCumByYearCol.map(function(image) {
+    // cells that have a cumulative number of fires equal to numFire are set to 1
+    // everything else is masked out
+    var out = ee.Image(image).eq(ee.Number(numFire)).selfMask();
+    return out;
+  }).sum(); // sum across the years
+  
+  var bandString = ee.String('fire_').cat(ee.Number(numFire).format('%.0f'));
+  // rename the band of the image to note how many fires the year count
+  //refers to for example fires_1 means this is the number of years after the first
+  // fire (year of burn inclusive) but before the 2nd fire
+  return numYrs.rename(bandString);
+};
+var numYrs2 = sumFireYrs(0); // testing
+
+//print(numYrs2)
+var numYrsList = numFireSeq.map(sumFireYrs);
+
+var numYrsImage0 = ee.ImageCollection(numYrsList).toBands(); // convert to single image
+
+// rename bands so don't have leading image numbers
+var newBandNames = numYrsImage0
+  .bandNames()
+  .map(function(x) {
+    return ee.String(x).replace('.+_fire_', 'fire_');
+  });
+var numYrsImage = numYrsImage0.rename(newBandNames);
+//print(numYrsImage.bandNames());
+Map.addLayer(numYrsImage.select('fire_2'), 
+  {min:0, max: 36, palette: ['white', 'black']}, 'fire_2');
 
