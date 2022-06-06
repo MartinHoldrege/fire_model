@@ -27,7 +27,11 @@ and prior to
 
 
 // user defined variables
-var resolution = 1000 // set to 1000 but for now to speed computation
+var resolution = 1000; // set to 1000 but for now to speed computation
+
+var startYear = 1986; // althought the fire data goes to 1984, the RAP data only goes to 1986
+
+var endYear = 2019
 
 // region
 var mask = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js")
@@ -42,6 +46,10 @@ var region =
           [-114, 41]]], null, false);
 
 Map.addLayer(region, {}, 'region', false)
+
+// function
+var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js")
+
 // read in fire data
 var fire = require("users/mholdrege/cheatgrass_fire:scripts/01_compile_fire_data.js");
 
@@ -49,9 +57,8 @@ var fire = require("users/mholdrege/cheatgrass_fire:scripts/01_compile_fire_data
 // USGS combined wildland fire dataset
 var cwfImageByYearM = fire.cwfImageByYearM;
 
-var startYear = fire.startYear;
-
-var endYear = fire.endYear
+//read in RAP biomass data
+var pred = require("users/mholdrege/cheatgrass_fire:scripts/01_compile_pred-vars.js");
 
 var years = ee.List.sequence(startYear, endYear);
 
@@ -67,7 +74,7 @@ Create image collection of the cumulative number of fires up to that year
 var cwfImageByYearMCol = ee.ImageCollection(cwfImageByYearM);
 
 // cumulative number of fires
-var cwfCumByYear = years.map(function(yr) {
+var cwfCumByYear0 = years.map(function(yr) {
   
   var start = ee.Date.fromYMD(startYear, 1, 1);
   var end = ee.Date.fromYMD(yr, 12, 31);
@@ -78,6 +85,8 @@ var cwfCumByYear = years.map(function(yr) {
   return out;
 });
 
+var cwfCumByYear = cwfCumByYear0.zip(years).map(fns.setTimeStart);
+
 var cwfCumByYearCol = ee.ImageCollection(cwfCumByYear);
 
 // this map should look identical to the 'cwf fires per pixel' map that is loaded
@@ -85,9 +94,13 @@ var cwfCumByYearCol = ee.ImageCollection(cwfCumByYear);
 
 
 /*
-step 2
-
+  step 2:
+  create an image with multiple bands, for each band it is the number of years with
+  that number of fires e.g. the band fires_1 shows the number of years after the first
+  fire (year of burn inclusive) but before the 2nd fire. Pixels where the value would be 0, are
+  masked out
 */
+
 // cumulative fires in the last year (i.e., this is the total number of fires over the time period)
 var cwfLastYear = ee.Image(cwfCumByYear.get(-1));
 Map.addLayer(cwfLastYear, {min: 0, max:5 , palette: ['white', 'black']}, 'cwf cumulative fires', false);
@@ -103,7 +116,7 @@ var maxFires =   cwfLastYear.reduceRegion({
   
 var maxFires = ee.Number(maxFires.get('first')); // convert to a number
 
-var numFireSeq = ee.List.sequence(ee.Number(0), maxFires)
+var numFireSeq = ee.List.sequence(ee.Number(0), maxFires);
 //print(numFiresSeq);
 
 
@@ -121,6 +134,7 @@ var sumFireYrs = function(numFire) {
   // fire (year of burn inclusive) but before the 2nd fire
   return numYrs.rename(bandString);
 };
+
 var numYrs2 = sumFireYrs(0); // testing
 
 //print(numYrs2)
@@ -134,8 +148,19 @@ var newBandNames = numYrsImage0
   .map(function(x) {
     return ee.String(x).replace('.+_fire_', 'fire_');
   });
+  
 var numYrsImage = numYrsImage0.rename(newBandNames);
 //print(numYrsImage.bandNames());
 Map.addLayer(numYrsImage.select('fire_2'), 
-  {min:0, max: 36, palette: ['white', 'black']}, 'fire_2');
+  {min:0, max: 36, palette: ['white', 'black']}, 'fire_2', false);
 
+/*
+Step 3:
+
+*/
+
+var bioMasked2 = pred.bioMasked.select(['afgAGB', 'pfgAGB'])
+  .sort('year');// making sure these are sorted
+var bioMList1 = bioMasked2.toList(99);
+print(bioMList1.length())
+print(cwfCumByYear.length())
