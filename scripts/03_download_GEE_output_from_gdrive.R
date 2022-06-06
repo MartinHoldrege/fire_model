@@ -41,7 +41,7 @@ for (i in 1:nrow(daymet_files)) {
 # * fires -----------------------------------------------------------------
 
 fire_files <- files_biome %>%
-  filter(str_detect(name, 'fires'))
+  filter(str_detect(name, '[Ff]ires'))
 
 for (i in 1:nrow(fire_files)) {
   drive_download(file = fire_files$id[i], 
