@@ -1,25 +1,34 @@
 
 /*
-pseudo code:
-
-collection 1
-Create image collection of cumumulative number of fires up to a given year
-By looping through each year and and suming from year 1 to that year (i.e. summing yes/no
-fire rasters).
-
-collection 2
-get raster of number of years before first fire
-  filter for sites with 1 or more fires, sum the number of pixels with cumulative value of 1
-  (i.e. use .eq(1) or whatever, and summing. Repeat this for num years before 2nd fire, etc.
+  Purpose: Seperately calculate biomass based on number of fires that
+  have occured
   
-Step 3: Calculate mean RAP biomass based on number of fires
+  Script started: 6/3/2022
+  
+  Author: Martin Holdrege
 
-Seperately calculate mean biomass for before and after fires
-I.e. one biomass layer provides mean biomass when there have been 0 fires (i.e. fire_0),
-another when there has been 1 fire (but not 2) (i.e. fire_1),
-another for when there has been 2 fires, but not 3 (i.e. fire_3), etc. 
+  Rational: biomass (especially of annuals), may change depending on if there has
+  been a fire so don't want to average biomass before and after a fire. 
 
-Step 4: save the data
+  Step 1:
+  Create image collection of the cumulative number of fires up to that year
+  By looping through each year and and summing from year 1 to that year (i.e. summing yes/no
+  fire rasters).
+  
+  step 2:  Number of years images. 
+  Create an image with multiple bands, each band is the number of years 
+  with the given number of cumulative fires.
+   e.g. the band fires_1 shows the number of years after the first
+  fire (year of burn inclusive) but before the 2nd fire.
+    
+  Step 3: Calculate mean RAP biomass based on number of fires
+  
+  Seperately calculate mean biomass for before and after fires
+  I.e. one biomass layer provides mean biomass when there have been 0 fires (i.e. fire_0),
+  another when there has been 1 fire (but not 2) (i.e. fire_1),
+  another for when there has been 2 fires, but not 3 (i.e. fire_3), etc. 
+  
+  Step 4: save the data
 */
 
 
@@ -32,15 +41,17 @@ var endYear = 2019;
 
 // region
 var mask = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js");
-//var region = mask.region; 
+var region = mask.region; 
  
-// for testing setting the region to a small area
+// for testing setting the region to a small area (this region does contain fires)
+/*
 var region = 
     ee.Geometry.Polygon(
         [[[-116, 41],
           [-116, 40],
           [-114, 40],
           [-114, 41]]], null, false);
+*/
 
 Map.addLayer(region, {}, 'region', false);
 
@@ -94,9 +105,10 @@ var cwfCumByYearCol = ee.ImageCollection(cwfCumByYear);
 
 
 /*
-  step 2:
-  create an image with multiple bands, for each band it is the number of years with
-  that number of fires e.g. the band fires_1 shows the number of years after the first
+  step 2:  Number of years images. 
+  Create an image with multiple bands, each band is the number of years 
+  with the given number of cumulative fires.
+   e.g. the band fires_1 shows the number of years after the first
   fire (year of burn inclusive) but before the 2nd fire. Pixels where the value would be 0, are
   masked out
 */
@@ -165,7 +177,7 @@ another for when there has been 2 fires, but not 3 (i.e. fire_3), etc.
 // making sure RAP data is properly ordered
 var bioMasked2 = pred.bioMasked.select(['afgAGB', 'pfgAGB'])
   .sort('year');
-var bioMList1 = bioMasked2.toList(99);
+var bioMList1 = bioMasked2.toList(999);
 
 // these list need to be the same length and in the same order
 print('RAP data length', bioMList1.length());
@@ -210,25 +222,34 @@ var calcBioByNumFire = function(numFire) {
   return out.rename(newNames); 
 };
 
-var test = calcBioByNumFire(3);
-Map.addLayer(test.select('fire_3_afgAGB'), 
+
+var bioByNumFireList = numFireSeq.map(calcBioByNumFire);
+
+// collapse into a single image
+var bioByNumFire0 = ee.ImageCollection(bioByNumFireList).toBands(); 
+
+// rename bands so don't have leading image numbers
+var bioNewBandNames = bioByNumFire0
+  .bandNames()
+  .map(function(x) {
+    return ee.String(x).replace('.+_fire_', 'fire_');
+  });
+  
+var bioByNumFire = bioByNumFire0.rename(bioNewBandNames);
+
+Map.addLayer(bioByNumFire.select('fire_3_afgAGB'), 
   {min: 0, max: 100, palette: ['white', 'green']}, 'afgAGB 3 fires', false);
-
-var bioByNumFire = numFireSeq.map(calcBioByNumFire);
-print(bioByNumFire);
-
+  
 
 /*
   Output data
-
 */
 
 var crs = 'EPSG:4326';
 var maskString = '_sagebrush-biome-mask_v1';
+//var maskString = '_test-region';
 
-var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm' + mask_String;
-
-// biomass sagebrush biome mask
+// RAP biomass - sagebrush biome mask
 Export.image.toDrive({
   image: bioByNumFire,
   description: 'RAP_afgAGB-pfgAGB_byNFire_' + startYear + '-' + endYear + '_mean_' + resolution + 'm' + maskString,
@@ -240,5 +261,20 @@ Export.image.toDrive({
   fileFormat: 'GeoTIFF'
 });
 
-// 
+// Number of years with given number of cumulative fire
+// (from step 2)
+Export.image.toDrive({
+  image: bioByNumFire,
+  description: 'cwf_numYrsCumulativeFires_' + startYear + '-' + endYear + '_' + resolution + 'm' + maskString,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
+
+
+
+
 
