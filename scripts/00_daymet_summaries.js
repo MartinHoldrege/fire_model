@@ -112,7 +112,7 @@ var climSummerList = years.map(calcSummerClim)
 var climSummerAvg = ee.ImageCollection(climSummerList)
   .mean();
   
-print(climSummerAvg);
+//print(climSummerAvg);
 Map.addLayer(climSummerAvg.select('prcpProp'), {min: 0, max: 0.7, palette: ['red', 'white', 'blue']}, 'prcpPropSummer', false);
 // Spring temp and precip ******************************
   
