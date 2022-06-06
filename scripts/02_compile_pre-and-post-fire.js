@@ -12,29 +12,26 @@ get raster of number of years before first fire
   filter for sites with 1 or more fires, sum the number of pixels with cumulative value of 1
   (i.e. use .eq(1) or whatever, and summing. Repeat this for num years before 2nd fire, etc.
   
-Step 3--RAP data
-prior to first fire = multiply each yearly RAP layer by 1 if it is pre fire, 0 otherwise (based on
-collection), the sum across those rasters, and then divide by collection 2. 
+Step 3: Calculate mean RAP biomass based on number of fires
 
-Step 4--repeat step 3 for 2nd, 3rd, etc fire. each time masking out cells that have less then the
-target number of fires--to reduce computation. 
+Seperately calculate mean biomass for before and after fires
+I.e. one biomass layer provides mean biomass when there have been 0 fires (i.e. fire_0),
+another when there has been 1 fire (but not 2) (i.e. fire_1),
+another for when there has been 2 fires, but not 3 (i.e. fire_3), etc. 
 
-Step5--output rasters--they will be pfgAGB prior to first fire, prior to 2nd fire (if it existed),
-and prior to 
-
-
+Step 4: save the data
 */
 
 
 // user defined variables
 var resolution = 1000; // set to 1000 but for now to speed computation
 
-var startYear = 1986; // althought the fire data goes to 1984, the RAP data only goes to 1986
+var startYear = 1986; // although the fire data goes to 1984, the RAP data only goes to 1986
 
-var endYear = 2019
+var endYear = 2019;
 
 // region
-var mask = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js")
+var mask = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js");
 //var region = mask.region; 
  
 // for testing setting the region to a small area
@@ -45,10 +42,10 @@ var region =
           [-114, 40],
           [-114, 41]]], null, false);
 
-Map.addLayer(region, {}, 'region', false)
+Map.addLayer(region, {}, 'region', false);
 
 // function
-var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js")
+var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
 
 // read in fire data
 var fire = require("users/mholdrege/cheatgrass_fire:scripts/01_compile_fire_data.js");
@@ -62,7 +59,8 @@ var pred = require("users/mholdrege/cheatgrass_fire:scripts/01_compile_pred-vars
 
 var years = ee.List.sequence(startYear, endYear);
 
-Map.addLayer(ee.Image(cwfImageByYearM.get(0)), {min: 0, max: 1, palette: ['white', 'black']}, startYear + 'fires', false)
+Map.addLayer(ee.Image(cwfImageByYearM.get(0)), 
+  {min: 0, max: 1, palette: ['white', 'black']}, startYear + 'fires', false);
 
 /* 
 Step 1:
@@ -74,6 +72,7 @@ Create image collection of the cumulative number of fires up to that year
 var cwfImageByYearMCol = ee.ImageCollection(cwfImageByYearM);
 
 // cumulative number of fires
+// because iterating over years, the output will be properly ordered
 var cwfCumByYear0 = years.map(function(yr) {
   
   var start = ee.Date.fromYMD(startYear, 1, 1);
@@ -85,6 +84,7 @@ var cwfCumByYear0 = years.map(function(yr) {
   return out;
 });
 
+// setting the start time of each of the images
 var cwfCumByYear = cwfCumByYear0.zip(years).map(fns.setTimeStart);
 
 var cwfCumByYearCol = ee.ImageCollection(cwfCumByYear);
@@ -135,7 +135,6 @@ var sumFireYrs = function(numFire) {
   return numYrs.rename(bandString);
 };
 
-var numYrs2 = sumFireYrs(0); // testing
 
 //print(numYrs2)
 var numYrsList = numFireSeq.map(sumFireYrs);
@@ -155,12 +154,91 @@ Map.addLayer(numYrsImage.select('fire_2'),
   {min:0, max: 36, palette: ['white', 'black']}, 'fire_2', false);
 
 /*
-Step 3:
+Step 3: Calculate mean RAP biomass based on number of fires
+
+Seperately calculate mean biomass for before and after fires
+I.e. one biomass layer shows biomass when there have been 0 fires (i.e. fire_0),
+another when there has been 1 fire (but not 2) (i.e. fire_1),
+another for when there has been 2 fires, but not 3 (i.e. fire_3), etc. 
+*/
+
+// making sure RAP data is properly ordered
+var bioMasked2 = pred.bioMasked.select(['afgAGB', 'pfgAGB'])
+  .sort('year');
+var bioMList1 = bioMasked2.toList(99);
+
+// these list need to be the same length and in the same order
+print('RAP data length', bioMList1.length());
+print('fire data length', cwfCumByYear.length());
+
+// list of lists, where each element contains a list (for the given year)
+// with one image of the cumulative num of fires, the other is biomass for that year
+var cwfBioList = cwfCumByYear.zip(bioMList1);
+
+var calcBioByNumFire = function(numFire) {
+  
+  // list of  biomass images, where pixels that haven't
+  // had numFire cumulative fires have been masked
+  var bioFireMaskedList = cwfBioList.map(function(x) {
+    // first element is the cwf cumulative fire image
+    var cwfImage = ee.Image(ee.List(x).get(0));
+    var bioImage = ee.Image(ee.List(x).get(1)); //2nd is rap biomass
+    
+    var fireMask = cwfImage.eq(ee.Number(numFire));
+    
+    // masking out pixels that haven't had numFire of cumulative fires
+    var bioFireMasked = bioImage.updateMask(fireMask);
+    
+    return bioFireMasked;
+  });
+  
+  // mean across years of pixels that have had numFire cumulative fires
+  var out = ee.ImageCollection(bioFireMaskedList).mean();
+  
+  // rename band names so that they lead with the cumulative
+  // number of firest (e.g. pfgAGB becomes fire_1_pfgAGB)
+  var oldNames = out.bandNames();
+
+  var newNames = oldNames.map(function(x) {
+    var out = ee.String('fire_')
+      .cat(ee.Number(numFire).format('%.0f'))
+      .cat(ee.String("_"))
+      .cat(ee.String(x));
+    return out;
+  });
+
+  return out.rename(newNames); 
+};
+
+var test = calcBioByNumFire(3);
+Map.addLayer(test.select('fire_3_afgAGB'), 
+  {min: 0, max: 100, palette: ['white', 'green']}, 'afgAGB 3 fires', false);
+
+var bioByNumFire = numFireSeq.map(calcBioByNumFire);
+print(bioByNumFire);
+
+
+/*
+  Output data
 
 */
 
-var bioMasked2 = pred.bioMasked.select(['afgAGB', 'pfgAGB'])
-  .sort('year');// making sure these are sorted
-var bioMList1 = bioMasked2.toList(99);
-print(bioMList1.length())
-print(cwfCumByYear.length())
+var crs = 'EPSG:4326';
+var maskString = '_sagebrush-biome-mask_v1';
+
+var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm' + mask_String;
+
+// biomass sagebrush biome mask
+Export.image.toDrive({
+  image: bioByNumFire,
+  description: 'RAP_afgAGB-pfgAGB_byNFire_' + startYear + '-' + endYear + '_mean_' + resolution + 'm' + maskString,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
+
+// 
+
