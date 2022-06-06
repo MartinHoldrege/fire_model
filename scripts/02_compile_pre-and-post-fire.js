@@ -8,7 +8,7 @@ By looping through each year and and suming from year 1 to that year (i.e. summi
 fire rasters).
 
 collection 2
-get raster of number of fires before first fire
+get raster of number of years before first fire
   filter for sites with 1 or more fires, sum the number of pixels with cumulative value of 1
   (i.e. use .eq(1) or whatever, and summing. Repeat this for num years before 2nd fire, etc.
   
@@ -24,6 +24,28 @@ and prior to
 
 
 */
+
+
+// user defined variables
+var resolution = 100000 // set to 1000 but for now to speed computation
+
+// region
+var mask = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js")
+//var region = mask.region; 
+ 
+// for testing setting the region to a small area
+var region = 
+    /* color: #d63000 */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[-119.67368848912835, 43.63807917713379],
+          [-119.67368848912835, 40.77431886708674],
+          [-114.42222364537835, 40.77431886708674],
+          [-114.42222364537835, 43.63807917713379]]], null, false);
 
 
 // read in fire data
@@ -64,6 +86,25 @@ var cwfCumByYear = years.map(function(yr) {
 
 // this map should look identical to the 'cwf fires per pixel' map that is loaded
 // when 'require' above is run. Here this is the cumulative number of fires that have occured by 2019
-Map.addLayer(ee.Image(cwfCumByYear.get(35)), {min: 0, max:5 , palette: ['white', 'black']}, 'cwf cumulative fires', false)
 
+
+/*
+step 2
+
+*/
+// cumulative fires in the last year (i.e., this is the total number of fires over the time period)
+var cwfLastYear = ee.Image(cwfCumByYear.get(-1))
+Map.addLayer(cwfLastYear, {min: 0, max:5 , palette: ['white', 'black']}, 'cwf cumulative fires', false);
+
+var maxFires =   cwfLastYear.reduceRegion({
+    reducer: ee.Reducer.max(),
+    geometry: region,
+    scale: resolution, // to speed computation for now
+    maxPixels: 1e12,
+    bestEffort: true
+  });
+  
+var maxFires = ee.Number(maxFires.get('first'))
+var numFiresSeq = ee.List.sequence(1, maxFires)
+print(maxFires);
 
