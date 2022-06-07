@@ -235,7 +235,9 @@ var bioNewBandNames = bioByNumFire0
     return ee.String(x).replace('.+_fire_', 'fire_');
   });
   
-var bioByNumFire = bioByNumFire0.rename(bioNewBandNames);
+var bioByNumFire = bioByNumFire0
+  .rename(bioNewBandNames)
+  .toDouble();
 
 Map.addLayer(bioByNumFire.select('fire_3_afgAGB'), 
   {min: 0, max: 100, palette: ['white', 'green']}, 'afgAGB 3 fires', false);
@@ -264,7 +266,7 @@ Export.image.toDrive({
 // Number of years with given number of cumulative fire
 // (from step 2)
 Export.image.toDrive({
-  image: bioByNumFire,
+  image: numYrsImage,
   description: 'cwf_numYrsCumulativeFires_' + startYear + '-' + endYear + '_' + resolution + 'm' + maskString,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
