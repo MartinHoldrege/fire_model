@@ -115,6 +115,14 @@ var cwfCumByYearCol = ee.ImageCollection(cwfCumByYear);
 
 // cumulative fires in the last year (i.e., this is the total number of fires over the time period)
 var cwfLastYear = ee.Image(cwfCumByYear.get(-1));
+
+// fires per pixel, excluding the first year (1986)--creating this
+// for later data validation in R. Some downstream analysis won't use 1986 fire
+// data b/ there are no previous years with RAP data
+var cwfFiresPerPixelSubset = cwfLastYear
+  .subtract(ee.Image(cwfCumByYear.get(0)))
+  .toDouble();
+  
 Map.addLayer(cwfLastYear, {min: 0, max:5 , palette: ['white', 'black']}, 'cwf cumulative fires', false);
 
 // max number of fires to have occurred in any grid cell
@@ -278,6 +286,20 @@ Export.image.toDrive({
   fileFormat: 'GeoTIFF'
 });
 
+
+// fires per pixel, excluding the first year (1986)
+
+var secondYear = startYear + 1;
+Export.image.toDrive({
+  image: cwfFiresPerPixelSubset,
+  description: 'cwf_fires-per-pixel_' + secondYear+ '-' + endYear + '_' + resolution + 'm' + maskString,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
 
 
 
