@@ -5,6 +5,9 @@
 # Purpose: Misc. functions to be used in other scripts
 
 
+# misc. -------------------------------------------------------------------
+
+
 #' calculate yearly fire probability
 #'
 #' @param long_term_prob Probability of 1 or more fires over a number of years 
@@ -133,6 +136,27 @@ replace_poly <- function(form, keep_response = TRUE) {
   }
   
   out
+}
+
+#' extract values from rasters
+#'
+#' @param lyr name of the layer
+#' @param r raster
+#'
+#' @return dataframe containing value, cell_num and lyr columns,
+#' NA rows removed
+get_values <- function(lyr, r) {
+  x <- values(r[[lyr]]) %>% 
+    as.numeric()
+  
+  out <- tibble(
+    value = x,
+    cell_num = 1:length(x)
+  ) %>% 
+    filter(!is.na(value)) %>% 
+    mutate(lyr = lyr)
+  
+  out 
 }
 
 # quantile plots ----------------------------------------------------------
