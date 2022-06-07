@@ -277,8 +277,10 @@ predvars2long <- function(df, response_vars,
 #' 
 #' @return For each predictor variable calculate the mean of each decile
 #' and the corresponding mean (of those same rows) of the response variable
-longdf2deciles <- function(df, response_vars, filter_var = FALSE) {
+longdf2deciles <- function(df, response_vars, filter_var = FALSE,
+                           weighted_mean = FALSE) {
   
+  # CONTINUE HERE--calculate weighted means 
   stopifnot(c("name", "value", response_vars) %in% names(df))
   
   group_vars <- 'name'

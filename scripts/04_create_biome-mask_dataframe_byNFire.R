@@ -165,6 +165,7 @@ numYrs_df3 <- numYrs_df2 %>%
     min_c_fire_num = min(c_fire_num)) %>% 
   ungroup() %>% 
   mutate(
+    # keeping original version for later joining
     c_fire_num_orig = c_fire_num,
     # adjust cumulative fire numbers, so that if the first fire occurred
     # in year 1, then subtract 1

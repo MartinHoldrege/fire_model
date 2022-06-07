@@ -174,8 +174,8 @@ transform_preds <- function(preds) {
 #' @param df dataframe to fit the model on
 #'
 #' @return list of models, one for each formula
-fit_bin_glms <- function(forms, df) {
-  stopifnot('mtbs_n' %in% names(df))
+fit_bin_glms <- function(forms, df, weights_col = 'mtbs_n') {
+  stopifnot(weights_col %in% names(df))
   
   glm_list <- map(forms, function(form) {
     char_form <- form
@@ -183,10 +183,20 @@ fit_bin_glms <- function(forms, df) {
     # some of these won't fit so returns NA if throws error
     # not using purrr::safely() didn't seem to work, maybe b/ 
     # of environment issues?
-    out <- tryCatch(glm(formula = form, data = df, 
-                        family = 'binomial', 
-                        weights = mtbs_n),
-                    error = function(e) NA)
+    if(weights_col == 'mtbs_n') {
+      out <- tryCatch(glm(formula = form, data = df, 
+                          family = 'binomial', 
+                          weights = mtbs_n),
+                      error = function(e) NA)
+    } else if(weights_col == 'numYrs') {
+      out <- tryCatch(glm(formula = form, data = df, 
+                          family = 'binomial', 
+                          weights = numYrs),
+                      error = function(e) NA)
+    } else {
+      stop('This function not set upt to use that weights_col')
+    }
+
     if (any(is.na(out))) message(paste(char_form,  "model couldn't fit \n"))
     out
   })
@@ -269,10 +279,10 @@ fit_bin_gnms <- function(forms, df) {
 #' @param max_steps this
 #' the max number of variables that could be transformed in the final step. Note
 #' that this could be more than the number of original variables if
-#' transformations are included that add variables (e.g. x + x^2)
-#' @delta_aic how many aic units better the model with an extra transformed
+#' @param delta_aic how many aic units better the model with an extra transformed
 #' model needs to be to consider it better
-#' @fit_mod the function that will do the model fitting
+#' @param fit_mod the function that will do the model fitting
+#' @param ... args passed to fit mod
 #'
 #' @return list, containing a sub list for each step, which in turn 
 #' contains 'glm' element of all the glm objects, 'which is the model aic's'
@@ -281,7 +291,8 @@ fit_bin_gnms <- function(forms, df) {
 #' best model. 
 glms_iterate_transforms <- function(preds, df, response_var,
                                     max_steps = NULL, delta_aic = 4,
-                                    fit_mod = fit_bin_glms) {
+                                    fit_mod = fit_bin_glms, 
+                                    ...) {
   stopifnot(
     is.data.frame(df),
     is.character(preds),
@@ -314,7 +325,7 @@ glms_iterate_transforms <- function(preds, df, response_var,
     names(pred_transforms2) <- names(pred_transforms1)
     
     # fitting glm's for each formula (all model objects)
-    glm_list <- fit_mod(forms = pred_transforms2,df = df)
+    glm_list <- fit_mod(forms = pred_transforms2,df = df, ...)
     
     # sorting AIC
     aic_sorted <- map_dbl(glm_list, AIC) %>% 
