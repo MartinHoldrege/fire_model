@@ -131,7 +131,8 @@ var maxFires = ee.Number(maxFires.get('first')); // convert to a number
 var numFireSeq = ee.List.sequence(ee.Number(0), maxFires);
 //print(numFiresSeq);
 
-
+// this function uses objects in the environment so not
+// put in the ee_functions.js script
 var sumFireYrs = function(numFire) {
   var numYrs = cwfCumByYearCol.map(function(image) {
     // cells that have a cumulative number of fires equal to numFire are set to 1
@@ -160,7 +161,9 @@ var newBandNames = numYrsImage0
     return ee.String(x).replace('.+_fire_', 'fire_');
   });
   
-var numYrsImage = numYrsImage0.rename(newBandNames);
+var numYrsImage = numYrsImage0
+  .rename(newBandNames)
+  .toDouble();
 //print(numYrsImage.bandNames());
 Map.addLayer(numYrsImage.select('fire_2'), 
   {min:0, max: 36, palette: ['white', 'black']}, 'fire_2', false);
@@ -236,8 +239,7 @@ var bioNewBandNames = bioByNumFire0
   });
   
 var bioByNumFire = bioByNumFire0
-  .rename(bioNewBandNames)
-  .toDouble();
+  .rename(bioNewBandNames);
 
 Map.addLayer(bioByNumFire.select('fire_3_afgAGB'), 
   {min: 0, max: 100, palette: ['white', 'green']}, 'afgAGB 3 fires', false);
@@ -251,7 +253,7 @@ var crs = 'EPSG:4326';
 var maskString = '_sagebrush-biome-mask_v1';
 //var maskString = '_test-region';
 
-// RAP biomass - sagebrush biome mask
+// RAP biomass - sagebrush biome mask (from step 3)
 Export.image.toDrive({
   image: bioByNumFire,
   description: 'RAP_afgAGB-pfgAGB_byNFire_' + startYear + '-' + endYear + '_mean_' + resolution + 'm' + maskString,
@@ -263,7 +265,7 @@ Export.image.toDrive({
   fileFormat: 'GeoTIFF'
 });
 
-// Number of years with given number of cumulative fire
+// Number of years with given number of cumulative fires
 // (from step 2)
 Export.image.toDrive({
   image: numYrsImage,
