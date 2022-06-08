@@ -1,6 +1,6 @@
 ---
 title: "Models of fire probability for the sagebrush biome"
-subtitle: "Resampled/stratified data"
+subtitle: "Before/after fire, resampled/stratified data"
 author: "Martin Holdrege"
 date: "`r lubridate::today()`"
 output:
@@ -9,6 +9,10 @@ output:
     toc_float:
       collapsed: false
 ---
+
+This data uses average rap biomass from before a given fire (or for the entire time
+period if no fire). So there can be multiple observations (rows) per grid cell (if
+there are multiple fires)
 
 Here the training data is resampled to be more balanced (i.e., upsampling
 bins of rare data, downsampling bins of common data). 
@@ -44,13 +48,9 @@ source("src/general_functions.R")
 source("src/fig_params.R")
 source("src/modeling_functions.R")
 source("src/resample_functions.R")
-library(randomForest)
 library(tidyverse)
-library(margins) # for cplot()
 library(GGally) # for ggpairs()
-library(gnm) # generalized non-linear models
 library(pdp) # for partial dependence plots
-library(splines) # for ns() (splines) inside formulas of glm()
 library(gridExtra)
 library(knitr)
 theme_set(theme_classic())
@@ -86,11 +86,8 @@ df_pred <- dfs_biome3[[1]][, pred_vars2]
 
 ## Bin data
 
-29 is lowest number of bins that causes median bin size to be 1,
-and therefore gets very close to the original data
-
 20 bins strikes a good balance, where data isn't very distorted by still more
-balanced
+balanced than the original data. 
 
 ```{r}
 n_categories <- 20 
@@ -269,6 +266,7 @@ names(vars_prop) <- names(vars_occur)
 # longformat dataframes for making boxplots
 dfs_biome_long <- map(dfs_biome3, function(df) {
   # for some reason select() was giving me problems
+  # adding numYrs here so can take weighted average
   predvars2long(df, response_vars = c(vars_nfire, vars_prop), 
                 pred_vars = pred_vars) %>% 
     mutate(across(all_of(vars_nfire), factor))
@@ -302,7 +300,8 @@ was calculated)
 
 ```{r observed_deciles}
 
-dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop)
+dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop,
+                    weighted_mean = TRUE)
 # df <- dfs_deciles1[[1]]
 # yvar = vars_prop[[1]]
 
@@ -446,7 +445,7 @@ summary(mod_glm1_flat$paint_cwf)
 ```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1'}
 # vip::vip(bin_glm1) # variable importance
 vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
-   out <- vip::vip(mod) +
+   out <- vip::vip(mod, num_features = 15) +
     labs(subtitle = name)
 })
 marrangeGrob(vip_plots1, ncol = 3, nrow = 3)

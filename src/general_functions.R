@@ -246,6 +246,11 @@ predvars2long <- function(df, response_vars,
     select_cols <- c(select_cols, c("filter_var", "percentile_category"))
   }
   
+  # for weighted means (if relevant)
+  if('numYrs' %in% names(df)){
+    select_cols <- c(select_cols, 'numYrs')
+  }
+  
   out <- df[, select_cols] %>% 
     pivot_longer(cols = all_of(new_pred_vars))
   
@@ -274,13 +279,19 @@ predvars2long <- function(df, response_vars,
 #' @param response_vars character vector, names of the response variables
 #' @param filter_var logical--whether this dataframe also includes 
 #' filter_var and percentile_category columns that should be kept
+#' @param weighted_mean logical, whether to take the weighted mean
+#' of the observed fire probability (currently requires presence of
+#' numYrs column).
 #' 
 #' @return For each predictor variable calculate the mean of each decile
 #' and the corresponding mean (of those same rows) of the response variable
 longdf2deciles <- function(df, response_vars, filter_var = FALSE,
                            weighted_mean = FALSE) {
   
-  # CONTINUE HERE--calculate weighted means 
+  if(weighted_mean & !'numYrs' %in% names(df)) {
+    stop('numYrs column not present (needed for weighted mean)')
+  }
+
   stopifnot(c("name", "value", response_vars) %in% names(df))
   
   group_vars <- 'name'
@@ -293,10 +304,13 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
             filter_var argument should probably be set to TRUE')
   }
   
-  out <- df %>% 
+  out0 <- df %>% 
     # the named vector in select was selecting by the names
     # not the vector values!
-    select(all_of(group_vars), value, unname(response_vars)) %>% 
+    select(all_of(group_vars), value, unname(response_vars), 
+           # using matches here b/ if column not present
+           # this will still work
+           matches('numYrs')) %>% 
     group_by(across(all_of(group_vars))) %>% 
     nest() %>% 
     # empirical cdf
@@ -310,10 +324,21 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
                         labels = 1:100)) %>% 
     # calculate mean of response variables for each decile of each predictor
     # variable
-    group_by(across(all_of(c(group_vars, 'decile')))) %>% 
-    summarize(across(unname(response_vars), mean),
-              mean_value = mean(value), # mean of predictor for that decile
-              .groups = 'drop')
+    group_by(across(all_of(c(group_vars, 'decile')))) 
+  
+  if(weighted_mean) {
+    out <- out0 %>% 
+      summarize(across(unname(response_vars), weighted.mean, w = numYrs),
+                mean_value = mean(value), # mean of predictor for that decile
+                .groups = 'drop')
+    
+  } else {
+    out <- out0 %>% 
+      summarize(across(unname(response_vars), mean),
+                mean_value = mean(value), # mean of predictor for that decile
+                .groups = 'drop')
+  }
+
   out
 }
 
@@ -330,7 +355,8 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
 #' climate variables, so group data into high and low percentiles
 #' of each climate variable)
 predvars2deciles <- function(df, response_vars, pred_vars,
-                             filter_var = FALSE) {
+                             filter_var = FALSE,
+                             weighted_mean = TRUE) {
   
   if (filter_var) {
     df <- filter_by_climate(df)
@@ -342,7 +368,8 @@ predvars2deciles <- function(df, response_vars, pred_vars,
                            filter_var = filter_var)
   # mean of deciles
   out <- longdf2deciles(long_df, response_vars = response_vars,
-                        filter_var = filter_var)
+                        filter_var = filter_var,
+                        weighted_mean = weighted_mean)
   out
 }
 
