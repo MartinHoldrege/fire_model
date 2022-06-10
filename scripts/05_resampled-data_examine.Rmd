@@ -26,10 +26,12 @@ knitr::opts_chunk$set(echo = TRUE,
 
 Sourcing the script that creates a dataframe of historical
 fore occurrence, as well as biotic and climate
-predictors for those same grid-cells. 
+predictors for those same grid-cells. Here the biomass data
+is different before and after a fire (i.e. can have multiple
+rows of data per cell)
 
 ```{r source_data, warning=FALSE, message=FALSE}
-source("scripts/04_create_biome-mask_dataframe.R")
+source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 ```
 
 ```{r warning=FALSE, message=FALSE}
@@ -43,11 +45,11 @@ theme_set(theme_classic())
 # Prep data
 
 ```{r prep_data}
-
+dfs_biome3 <- dfs_byNFire3
 method <- names(dfs_biome3)
 names(method) <- method
 
-# dfs_biome3 <- map(dfs_biome3, slice_sample, n = 1000) # for testing
+#dfs_biome3 <- map(dfs_biome3, slice_sample, n = 1000) # for testing
 
 ```
 
@@ -145,7 +147,7 @@ the original data and the resampled data
 
 ```{r}
 
-response_vars <- "mtbs_prop"
+response_vars <- "cwf_prop"
 deciles_obs <- predvars2deciles(dfs_biome3$paint, 
                                response_vars = response_vars,
                                pred_vars = pred_vars) %>% 
@@ -182,7 +184,7 @@ decile_base <- function(x) {
   list(    
     facet_wrap(~name, scales = 'free_x'),
   labs(x = "mean of quantile of predictor variable",
-       y = "Observed fire probability (mtbs)",
+       y = "Observed fire probability (cwf)",
        subtitle = "Original and resampled data",
        caption = "bin(n) refers to the number of bins each
        predictor variable was split into"),
@@ -193,7 +195,7 @@ decile_base <- function(x) {
 
 }
 
-g <- ggplot(deciles_comb, aes(x = mean_value, y = mtbs_prop,
+g <- ggplot(deciles_comb, aes(x = mean_value, y = cwf_prop,
             color = type, group = resample)) +
    geom_smooth(se = FALSE, size =0.75) +
    decile_base() 
@@ -211,7 +213,7 @@ for(x in bin_names_a) {
   df <- deciles_comb %>% 
     filter(resample %in% c("Original data", x))
   
-  g <- ggplot(df, aes(x = mean_value, y = mtbs_prop,
+  g <- ggplot(df, aes(x = mean_value, y = cwf_prop,
             color = type, group = resample)) +
    geom_smooth(se = FALSE, size =0.75) +
     geom_point() +

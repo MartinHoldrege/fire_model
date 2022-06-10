@@ -17,31 +17,32 @@
 # dependencies ------------------------------------------------------------
 
 # this script is useful because it reads in the rasters used below
-source('scripts/04_create_biome-mask_dataframe.R')
+# and dataframes to predict on (note this is not the 
+# data used to fit the byNfire model)
+source('scripts/04_create_biome-mask_dataframe_1986.R')
 source("src/general_functions.R")
 source("src/fig_params.R")
 library(tmap)
 library(spData, quietly = TRUE) # for us_states polygon
 library(RColorBrewer)
 
+
 # * fire data -------------------------------------------------------------
 
-# number of observed fires per pixel, MTBS data
-# monitoring trends in burn severity, 
-# ifph data (interagency fire perimeter history),
-# and MTBS and IFPH combined, and lba
-rasts_fPerPixel # rasters for both paint and reduceToImage methods
-
+# number of observed fires per pixel, cwf (combined wildand fire dataset) 
+# from now on just using the cwf dataset which is the best
+rast_fPerPixel 
 
 # * rap data --------------------------------------------------------------
 
 rast_rap1
 
-
 # * daymet ----------------------------------------------------------------
 
-rasts_clim1 # daymet biome-mask
-
+# using these raster so that the climate spans the same time period
+# as the RAP & fire data that we're using for the nFire model
+rasts_clim1
+                 
 # ** sw2 simulation extent --------------------------------
 
 # this is daymet climate data for the same gridcells as the upscaled
@@ -60,11 +61,7 @@ rasts_sw2_clim_list <- map(paths_sw2_clim, rast)
 
 # * model objects ---------------------------------------------------------
 
-# model objects created in 05_models_biome-mask_fire-prob.Rmd
-
 # (these objects are very large ~2Gb)
-
-glm_mods1 <- readRDS("models/glm_binomial_models_v4.RDS")
 
 # glm models fit to resampled/balanced data
 
@@ -72,7 +69,12 @@ glm_mods1 <- readRDS("models/glm_binomial_models_v4.RDS")
 # was split into before resampling
 bin_string <- "bin20"
 glm_mods_resample1 <- readRDS(
-  paste0("models/glm_binomial_models_resample_v2_", bin_string, ".RDS"))
+  paste0("models/glm_binomial_models_resample_v3_", bin_string, "_cwf_.RDS"))
+
+# model objects created in 05_models_biome-mask_fire-prob_byNFire.Rmd
+
+glm_mods_resample_byNFire <- readRDS(
+  paste0("models/glm_binomial_models_byNFire_v1_", bin_string, "_cwf_.RDS"))
 
 # generalized non-linear models.
 #non-linear term fit for afg
@@ -80,7 +82,6 @@ glm_mods_resample1 <- readRDS(
 # * sw2 biomass -----------------------------------------------------------
 
 rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_future_median_across_GCMs.tif")
-
 
 # predicted fire probability ----------------------------------------------
 
@@ -92,11 +93,11 @@ rasts_bio1 <- rast("../grazing_effects/data_processed/interpolated_rasters/bio_f
 
 # list of list of models
 # mods1 <- list(glm = glm_mods1, gnm = gnm_mods1) 
-mods1 <- list(glm_mods1,
-              glm_mods_resample1) 
+mods1 <- list(glm_mods_resample1,
+              glm_mods_resample_byNFire) 
 
-names(mods1) <- c("glm",
-                  paste0("glm_resample_", bin_string))
+names(mods1) <- c(paste0("glm_resample_", bin_string),
+                  paste0("glm_byNFire_", bin_string))
 
 mod_types <- names(mods1)
 formulas <- map(mods1, function(x) x$formula) # string of the model formula
@@ -106,7 +107,10 @@ mods2 <- map(mods1, function(x) {
 })
 
 # model predictions for each model 
-mod_preds1 <- map_depth(mods2, .depth = 2, predict, newdata = df_biome0,
+# predicting on the 'old' data where there is just 1 row per pixel
+# regardless of whether there was a fire--otherwise you have multiple
+# predictions per pixel which is a bit harder to deal with
+mod_preds1 <- map_depth(mods2, .depth = 2, predict, newdata = dfs_biome0$paint,
                   type = "response")
 
 # longform dataframe of predictions
@@ -139,7 +143,7 @@ df_biome5c <- dfs_biome0$paint
 df_biome5c$MAT <- df_biome5c$MAT + 5
 
 # mods for doing +5c predictions on
-mods_5c <- map(mods1,function(x) x$paint_mtbs) 
+mods_5c <- map(mods1,function(x) x$paint_cwf) 
 
 names_5c <- names(mods_5c)
 names(names_5c) <- names_5c
@@ -153,10 +157,10 @@ r_pred_5c <- map(pred_5c, function(x) {
 })
 
 
-# difference in predicted fire probabilyt, current vs + 5C
+# difference in predicted fire probability, current vs + 5C
 
 r_delta_5c <- map(names_5c, function(name) {
-  r_pred_5c[[name]] - rasts_pred2[[name]]$paint_mtbs
+  r_pred_5c[[name]] - rasts_pred2[[name]]$paint_cwf
 
 })
 
@@ -207,10 +211,6 @@ df_sw2sim1 <- tibble(
 df_sw2sim1$afgAGB <- r_afgAGB_sw2 %>% 
   values() %>% 
   as.vector()
-
-# don't have shrub cover from stepwat 2 output (need allometric equation)
-# for now just using mean remote sensed value
-df_sw2sim1$shrCover <- mean(df_biome0$shrCover, na.rm = TRUE)
 
 # add in climate variables
 df_sw2sim1$MAP <- rasts_sw2_clim2[['prcp']] %>% 
@@ -267,7 +267,7 @@ all_mod_names <- expand_grid(
 # * delta 5c --------------------------------------------------------------
 
 map(names_5c, function(x) {
-  jpeg(paste0("figures/delta_fire-prob_vs_MAT_v2_", x, ".jpeg"))
+  jpeg(paste0("figures/delta_fire-prob_vs_MAT_v3_", x, ".jpeg"))
   plot(dfs_biome0$paint$MAT - 273.15, as.numeric(values(r_delta_5c[[x]])),
        ylab = "Delta fire probability", 
        xlab = 'MAT (deg C)',
@@ -321,28 +321,14 @@ base_raster <- function() {
     base
 }
 
-yr_string <- "# of fires over 36 years"
+yr_string <- "# of fires (1987-2019)"
 maps_fire <- map2(rasts_fPerPixel, names(rasts_fPerPixel), function(r, name) {
   
-  tm2 <- tm_shape(r[['mtbs']], bbox = bbox) +
+  tm2 <- tm_shape(r[['cwf']], bbox = bbox) +
     base_raster() +
-    tm_layout(main.title = paste0("MTBS, ", yr_string, "( ", name, " method)"))
+    tm_layout(main.title = paste0("cwf, ", yr_string, " (", name, " method)"))
   
-  tm3 <- tm_shape(r[['ifph']], bbox = bbox) +
-    base_raster() +
-    tm_layout(main.title = paste0("IFPH, ", yr_string, "( ", name, " method)"))
-  
-  tm4 <- tm_shape(r[['comb']], bbox = bbox) +
-    base_raster() +
-    tm_layout(main.title = paste0("IFPH and MTBS combined\n",
-                                  yr_string, "( ", name, " method)"))
-  
-  tm5 <- tm_shape(r[['lba']], bbox = bbox) +
-    base_raster() +
-    tm_layout(main.title = paste0("LBA,", yr_string, "( ", name, " method)"))
-  
-  list(tm2, tm3, tm4, tm5)
-
+  tm2
 })
 
 
@@ -432,27 +418,12 @@ pred_maps_5c = map(names_5c, function(x) {
             main.title.size = 0.5)
 })
 
-breaks_delta <- c(-0.04, -.02, -.01, -.005, -.004, -.003, -.002, -0.001, 0, 
-                  rev(c(.01, .003, .002, 0.001)))
-breaks_delta0 <- c( 0.001, .002, .003, .005, .01, .04)
+# change in fire probability with 5 c warming
+breaks_delta0 <- c( 0.001, .002, .003, .005, .01, .07)
 breaks_delta <- c(-rev(breaks_delta0), 0, breaks_delta0)
 
 cols_delta <- c(rev(brewer.pal(8, 'Greens')[-(1:2)]),
                 brewer.pal(8, 'OrRd')[-(1:2)])
-
-
-# change in fire probability with 5 c warming
-
-delta_maps <- map(names_5c, function(x) {
-  tm_shape(r_delta_5c[[x]], bbox = bbox) +
-    tm_raster(title = 'Delta probability',
-              breaks = breaks_delta,
-              palette = cols_delta) +
-    base +
-    tm_layout(main.title = paste0('Change fire probability with 5C warming\n', 
-                                  x),
-              main.title.size = 0.5)
-})
 
 
 # ** combine into multi panel map ------------------------------------------
@@ -462,67 +433,75 @@ get_endices <- function(type, method) {
   which(all_mod_names$type == type &  str_detect(all_mod_names$mod, method))
 }
 
-pdf(paste0("figures/maps_fire_prob/fire_prob_biome-mask_v6_", bin_string, 
+pdf(paste0("figures/maps_fire_prob/fire_prob_biome-mask_v7_", bin_string, 
            ".pdf"),
     width = 8, height = 7)
   # paint method
 
-  tmap_arrange(maps_fire[[1]], ncol = 2) # observed
-  tmap_arrange(pred_maps[get_endices('glm', 'paint')]) # predicted
-  tmap_arrange(pred_sw2_maps[get_endices('glm', 'paint')]) # predicted
+  tmap_arrange(maps_fire[[1]], ncol = 1) # observed
+  tmap_arrange(pred_maps[get_endices(names_5c[1], 'paint')]) # predicted
+  tmap_arrange(pred_sw2_maps[get_endices(names_5c[1], 'paint')]) # predicted
   # glm resample
   tmap_arrange(pred_maps[get_endices(names_5c[2], 'paint')]) # predicted
   tmap_arrange(pred_sw2_maps[get_endices(names_5c[2], 'paint')]) # predicted
- 
-   # reduceToImage method
-  tmap_arrange(maps_fire[[2]], ncol = 2) # observed
-  tmap_arrange(pred_maps[get_endices('glm', 'reduceToImage')]) # predicted
-  tmap_arrange(pred_sw2_maps[get_endices('glm', 'reduceToImage')]) # predicted
+
   pred_hists
   pred_sw2_hists
 dev.off()
 
 # single page sets of maps, observed, predicted
+
+# 'cleaner' maps with no additional information printed on them
+cwf_observed <- tm_shape(rasts_fPerPixel$paint[['cwf']], bbox = bbox) +
+  base_raster() +
+  tm_layout(main.title = "# of observed fires (1987-2019)")
+
+
+
 for(x in names_5c) {
-  jpeg(paste0("figures/maps_fire_prob/mtbs_observed_predicted_maps_",
-              x,"_v3.jpeg"),
-       width = 8, height = 3.2, res = 600, units = 'in')
-  print(tmap_arrange(maps_fire$paint[[1]], 
-                     pred_maps[[get_endices(x, 'paint_mtbs')]], nrow = 1))
-  dev.off()
+  
+  # predicted fire prob
+  cwf_pred <- tm_shape(rasts_pred2[[x]][['paint_cwf']], bbox = bbox) +
+    tm_raster(breaks = breaks_prob,
+              title = 'fire probability') +
+    base +
+    tm_layout(main.title = "Predicted fire probability")
+  
+  cwf_pred_5c <- tm_shape(r_pred_5c[[x]], bbox = bbox) +
+    tm_raster(breaks = breaks_prob,
+              title = 'fire probability') +
+    base +
+    tm_layout(main.title = "Predicted fire probability for 5C warming")
+  
+  delta_map <- tm_shape(r_delta_5c[[x]], bbox = bbox) +
+    tm_raster(title = 'Delta probability',
+              breaks = breaks_delta,
+              palette = cols_delta) +
+    base +
+    tm_layout(main.title = 'Change in fire probability due to 5C warming')
+  
+  # jpeg(paste0("figures/maps_fire_prob/cwf_observed_predicted_maps_v1_",
+  #             x,".jpeg"),
+  #      width = 8, height = 3.2, res = 600, units = 'in')
+  # print(tmap_arrange(cwf_observed, 
+  #                    cwf_pred, nrow = 1))
+  # dev.off()
   
   # also predicted for +5c, and delta with 5c warming
-  jpeg(paste0("figures/maps_fire_prob/mtbs_observed_predicted_maps_",
-              x,"_v2_5c.jpeg"),
+  jpeg(paste0("figures/maps_fire_prob/cwf_observed_predicted_maps_v1_5c_",
+              x,".jpeg"),
        width = 8, height = 6.5, res = 600, units = 'in')
-  print(tmap_arrange(maps_fire$paint[[1]], pred_maps[[get_endices(x, 'paint_mtbs')]],
-                     pred_maps_5c[[x]], delta_maps[[x]], nrow = 2))
+  print(tmap_arrange(cwf_observed, cwf_pred,
+                     cwf_pred_5c, delta_map, nrow = 2))
   dev.off()
 }
 
 
 
-
-# * examine cover ---------------------------------------------------------
-# the cover dataset has some values that are x.5% values, but
-# many more are whole numbers
-# looking at the spatial pattern here (pattern not overly concerning)
-# due to this issue (which creates a weird ) histograms/percentiles
-# therefore the data was rounded in 04_create_biome-mask_dataframe.R
-r <- rast_rap1[["shrCover"]]
-x <- values(r)
-r_integer <- r
-r_integer[r%%1!= 0] <- NA
-plot(r_integer)
-
-r_frac <- r
-r_frac[r_frac %% 1 == 0] <- NA
-plot(r_frac)
-
 # * RAP maps ----------------------------------------------------------------
 # rangeland analysis platform biomass and cover data
 
-title <- "\nMedian values (1986-2019)"
+title <- "\nMean values (1986-2019)"
 
 breaks_bio1 <- c(0, 10, 20, 50, 100, 200, 300)
 palette_bio1 <- RColorBrewer::brewer.pal(length(breaks_bio1), 'YlGn')
@@ -544,18 +523,6 @@ tm_rap2 <- tm_shape(rast_rap1[["pfgAGB"]], bbox = bbox) +
             title = lab_bio0) +
   base +
   tm_layout(main.title = paste("Perennial forb and grass biomass", 
-                               title))
-
-# shrubs
-breaks_cov1 <- c(0,2, 5, 10, 15, 20, 30, 50, 70)
-palette_cov1 <- brewer.pal(length(breaks_cov1), 'YlGn')
-
-tm_rap3 <- tm_shape(rast_rap1[["shrCover"]], bbox = bbox) +
-  tm_raster(breaks = breaks_cov1,
-            palette = palette_cov1,
-            title = "% Cover") +
-  base +
-  tm_layout(main.title = paste("Shrub cover", 
                                title))
 
 
@@ -595,16 +562,11 @@ h0 <- ggplot(dfs_biome2[[1]]) +
   labs(subtitle = 'RAP data (biome mask)')
 
 h1 <- h0+
-  geom_histogram(aes(afgAGB), bins = bins) +
-  coord_cartesian(xlim = c(0, afgAGB_max))
+  geom_histogram(aes(afgAGB), bins = bins) 
 
 h2 <- h0+
   geom_histogram(aes(pfgAGB), bins = bins) +
   coord_cartesian(xlim = c(0, pfgAGB_max))
-h3 <- h0+
-  geom_histogram(aes(shrCover), 
-                 breaks = seq(0, ceiling(max(dfs_biome2[[1]]$shrCover)), 1)) +
-  labs(caption = "Cover rounded to the integer")
 
 # STEPWAT data
 h0_sw2 <- ggplot(df_sw2_sim2)+
@@ -620,14 +582,34 @@ h2_sw2 <- h0_sw2 +
   coord_cartesian(xlim = c(0, pfgAGB_max))
 
 # save maps & histograms
-pdf("figures/maps_veg/RAP_bio-cover_biome-mask_v2.pdf",
+pdf("figures/maps_veg/RAP_bio-cover_biome-mask_v3.pdf",
     width = 8, height = 6)
-tmap_arrange(tm_rap1, tm_rap2, tm_rap3, nrow = 2)
+tmap_arrange(tm_rap1, tm_rap2, nrow = 2)
 # the pfg map is given twice on this panel, so map sizing remains the same
 tmap_arrange(tm_sw2_afg, tm_sw2_pfg, base, nrow = 2)
-gridExtra::grid.arrange(h1, h2, h3, h1_sw2, h2_sw2, ncol = 3)
+gridExtra::grid.arrange(h1+ coord_cartesian(xlim = c(0, afgAGB_max)), 
+                        h2+ coord_cartesian(xlim = c(0, pfgAGB_max)), 
+                        h1_sw2, h2_sw2, ncol = 2)
 dev.off()
 
+# higher quality jpegs of maps
+jpeg("figures/maps_veg/RAP_bio_biome-mask_v1.jpeg",
+     res = 600, units = 'in', width = 8, height = 3.5)
+tmap_arrange(tm_rap1, tm_rap2, nrow = 1)
+dev.off()
+
+# higher quality jpegs of histograms
+jpeg("figures/hists_RAP_bio_1986-2019_mean.jpeg",
+     res = 600, units = 'in', width = 8, height = 3)
+gridExtra::grid.arrange(
+  h1 +
+    labs(subtitle = "Annual forbs and grasses",
+         x = lab_bio0), 
+  h2 +
+    labs(subtitle =  "Perennial forbs and grasses",
+         x = lab_bio0), ncol = 2)
+
+dev.off()
 
 # * daymet data -----------------------------------------------------------
 
@@ -649,13 +631,14 @@ met1 <- tm_shape(rasts_clim1$Yearly[["prcp"]], bbox = bbox) +
             palette = 'Blues',
             title = 'MAP (mm)')  +
   base +
-  tm_layout(main.title = 'Precipitation (1984 - 2019)')
+  tm_layout(main.title = 'Precipitation (1986 - 2019)')
 
 met2 <- tm_shape(rasts_clim1$Yearly[["tavg"]], bbox = bbox) +
   tm_raster(title = 'MAT (deg C)',
-            palette = 'Reds')  +
+            palette = 'Reds',
+            n = 10)  +
   base+
-  tm_layout(main.title = 'Temperature (1984 - 2019)')
+  tm_layout(main.title = 'Temperature (1986 - 2019)')
 
 met3 <- tm_shape(rasts_clim1$Summer[["prcpProp"]], bbox = bbox) +
   tm_raster(title = 'Proportion',
@@ -667,8 +650,8 @@ met3 <- tm_shape(rasts_clim1$Summer[["prcpProp"]], bbox = bbox) +
 # ** histograms -----------------------------------------------------------
 h0 <- dfs_biome2[[1]] %>% 
   mutate(prcpPropSum_group = cut(prcpPropSum, breaks_prop)) %>% 
-  ggplot() +
-  labs(subtitle = 'biome mask')
+  ggplot()
+
 bins <-  500
 h4 <- h0+
   geom_histogram(aes(MAP), bins = bins) +
@@ -687,8 +670,14 @@ h6 <- h0+
 h6
 
 # save maps & histograms
-pdf("figures/maps_climate/climate_biome-mask_v2.pdf",
-    width = 8, height = 6)
+jpeg("figures/maps_climate/maps_climate_biome-mask_1986-2019_v1.jpeg",
+    width = 8, height = 6, units = 'in', res = 600)
   tmap_arrange(met1, met2, met3, nrow = 2)
-  gridExtra::grid.arrange(h4, h5, h6, ncol = 2)
 dev.off()
+
+jpeg("figures/maps_climate/hists_climate_biome-mask_1986-2019_v1.jpeg",
+    width = 8, height = 6, units = 'in', res = 600)
+gridExtra::grid.arrange(h4, h5, h6, ncol = 2)
+dev.off()
+
+
