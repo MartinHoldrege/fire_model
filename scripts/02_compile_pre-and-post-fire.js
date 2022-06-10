@@ -189,6 +189,9 @@ another for when there has been 2 fires, but not 3 (i.e. fire_3), etc.
 var bioMasked2 = pred.bioMasked.select(['afgAGB', 'pfgAGB'])
   .sort('year');
 var bioMList1 = bioMasked2.toList(999);
+var bioMaskedAvg = bioMasked2
+  .filterDate(ee.Date.fromYMD(startYear, 1, 1), ee.Date.fromYMD(endYear, 12, 31))
+  .mean();
 
 // these list need to be the same length and in the same order
 print('RAP data length', bioMList1.length());
@@ -272,6 +275,20 @@ Export.image.toDrive({
   crs: crs,
   fileFormat: 'GeoTIFF'
 });
+
+// average RAP over the whole time period (other scripts create medians), but this way it is consistent
+// with the bioByNumFire image which also shows means
+Export.image.toDrive({
+  image: bioMaskedAvg,
+  description: 'RAP_afgAGB-pfgAGB_' + startYear + '-' + endYear + '_mean_' + resolution + 'm' + maskString,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
+
 
 // Number of years with given number of cumulative fires
 // (from step 2)
