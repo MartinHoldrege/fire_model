@@ -17,6 +17,7 @@
 
 library(terra)
 library(tidyverse)
+theme_set(theme_classic())
 source('src/general_functions.R')
 # run if need to re-download the data
 # source('scripts/02_download_GEE_output_from_gdrive.R')
@@ -124,20 +125,36 @@ if (FALSE) {
     select(-c_fire_num, -pft) %>% 
     pivot_wider(names_from = 'lyr',
                 values_from = 'value')
+  
+  pdf("figures/AGB_pre_vs_post_fire_v1.pdf")
   ggplot(df, aes(fire_0_afgAGB, fire_1_afgAGB)) +
     geom_point(alpha = 0.1) +
-    geom_smooth(method = 'lm') +
-    geom_abline(slope = 1)
+    geom_smooth() +
+    geom_abline(slope = 1) +
+    labs(x = "annual biomass pre-fire",
+        y = "annual biomass after 1 fire")
   
   ggplot(df, aes(fire_0_afgAGB, fire_2_afgAGB)) +
     geom_point(alpha = 0.1) +
     geom_smooth() +
-    geom_abline(slope = 1)
+    geom_abline(slope = 1)+
+    labs(x = "annual biomass pre-fire",
+         y = "annual biomass after 2 fires")
+  
+  ggplot(df, aes(fire_0_pfgAGB, fire_1_pfgAGB)) +
+    geom_point(alpha = 0.1) +
+    geom_smooth() +
+    geom_abline(slope = 1)+
+    labs(x = "perennial biomass pre-fire",
+         y = "perennial biomass after 1 fires")
   
   ggplot(df, aes(fire_0_pfgAGB, fire_2_pfgAGB)) +
     geom_point(alpha = 0.1) +
     geom_smooth() +
-    geom_abline(slope = 1)
+    geom_abline(slope = 1)+
+    labs(x = "perennial biomass pre-fire",
+         y = "perennial biomass after 2 fires")
+  dev.off()
 }
 
 
