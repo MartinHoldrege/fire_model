@@ -1,0 +1,168 @@
+---
+title: "Cross validation using environmental blocking"
+subtitle: "Based on before/after fire resampled data"
+author: "Martin Holdrege"
+date: "`r lubridate::today()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+The goal here is to split the data into multiple training/testing
+blocks based on clustering grid-cells by climate.
+
+# Dependencies
+
+User defined parameters:
+
+```{r}
+# setting to TRUE causes the data set to
+# be run on a small sample of the data (i.e. for a quicker run of the code)
+test_run <- FALSE
+```
+
+
+```{r, message = FALSE, warning = FALSE}
+source("scripts/04_create_biome-mask_dataframe_byNFire.R")
+source("src/resample_functions.R")
+source("src/cv_functions.R")
+source("src/modeling_functions.R")
+library(blockCV) # for creating environmental blocks
+library(sf)
+```
+
+## Read in data
+
+Read in model object (for the formula)
+
+```{r}
+mods1 <- readRDS("models/glm_binomial_models_byNFire_v1_bin20_cwf_.RDS")
+```
+
+Reading in the data again here because below the data needs to be 
+a raster object not a terra object, and the conversion between the two
+was not properly working
+
+```{r}
+
+seasons <- c('Yearly', 'Summer') # not using spring at the moment
+
+# using the data starting in 1986 so that it matches the rap data
+# that we're using
+clim_paths <- paste0("data_processed/daymet/daymet_clim",  seasons,
+                     "Avg_1986-2019_1000m", maskString, "v1.tif")
+
+names(clim_paths) <- seasons
+
+r_clim1 <- map(clim_paths, raster::brick) # list of rasters
+```
+
+
+# Determine Blocks
+
+This is some test code
+
+```{r}
+# load package data
+awt <- raster::stack(system.file("extdata", "awt.grd", package = "blockCV"))
+# import presence-absence species data
+PA <- read.csv(system.file("extdata", "PA.csv", package = "blockCV"))
+# make a sf object from data.frame
+#PA$x[1] <- 10
+pa_data <- sf::st_as_sf(PA, coords = c("x", "y"), crs = raster::crs(awt))
+
+# environmental clustering
+eb <- envBlock(rasterLayer = awt,
+               speciesData = pa_data,
+               species = "Species", # name of the column with response
+               k = 5,
+               standardization = "standard",
+               rasterBlock = TRUE)
+cell_coords <- xyFromCell(awt, 1:length(values(awt[[1]]))) %>% 
+  as.data.frame() %>% 
+  mutate(Species = 1,
+         value = as.numeric(values(awt[[1]]))) %>% 
+  filter(!is.na(value)) %>% 
+  st_as_sf(coords = c("x", "y"), crs = sf::st_crs(awt)) 
+
+
+ext <- raster::extract(awt, cell_coords)
+!is.na(ext[, 1]) %>% 
+  sum()
+        if(anyNA(ext)){
+          stop("The input raster layer does not cover all the species points.")
+        }
+
+eb <- envBlock(rasterLayer = awt,
+               speciesData = cell_coords,
+               species = "Species", # name of the column with response
+               k = 5,
+               standardization = "standard",
+               rasterBlock = TRUE)
+
+str(eb)
+```
+
+Combine climate data into a single raster for use in blockCV::envBlock(),
+and create an sf object of fake datapoints so that function will work. 
+
+```{r}
+
+r_clim2 <- raster::stack(r_clim1$Yearly[[c("prcp", "tavg")]],
+             r_clim1$Summer[['prcpProp']]) %>% 
+  raster::setMinMax() # if this isn't set envBlock won't work
+
+names(r_clim2) <- c("MAP", "MAT", "prcpPropSum")
+
+
+n <- ncell(r_clim2)
+cell_coords <- xyFromCell(r_clim2[[1]], 1:n) %>% 
+  as.data.frame() %>% 
+  mutate(
+    value = as.numeric(values(r_clim2[[1]])),
+    cell_num = 1:n,
+    # thi is just a dummy variable to make 
+    #  envBlock() run
+    dummy_col = sample(c(0,1), n, replace = TRUE)) %>% 
+  filter(!is.na(value)) %>% 
+  dplyr::select(-value)
+
+
+# sf object of the center of sagebrush biome grid points
+cells_sf1 <- st_as_sf(cell_coords, coords = c("x", "y"),
+                      crs = sf::st_crs(r_clim2))
+
+
+eb1 <- envBlock(rasterLayer = r_clim2,
+               speciesData = cells_sf1,
+               species = "dummy_col", # name of the column with response
+               k = 5,
+               standardization = "standard",
+               rasterBlock = TRUE)
+eb1$records
+eb1$folds[[1]]
+sum(eb1$records$test_0 +eb1$records$test_1)
+```
+
+
+
+
+# Prepare Data
+
+## Resample
+
+First, bin the data.
+
+```{r}
+pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
+names(pred_vars) <- pred_vars
+response_vars <- c("cwf_prop", "cwf_prop_pred")
+
+bins <- 20
+
+df_binned1 <- bin_df(df_byNFire2, cols = pred_vars, n_categories = bins)
+
+df_resampled1 <- resample_bins(df_binned1)
+```
