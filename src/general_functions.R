@@ -412,16 +412,20 @@ rmse4dotplot <- function(df, yvar) {
 #' @param ylab string--y axis label
 #' @param add_predicted logical, whether to also add model predicted data
 #' to the plot. this requires the dataframe to 
-decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)',
+decile_dotplot <- function(yvar, df, method = NULL, ylab = 'fire probability (per year)',
                            add_predicted = FALSE, title = NULL,
                            size = 0.75,
-                           add_rmse = TRUE) {
+                           add_rmse = TRUE,
+                           subtitle = NULL) {
   
   if('filter_var' %in% names(df)) {
     stop('filter_var column present, you should used decile_dotplot_filtered()')
   }
   
   caption <- "Each panel shows a different predictor variable"
+  if(is.null(subtitle) & !is.null(method)) {
+    subtitle <- paste0('y variable is ', yvar, " (", method, " method)")
+  }
   
   g <- ggplot(df, aes_string(x = 'mean_value', y = yvar)) +
     geom_point(aes(color = "Observed", shape = "Observed"),
@@ -429,7 +433,7 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
     facet_wrap(~name, scales = 'free_x') +
     labs(x = "mean of quantile of predictor variable",
          y = ylab,
-         subtitle = paste0('y variable is ', yvar, " (", method, " method)"),
+         subtitle = subtitle,
          title = title) +
     theme(legend.position = 'top',
           legend.title = element_blank()) 
@@ -488,10 +492,13 @@ decile_dotplot <- function(yvar, df, method, ylab = 'fire probability (per year)
 #' @param title plot title
 #' @param size size of points
 #' @param ylab string--y axis label
-decile_dotplot_filtered <- function(yvar, df, method, ylab = 'fire probability (per year)',
+decile_dotplot_filtered <- function(yvar, df, method = NULL, ylab = 'fire probability (per year)',
                            add_smooth = FALSE,
                            title = NULL,
-                           size = 0.75) {
+                           size = 0.75,
+                           subtitle = NULL) {
+  # all_of() seems to break down if yvar has name different than the values
+  yvar <- unname(yvar) 
   df2 <- df %>% 
     filter(name %in% c("afgAGB", "pfgAGB", "herbAGB")) %>% 
     select(name, filter_var, percentile_category, decile, mean_value,
@@ -503,6 +510,10 @@ decile_dotplot_filtered <- function(yvar, df, method, ylab = 'fire probability (
                            "predicted", "observed"),
            percentile_category = paste0(percentile_category, " (", source, ")"))
   
+  if(is.null(subtitle) & !is.null(method)) {
+    subtitle <- paste0('y variable is ', yvar, " (", method, " method)")
+  }
+  
   g <- ggplot(df2, aes(x = mean_value, y = probability)) +
     geom_point(aes(color = percentile_category,
                    shape = percentile_category),
@@ -513,7 +524,7 @@ decile_dotplot_filtered <- function(yvar, df, method, ylab = 'fire probability (
          caption = paste0("Columns show the predictor variable\n",
                           "Rows show the variable data was filtered by", 
                           " (i.e., only pixels falling in the lowest or highest two deciles were kept)"),
-         subtitle = paste0('y variable is ', yvar, " (", method, " method)"),
+         subtitle = subtitle,
          title = title) +
     theme(legend.position = 'top',
           legend.title = element_blank()) +

@@ -22,7 +22,7 @@ User defined parameters:
 ```{r}
 # setting to TRUE causes the data set to
 # be run on a small sample of the data (i.e. for a quicker run of the code)
-test_run <- TRUE
+test_run <- FALSE
 ```
 
 
@@ -30,6 +30,7 @@ test_run <- TRUE
 source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/resample_functions.R")
 source("src/cv_functions.R")
+source("src/modeling_functions.R")
 
 ```
 
@@ -73,13 +74,14 @@ best_center
 ```
 
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, error = TRUE}
 r_quads <- create_quadrants(r_biome0, x = best_center['x'],
                                 y = best_center['y'])
 # plot(r_quads)
 plot(r_biome0*r_quads,
      main = "The quadrants used for cross validation")
 ```
+
 # Prepare Data
 
 ## Resample
@@ -89,6 +91,7 @@ First, bin the data.
 ```{r}
 pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
+response_vars <- c("cwf_prop", "cwf_prop_pred")
 
 bins <- 20
 
@@ -145,12 +148,123 @@ dfs_train1 <- map(quad_nums, function(x) {
 # Fit models
 
 ```{r}
+
 form1 <- mods1$paint_cwf$formula
 
 mods_train1 <- map(dfs_train1, function(df) {
   glm(form1, family = 'binomial', data = df,
       weights = numYrs)
 })
+
+# this is just for exploration--fitting models seperately to 
+# each quadrant
+mods_test1 <- map(dfs_test1, function(df) {
+  glm(form1, family = 'binomial', data = df,
+      weights = numYrs)
+})
+
+# predictions onb the test data set
+dfs_test2 <- map2(mods_train1, dfs_test1, function(mod, df) {
+  df$cwf_prop_pred <- predict(mod, newdata = df, type = 'response')
+  df
+})
+
+```
+
+## PDP
+
+These aren't real partial dependence plots--for the sake of computational
+efficiency, I'm predicting across the range of of a given predictor
+variable, with other variables held at their mean. 
+
+
+```{r}
+
+preds_avg <- map_dfr(mods_train1, predict_across_avg, pred_vars = pred_vars,
+                   df = df_resampled2[pred_vars],
+                   .id = 'quad')
+
+ggplot(preds_avg, aes(value, yhat, color = quad)) +
+  geom_line() +
+  facet_wrap(~pred_var, scales = 'free') +
+  labs(x = "Predictor variable",
+       y = "Predicted fire probability",
+       subtitle = "'Pseudo' partial dependence plots for different training datasets",
+       caption = "Each model was fit to data where one of the quadrants was left out. 
+       Predictions are across the whole range of a given predictor variable, and for
+       the biome-wide average of all other predictor variables") +
+  guides(color = guide_legend(title = "Quadrant left out"))
+
+
+```
+
+Here are more 'pseudo' pdp plots. In this case the models were
+fit just one quadrants
+
+
+```{r}
+
+preds_test_avg <- map_dfr(mods_test1, predict_across_avg, pred_vars = pred_vars,
+                   df = df_resampled2[pred_vars],
+                   .id = 'quad')
+
+ggplot(preds_test_avg, aes(value, yhat, color = quad)) +
+  geom_line() +
+  facet_wrap(~pred_var, scales = 'free') +
+  labs(x = "Predictor variable",
+       y = "Predicted fire probability",
+       subtitle = "'Pseudo' partial dependence plots for models fit to one quadrant",
+       caption = "Each model was fit to data for one quadrant. 
+       Predictions are across the whole range of a given predictor variable, and for
+       the biome-wide average of all other predictor variables") +
+  guides(color = guide_legend(title = "Quadrant model fit to"))
+
+
 ```
 
 
+## Observed vs. predicted
+
+### Deciles
+
+```{r}
+
+pred_test_deciles1 <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
+                 response_vars = response_vars)
+
+map2(pred_test_deciles1, names(pred_test_deciles1), function(df, quad) {
+  decile_dotplot(yvar = response_vars[1], df = df, add_predicted = TRUE,
+                 subtitle = paste0("Predictions on ", quad, 
+                                   " (model fit to other quadrants)"))
+})
+```
+
+
+### deciles filtered
+
+```{r}
+pred_test_deciles_filt <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
+                 response_vars = response_vars,
+                 filter_var = TRUE)
+
+map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(df, quad) {
+  decile_dotplot_filtered(yvar = response_vars[1], df = df, add_smooth = TRUE,
+                 subtitle = paste0("Predictions on ", quad, 
+                                   " (model fit to other quadrants)"))
+})
+```
+
+# session info
+
+Hash of current commit (i.e. to ID the version of the code used)
+
+```{r}
+system("git rev-parse HEAD", intern=TRUE)
+```
+
+Packages etc.
+
+```{r}
+sessionInfo()
+
+```

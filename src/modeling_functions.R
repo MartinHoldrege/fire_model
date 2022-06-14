@@ -82,6 +82,46 @@ pdp_all_rf_mods <- function(mod_list, df_train) {
   }
 }
 
+#' Create model predictions for given variable
+#' 
+#' @description This is just a computation quick and dirty way to 
+#' approximate the predictions used for making partial dependence plots
+#'
+#' @param mod model object
+#' @param pred_vars predictor variable names
+#' @param df dataframe to base predictions on (see additional info below)
+#' @param mult multiplier to extend the range of the variable of interest by
+#'
+#' @return  list with same length as pred_vars. Creats predictions
+#' for each pred_var, where all other pred_vars are held constant (at their means)
+predict_across_avg <- function(mod, pred_vars, df, mult = 0) {
+  
+  dfs_avg <- map_dfr(pred_vars, function(var) {
+    df <- df %>% 
+      mutate(across(-all_of(var),
+                    mean))
+    n <- 1000
+    min <- min(df[[var]])
+    max <- max(df[[var]])
+    range <- max - min
+    min_new <- min - range*mult
+    if(min_new < 0) min_new <- 0
+    max_new <- max + range*mult
+    df <- df[1:n, ]
+    
+    df[[var]] <- seq(min_new, max_new, length.out = n)
+    df$yhat <- predict(mod, newdata = df,
+                       type = 'response')
+    
+    out <- df
+    out$pred_var <- var
+    out$value <- df[[var]]
+    out <- out[, c('yhat', 'pred_var', 'value')]
+    out
+  })
+  
+  dfs_avg
+}
 
 
 # find best variable transformations --------------------------------------
