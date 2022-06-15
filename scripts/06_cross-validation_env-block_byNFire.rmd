@@ -27,10 +27,11 @@ test_run <- FALSE
 ```{r, message = FALSE, warning = FALSE}
 source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/resample_functions.R")
-source("src/cv_functions.R")
 source("src/modeling_functions.R")
+source("src/basemaps.R")
 library(blockCV) # for creating environmental blocks
 library(sf)
+
 ```
 
 ## Read in data
@@ -62,48 +63,6 @@ r_clim1 <- map(clim_paths, raster::brick) # list of rasters
 
 # Determine Blocks
 
-This is some test code
-
-```{r}
-# load package data
-awt <- raster::stack(system.file("extdata", "awt.grd", package = "blockCV"))
-# import presence-absence species data
-PA <- read.csv(system.file("extdata", "PA.csv", package = "blockCV"))
-# make a sf object from data.frame
-#PA$x[1] <- 10
-pa_data <- sf::st_as_sf(PA, coords = c("x", "y"), crs = raster::crs(awt))
-
-# environmental clustering
-eb <- envBlock(rasterLayer = awt,
-               speciesData = pa_data,
-               species = "Species", # name of the column with response
-               k = 5,
-               standardization = "standard",
-               rasterBlock = TRUE)
-cell_coords <- xyFromCell(awt, 1:length(values(awt[[1]]))) %>% 
-  as.data.frame() %>% 
-  mutate(Species = 1,
-         value = as.numeric(values(awt[[1]]))) %>% 
-  filter(!is.na(value)) %>% 
-  st_as_sf(coords = c("x", "y"), crs = sf::st_crs(awt)) 
-
-
-ext <- raster::extract(awt, cell_coords)
-!is.na(ext[, 1]) %>% 
-  sum()
-        if(anyNA(ext)){
-          stop("The input raster layer does not cover all the species points.")
-        }
-
-eb <- envBlock(rasterLayer = awt,
-               speciesData = cell_coords,
-               species = "Species", # name of the column with response
-               k = 5,
-               standardization = "standard",
-               rasterBlock = TRUE)
-
-str(eb)
-```
 
 Combine climate data into a single raster for use in blockCV::envBlock(),
 and create an sf object of fake datapoints so that function will work. 
@@ -134,19 +93,20 @@ cell_coords <- xyFromCell(r_clim2[[1]], 1:n) %>%
 cells_sf1 <- st_as_sf(cell_coords, coords = c("x", "y"),
                       crs = sf::st_crs(r_clim2))
 
-
+k <- 5
+fold_name <- paste0('fold', 1:k)
 eb1 <- envBlock(rasterLayer = r_clim2,
                speciesData = cells_sf1,
                species = "dummy_col", # name of the column with response
-               k = 5,
+               k = k,
                standardization = "standard",
                rasterBlock = TRUE)
-eb1$records
-eb1$folds[[1]]
-sum(eb1$records$test_0 +eb1$records$test_1)
+
+# checking that size of all test datasets sums to the 
+# number of grid cells in the original dataset
+stopifnot(length(unique(df_byNFire2$cell_num)) 
+          == sum(eb1$records$test_0 +eb1$records$test_1))
 ```
-
-
 
 
 # Prepare Data
@@ -166,3 +126,155 @@ df_binned1 <- bin_df(df_byNFire2, cols = pred_vars, n_categories = bins)
 
 df_resampled1 <- resample_bins(df_binned1)
 ```
+
+
+## Split into train/test
+
+```{r}
+cell_nums <- df_byNFire2$cell_num
+
+test_cell_nums <- map(eb1$folds, function(x) {
+  # the first element of the sub list contains the endices
+  # of the training data set, the second the endices for the test set
+  cell_nums[x[[2]]] 
+})
+
+names(test_cell_nums) <- fold_name
+
+dfs_test1 <- map(test_cell_nums, function(x) {
+  df_resampled1[df_resampled1$cell_num %in% x, ] 
+})
+
+dfs_train1 <- map(test_cell_nums, function(x) {
+  df_resampled1[!df_resampled1$cell_num %in% x, ] 
+})
+
+```
+
+Visualizing locations of the folds
+
+```{r}
+cols_fold <- RColorBrewer::brewer.pal(k, 'RdYlBu')
+names(cols_fold) <- fold_name
+r_folds1 <- r_clim2[[1]]
+r_folds1[!is.na(r_folds1)] <- eb1$foldID
+
+# the base and bbox objects come from src/basemaps.R
+base +
+  tm_shape(r_folds1, bbox = bbox) +
+  tm_raster(palette = cols_fold,
+            as.count = TRUE,
+            title = "Fold") +
+  tm_layout(main.title = "Folds (environmental blocks) used for cross validation")
+
+```
+
+
+
+# Fit models
+
+All models have the same formula. But are fit two data where one
+block of data is held out. 
+
+```{r}
+
+form1 <- mods1$paint_cwf$formula
+
+mods_train1 <- map(dfs_train1, function(df) {
+  glm(form1, family = 'binomial', data = df,
+      weights = numYrs)
+})
+
+
+# predictions onb the test data set
+dfs_test2 <- map2(mods_train1, dfs_test1, function(mod, df) {
+  df$cwf_prop_pred <- predict(mod, newdata = df, type = 'response')
+  df
+})
+
+```
+
+
+## PDP
+
+These aren't real partial dependence plots--for the sake of computational
+efficiency, I'm predicting across the range of of a given predictor
+variable, with other variables held at their mean. 
+
+
+```{r}
+
+preds_avg <- map_dfr(mods_train1, predict_across_avg, pred_vars = pred_vars,
+                   df = df_resampled1[pred_vars],
+                   .id = 'fold')
+
+ggplot(preds_avg, aes(value, yhat, color = fold)) +
+  geom_line() +
+  facet_wrap(~pred_var, scales = 'free') +
+  labs(x = "Predictor variable",
+       y = "Predicted fire probability",
+       subtitle = "'Pseudo' partial dependence plots for different training datasets",
+       caption = "Each model was fit to data where one environmental block was was left out. 
+       Predictions are across the whole range of a given predictor variable, and for
+       the biome-wide average of all other predictor variables") +
+  scale_color_manual(values = cols_fold, name = "Fold left out")
+
+```
+
+
+## Observed vs predicted
+
+### Deciles
+
+```{r}
+
+pred_test_deciles1 <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
+                 response_vars = response_vars)
+
+map2(pred_test_deciles1, names(pred_test_deciles1), function(df, fold) {
+  decile_dotplot(yvar = response_vars[1], df = df, add_predicted = TRUE,
+                 subtitle = paste0("Predictions on ", fold, 
+                                   " (model fit to other folds)"))
+})
+```
+
+
+### deciles filtered
+
+```{r}
+pred_test_deciles_filt <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
+                 response_vars = response_vars,
+                 filter_var = TRUE)
+
+map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(df, fold) {
+  decile_dotplot_filtered(yvar = response_vars[1], df = df, add_smooth = TRUE,
+                 subtitle = paste0("Predictions on ", fold, 
+                                   " (model fit to other all other folds)"))
+})
+```
+
+# session info
+
+Hash of current commit (i.e. to ID the version of the code used)
+
+```{r}
+system("git rev-parse HEAD", intern=TRUE)
+```
+
+Packages etc.
+
+```{r}
+sessionInfo()
+
+```
+
+
+
+
+
+
+
+
+
+
+
