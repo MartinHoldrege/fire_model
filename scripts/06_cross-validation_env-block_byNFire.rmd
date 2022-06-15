@@ -15,15 +15,6 @@ blocks based on clustering grid-cells by climate.
 
 # Dependencies
 
-User defined parameters:
-
-```{r}
-# setting to TRUE causes the data set to
-# be run on a small sample of the data (i.e. for a quicker run of the code)
-test_run <- FALSE
-```
-
-
 ```{r, message = FALSE, warning = FALSE}
 source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/resample_functions.R")
@@ -31,6 +22,7 @@ source("src/modeling_functions.R")
 source("src/basemaps.R")
 library(blockCV) # for creating environmental blocks
 library(sf)
+library(knitr)
 
 ```
 
@@ -95,6 +87,9 @@ cells_sf1 <- st_as_sf(cell_coords, coords = c("x", "y"),
 
 k <- 5
 fold_name <- paste0('fold', 1:k)
+
+set.seed(124) # envBlock uses kmeans which is affected by the seed
+
 eb1 <- envBlock(rasterLayer = r_clim2,
                speciesData = cells_sf1,
                species = "dummy_col", # name of the column with response
@@ -107,6 +102,18 @@ eb1 <- envBlock(rasterLayer = r_clim2,
 stopifnot(length(unique(df_byNFire2$cell_num)) 
           == sum(eb1$records$test_0 +eb1$records$test_1))
 ```
+
+size of folds
+
+```{r}
+fold_size <- eb1$records %>% 
+  mutate(fold_size = test_0 + test_1,
+         fold = 1:nrow(.)) %>% 
+  select(fold_size, fold) 
+
+kable(fold_size, caption = "Number of pixels per fold")
+```
+
 
 
 # Prepare Data
@@ -131,12 +138,34 @@ df_resampled1 <- resample_bins(df_binned1)
 ## Split into train/test
 
 ```{r}
-cell_nums <- df_byNFire2$cell_num
+cell_nums <- unique(df_byNFire2$cell_num)
 
-test_cell_nums <- map(eb1$folds, function(x) {
+test_cell_endices <- map(eb1$folds, function(x) x[[2]])
+
+# show be as many unique values in all the test sets as
+# there are gridcells in the original dataset
+stopifnot(length(unique(unlist(test_cell_endices))) == 
+            length(unique(df_byNFire2$cell_num)))
+
+# shouldn't be duplicates in the test dataset endices
+stopifnot(sum(duplicated(unlist(test_cell_endices))) == 0)
+
+
+test_cell_nums <- map(test_cell_endices, function(x) {
   # the first element of the sub list contains the endices
   # of the training data set, the second the endices for the test set
-  cell_nums[x[[2]]] 
+  stopifnot(max(x) <= length(cell_nums))
+  cell_nums[x] 
+})
+
+stopifnot(
+  sort(unique(unlist(test_cell_nums))) == 
+    sort(unique(df_byNFire2$cell_num))
+)
+
+df_test_cell_nums <- map2_dfr(test_cell_nums, fold_name, function(x, y) {
+  tibble(cell_num = x,
+         fold = y)
 })
 
 names(test_cell_nums) <- fold_name
@@ -151,7 +180,7 @@ dfs_train1 <- map(test_cell_nums, function(x) {
 
 ```
 
-Visualizing locations of the folds
+# Describe folds
 
 ```{r}
 cols_fold <- RColorBrewer::brewer.pal(k, 'RdYlBu')
@@ -169,15 +198,46 @@ base +
 
 ```
 
+Summarizing fire occurrence by fold
+
+```{r}
+df_byNFire2_fold <- df_byNFire2 %>% 
+  left_join(df_test_cell_nums, by = 'cell_num')
+  
+df_byNFire2_fold %>% 
+  group_by(fold) %>% 
+  summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)) %>% 
+  select(fold, observed_fire_probability) %>% 
+  kable(caption = "Mean observed fire probability by fold")
+```
+
+Climate by fold
+
+```{r}
+df_byNFire2_fold %>% 
+  filter(!duplicated(cell_num)) %>% 
+  group_by(fold) %>% 
+  mutate(MAT = MAT - 273.15) %>% 
+  summarise(across(c(MAT, MAP, prcpPropSum),
+                .fns = list(mean = mean,min = min, max =  max, sd = sd))) %>% 
+  pivot_longer(cols = -fold,
+               names_to = c("variable", "summary_stat"),
+               names_sep = "_") %>% 
+  pivot_wider(names_from = 'variable') %>% 
+  mutate(across(matches("MAT|MAP"), round, digits = 1),
+       across(matches("prcpPropSum"), round, digits = 3)) %>% 
+  arrange(summary_stat) %>% 
+  kable(caption = "Summary of climate variables by fold")
+
+```
 
 
 # Fit models
 
-All models have the same formula. But are fit two data where one
+All models have the same formula. But are fit to data where one
 block of data is held out. 
 
 ```{r}
-
 form1 <- mods1$paint_cwf$formula
 
 mods_train1 <- map(dfs_train1, function(df) {
@@ -186,7 +246,7 @@ mods_train1 <- map(dfs_train1, function(df) {
 })
 
 
-# predictions onb the test data set
+# predictions on the test data set
 dfs_test2 <- map2(mods_train1, dfs_test1, function(mod, df) {
   df$cwf_prop_pred <- predict(mod, newdata = df, type = 'response')
   df
@@ -198,13 +258,14 @@ dfs_test2 <- map2(mods_train1, dfs_test1, function(mod, df) {
 ## PDP
 
 These aren't real partial dependence plots--for the sake of computational
-efficiency, I'm predicting across the range of of a given predictor
+efficiency, I'm predicting across the range of a given predictor
 variable, with other variables held at their mean. 
 
 
 ```{r}
 
-preds_avg <- map_dfr(mods_train1, predict_across_avg, pred_vars = pred_vars,
+mods_train2 <- c(mods_train1, list('biome-wide' = mods1$paint_cwf))
+preds_avg <- map_dfr(mods_train2, predict_across_avg, pred_vars = pred_vars,
                    df = df_resampled1[pred_vars],
                    .id = 'fold')
 
@@ -217,7 +278,8 @@ ggplot(preds_avg, aes(value, yhat, color = fold)) +
        caption = "Each model was fit to data where one environmental block was was left out. 
        Predictions are across the whole range of a given predictor variable, and for
        the biome-wide average of all other predictor variables") +
-  scale_color_manual(values = cols_fold, name = "Fold left out")
+  scale_color_manual(values = c(cols_fold, 'biome-wide' = 'black'), 
+                     name = "Fold left out")
 
 ```
 
