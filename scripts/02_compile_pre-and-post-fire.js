@@ -115,6 +115,14 @@ var cwfCumByYearCol = ee.ImageCollection(cwfCumByYear);
 
 // cumulative fires in the last year (i.e., this is the total number of fires over the time period)
 var cwfLastYear = ee.Image(cwfCumByYear.get(-1));
+
+// fires per pixel, excluding the first year (1986)--creating this
+// for later data validation in R. Some downstream analysis won't use 1986 fire
+// data b/ there are no previous years with RAP data
+var cwfFiresPerPixelSubset = cwfLastYear
+  .subtract(ee.Image(cwfCumByYear.get(0)))
+  .toDouble();
+  
 Map.addLayer(cwfLastYear, {min: 0, max:5 , palette: ['white', 'black']}, 'cwf cumulative fires', false);
 
 // max number of fires to have occurred in any grid cell
@@ -131,7 +139,8 @@ var maxFires = ee.Number(maxFires.get('first')); // convert to a number
 var numFireSeq = ee.List.sequence(ee.Number(0), maxFires);
 //print(numFiresSeq);
 
-
+// this function uses objects in the environment so not
+// put in the ee_functions.js script
 var sumFireYrs = function(numFire) {
   var numYrs = cwfCumByYearCol.map(function(image) {
     // cells that have a cumulative number of fires equal to numFire are set to 1
@@ -160,7 +169,9 @@ var newBandNames = numYrsImage0
     return ee.String(x).replace('.+_fire_', 'fire_');
   });
   
-var numYrsImage = numYrsImage0.rename(newBandNames);
+var numYrsImage = numYrsImage0
+  .rename(newBandNames)
+  .toDouble();
 //print(numYrsImage.bandNames());
 Map.addLayer(numYrsImage.select('fire_2'), 
   {min:0, max: 36, palette: ['white', 'black']}, 'fire_2', false);
@@ -178,6 +189,9 @@ another for when there has been 2 fires, but not 3 (i.e. fire_3), etc.
 var bioMasked2 = pred.bioMasked.select(['afgAGB', 'pfgAGB'])
   .sort('year');
 var bioMList1 = bioMasked2.toList(999);
+var bioMaskedAvg = bioMasked2
+  .filterDate(ee.Date.fromYMD(startYear, 1, 1), ee.Date.fromYMD(endYear, 12, 31))
+  .mean();
 
 // these list need to be the same length and in the same order
 print('RAP data length', bioMList1.length());
@@ -235,7 +249,8 @@ var bioNewBandNames = bioByNumFire0
     return ee.String(x).replace('.+_fire_', 'fire_');
   });
   
-var bioByNumFire = bioByNumFire0.rename(bioNewBandNames);
+var bioByNumFire = bioByNumFire0
+  .rename(bioNewBandNames);
 
 Map.addLayer(bioByNumFire.select('fire_3_afgAGB'), 
   {min: 0, max: 100, palette: ['white', 'green']}, 'afgAGB 3 fires', false);
@@ -249,7 +264,7 @@ var crs = 'EPSG:4326';
 var maskString = '_sagebrush-biome-mask_v1';
 //var maskString = '_test-region';
 
-// RAP biomass - sagebrush biome mask
+// RAP biomass - sagebrush biome mask (from step 3)
 Export.image.toDrive({
   image: bioByNumFire,
   description: 'RAP_afgAGB-pfgAGB_byNFire_' + startYear + '-' + endYear + '_mean_' + resolution + 'm' + maskString,
@@ -261,10 +276,24 @@ Export.image.toDrive({
   fileFormat: 'GeoTIFF'
 });
 
-// Number of years with given number of cumulative fire
+// average RAP over the whole time period (other scripts create medians), but this way it is consistent
+// with the bioByNumFire image which also shows means
+Export.image.toDrive({
+  image: bioMaskedAvg,
+  description: 'RAP_afgAGB-pfgAGB_' + startYear + '-' + endYear + '_mean_' + resolution + 'm' + maskString,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
+
+
+// Number of years with given number of cumulative fires
 // (from step 2)
 Export.image.toDrive({
-  image: bioByNumFire,
+  image: numYrsImage,
   description: 'cwf_numYrsCumulativeFires_' + startYear + '-' + endYear + '_' + resolution + 'm' + maskString,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
@@ -274,6 +303,20 @@ Export.image.toDrive({
   fileFormat: 'GeoTIFF'
 });
 
+
+// fires per pixel, excluding the first year (1986)
+
+var secondYear = startYear + 1;
+Export.image.toDrive({
+  image: cwfFiresPerPixelSubset,
+  description: 'cwf_fires-per-pixel_' + secondYear+ '-' + endYear + '_' + resolution + 'm' + maskString,
+  folder: 'cheatgrass_fire',
+  maxPixels: 1e13, 
+  scale: resolution,
+  region: region,
+  crs: crs,
+  fileFormat: 'GeoTIFF'
+});
 
 
 

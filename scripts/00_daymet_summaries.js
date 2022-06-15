@@ -14,7 +14,7 @@
  // user define variables:
  
  // date range
-var startYear = 1984;
+var startYear = 1986;
 //var startYear = 2018; // short time period for testing
 var endYear = 2019;
 var startDate = ee.Date.fromYMD(startYear, 1, 1);
