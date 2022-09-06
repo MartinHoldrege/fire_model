@@ -139,7 +139,7 @@ transform_funs$convert_ln <- function(x) paste0("log(", x, ")")
 
 transform_funs$convert_exp <- function(x) paste0("exp(", x, ")")
 
-transform_funs$convert_poly2 <- function(x) paste0("poly(", x, ",2)")
+transform_funs$convert_poly2 <- function(x) paste0("poly(", x, ",2, raw = TRUE)")
 
 # # spline with two degrees of freedom (1 would linear)
 # transform_funs$convert_spline2 <- function(x) {

@@ -31,7 +31,7 @@ library(knitr)
 Read in model object (for the formula)
 
 ```{r}
-mods1 <- readRDS("models/glm_binomial_models_byNFire_v1_bin20_cwf_.RDS")
+mods1 <- readRDS("models/glm_binomial_models_byNFire_v2_bin20_cwf.RDS")
 ```
 
 Reading in the data again here because below the data needs to be 

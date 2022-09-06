@@ -74,7 +74,7 @@ glm_mods_resample1 <- readRDS(
 # model objects created in 05_models_biome-mask_fire-prob_byNFire.Rmd
 
 glm_mods_resample_byNFire <- readRDS(
-  paste0("models/glm_binomial_models_byNFire_v1_", bin_string, "_cwf_.RDS"))
+  paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf.RDS"))
 
 # generalized non-linear models.
 #non-linear term fit for afg
@@ -267,7 +267,7 @@ all_mod_names <- expand_grid(
 # * delta 5c --------------------------------------------------------------
 
 map(names_5c, function(x) {
-  jpeg(paste0("figures/delta_fire-prob_vs_MAT_v3_", x, ".jpeg"))
+  jpeg(paste0("figures/delta_fire-prob_vs_MAT_v4_", x, ".jpeg"))
   plot(dfs_biome0$paint$MAT - 273.15, as.numeric(values(r_delta_5c[[x]])),
        ylab = "Delta fire probability", 
        xlab = 'MAT (deg C)',
@@ -433,7 +433,7 @@ get_endices <- function(type, method) {
   which(all_mod_names$type == type &  str_detect(all_mod_names$mod, method))
 }
 
-pdf(paste0("figures/maps_fire_prob/fire_prob_biome-mask_v7_", bin_string, 
+pdf(paste0("figures/maps_fire_prob/fire_prob_biome-mask_v8_", bin_string, 
            ".pdf"),
     width = 8, height = 7)
   # paint method
@@ -488,7 +488,7 @@ for(x in names_5c) {
   # dev.off()
   
   # also predicted for +5c, and delta with 5c warming
-  jpeg(paste0("figures/maps_fire_prob/cwf_observed_predicted_maps_v1_5c_",
+  jpeg(paste0("figures/maps_fire_prob/cwf_observed_predicted_maps_v2_5c_",
               x,".jpeg"),
        width = 8, height = 6.5, res = 600, units = 'in')
   print(tmap_arrange(cwf_observed, cwf_pred,

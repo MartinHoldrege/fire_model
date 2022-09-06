@@ -18,11 +18,11 @@ Here the training data is resampled to be more balanced (i.e., upsampling
 bins of rare data, downsampling bins of common data). 
 
 Note a concern with the up-sampling is that many bins start with only one
-datapoint in them, which is then repeated many times in the resampled datset.
+datapoint in them, which is then repeated many times in the resampled dataset.
 Apparently, having duplicated points like this can increase the risk of 
 over-fitting. 
 
-This code is set up to fit models seperately to fire data compiled
+This code is set up to fit models separately to fire data compiled
 in a couple of ways (e.g. paint method, vs reduceToImage), and also
 multiple fire dataset (e.g. mtbs, ifph etc). Meaning this code
 iterates over lists. Right now these lists are of length 1 because I'm only
@@ -34,6 +34,14 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE)
 ```
 
 # Dependencies 
+
+User defined parameters
+
+```{r}
+# set to true if want to run for a limited number of rows (i.e. for code testing)
+test_run <- FALSE
+```
+
 
 Sourcing the script that creates a dataframe of historical
 fore occurrence, as well as biotic and climate
@@ -171,9 +179,12 @@ Now the training dataset is all the data.
 
 ```{r train, dependson='prep_data', cache = TRUE}
 
-#n = 10000 # for testing
-n = nrow(dfs_biome3[[1]]) # fit models on all the data
-         
+if (test_run) {
+  n = 10000 # for testing
+} else {
+  n = nrow(dfs_biome3[[1]]) # fit models on all the data
+}
+
 row_nums <- 1:nrow(dfs_biome3[[1]])
 rows_train <- sample(row_nums, size = n, replace = FALSE)
 
@@ -582,7 +593,16 @@ map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
          of annual fire probability, for a given fire dataset")
 })
 
+
 ```
+
+R2 of observed vs predicted
+
+```{r}
+m <- lm(predicted ~ observed, dfs_obs_v_pred$paint)
+summary(m)$r.squared
+```
+
 
 ### Deciles--original data
 
@@ -659,8 +679,8 @@ map2(pred_glm_orig_deciles_filt, names(pred_glm_orig_deciles_filt), function(df,
 mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
 saveRDS(mods2save, 
-        paste0("models/glm_binomial_models_byNFire_v1_bin",
-               n_categories, "_cwf_.RDS"))
+        paste0("models/glm_binomial_models_byNFire_v2_bin",
+               n_categories, "_cwf.RDS"))
 
 ```
 
