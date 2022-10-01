@@ -3,10 +3,10 @@
 # dependencies ------------------------------------------------------------
 
 source('scripts/04_create_biome-mask_dataframe_1986.R')
+source('src/basemaps.R')
 source("src/fig_params.R")
 source("src/general_functions.R")
 library(RColorBrewer)
-library(tmap)
 library(sf)
 
 # extract rasters --------------------------------------------------------
@@ -25,8 +25,6 @@ r_prcpPropSum <- rasts_clim1$Summer$prcpProp
 
 # base map ----------------------------------------------------------------
 tmap_mode("plot")
-# extend bounding box
-bbox <- tmaptools::bb(x = raster::raster(rasts_fPerPixel[[1]]), ext = 1) 
 
 
 bbox2 <- bbox
@@ -44,7 +42,7 @@ poly <- tibble(
 
 # Maps --------------------------------------------------------------------
 
-fig_letters <- paste(letters, ")", sep = "")
+
 
 # * RAP -------------------------------------------------------------------
 
@@ -148,7 +146,7 @@ met3
 # * combine -----------------------------------------------------------------
 
 jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v1.jpeg", units = 'in', res = 600,
-     height = 10, width = 7.5)
+     height = 8.5, width = 7.5)
 tmap_arrange(tm_afgAGB, tm_pfgAGB, met1, met2, met3, ncol = 2)
 dev.off()
 
