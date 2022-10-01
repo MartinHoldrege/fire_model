@@ -159,6 +159,30 @@ get_values <- function(lyr, r) {
   out 
 }
 
+#' create legend labels
+#'
+#' @param x numeric vector of break points
+#'
+#' @return character vector, where last category is just
+#' > x[n-1] instead of showing a range
+
+#' @examples
+#' label_creator(1:5)
+label_creator <- function(x) {
+  n <- length(x)
+  labels <- vector(mode = 'character', length = n-1)
+  
+  for (i in 1:(n-1)) {
+    if(i < n -1) {
+      labels[i] <- paste(x[i], "to", x[i+1])
+    } else {
+      labels[i] <- paste(">", x[i])
+    }
+  }
+  
+  labels
+}
+
 # quantile plots ----------------------------------------------------------
 
 #' filter rows by climate variables
