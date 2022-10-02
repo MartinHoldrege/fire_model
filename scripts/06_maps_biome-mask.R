@@ -22,8 +22,8 @@
 source('scripts/04_create_biome-mask_dataframe_1986.R')
 source("src/general_functions.R")
 source("src/fig_params.R")
+source("src/basemaps.R")
 library(tmap)
-library(spData, quietly = TRUE) # for us_states polygon
 library(RColorBrewer)
 
 
@@ -31,7 +31,7 @@ library(RColorBrewer)
 
 # number of observed fires per pixel, cwf (combined wildand fire dataset) 
 # from now on just using the cwf dataset which is the best
-rast_fPerPixel 
+rasts_fPerPixel 
 
 # * rap data --------------------------------------------------------------
 
@@ -287,22 +287,6 @@ map(names_5c, function(x) {
 tmap_mode("plot")
 # extend bounding box
 bbox <- tmaptools::bb(x = raster::raster(rasts_fPerPixel[[1]]), ext = 1.15) 
-
-# * base map --------------------------------------------------------------
-
-base <- tmap_options( # increase number of pixels plotted
-  max.raster = c(plot = 1e10, view = 1e6) 
-)+
-  tm_shape(us_states) +
-  tm_borders() +
-  tm_layout(
-    legend.outside = TRUE,
-    legend.text.size = 0.75,
-    main.title.size = 0.75,
-    frame = FALSE,
-    legend.position = c('center', 'top')) 
-
-
 
 # * fire ------------------------------------------------------------------
 # ** Observed fire occurrence --------------------------------------------------

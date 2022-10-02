@@ -6,6 +6,12 @@
 # Parameters for figure making
 
 
+# misc --------------------------------------------------------------------
+
+# so consistent letter theme is used throughout (for multiple
+# panel pub quality figs)
+fig_letters <- paste(letters, ")", sep = "")
+
 # axis labels -------------------------------------------------------------
 
 lab_fireProb <- c("fireProb" = "Long term fire probability (0-1)", 
