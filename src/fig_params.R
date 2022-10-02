@@ -30,3 +30,10 @@ lab_bio0 <- expression("Biomass ("*gm^-2*")")
 cols_prop <- c("#ffeda0","#feb24c", "#f03b20", # reds (from 3-class YlOrRd))
                "#fbb4b9", "#f768a1","#ae017e", # purples (from 4-class RdPu)
                "#bdc9e1", "#74a9cf", "#0570b0") # blues (from 4-class PuBu)
+
+# change in fire probability with 5 c warming
+breaks_delta0 <- c( 0.001, .002, .003, .005, .01, .07)
+breaks_delta <- c(-rev(breaks_delta0), 0, breaks_delta0)
+
+cols_delta <- c(rev(brewer.pal(8, 'Greens')[-(1:2)]),
+                brewer.pal(8, 'OrRd')[-(1:2)])

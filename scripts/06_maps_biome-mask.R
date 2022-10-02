@@ -402,13 +402,6 @@ pred_maps_5c = map(names_5c, function(x) {
             main.title.size = 0.5)
 })
 
-# change in fire probability with 5 c warming
-breaks_delta0 <- c( 0.001, .002, .003, .005, .01, .07)
-breaks_delta <- c(-rev(breaks_delta0), 0, breaks_delta0)
-
-cols_delta <- c(rev(brewer.pal(8, 'Greens')[-(1:2)]),
-                brewer.pal(8, 'OrRd')[-(1:2)])
-
 
 # ** combine into multi panel map ------------------------------------------
 
