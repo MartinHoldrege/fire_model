@@ -27,17 +27,24 @@ base <- tmap_options( # increase number of pixels plotted
 
 basemap <- function(legend.text.size = 0.8,
                     legend.title.size = 0.8,
-                    main.title.size = 0.8) {
+                    main.title.size = 0.8,
+                    layout = TRUE # whether to include layout options
+                    ) {
   
   out <-tmap_options(max.raster = c(plot = 1e10, view = 1e6))+
     tm_shape(spData::us_states, bbox = bbox) +
-    tm_borders() +
-    tm_layout(
+    tm_borders() 
+  
+  if(layout) {
+    out <- out +  
+      tm_layout(
       legend.outside = TRUE,
       legend.text.size = legend.text.size,
       legend.title.size = legend.title.size,
       main.title.size = main.title.size,
       frame = FALSE,
       legend.position = c('center', 'top')) 
+  }
+
   out
 }

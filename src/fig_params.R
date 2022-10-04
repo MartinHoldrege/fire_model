@@ -5,6 +5,7 @@
 # Purpose:
 # Parameters for figure making
 
+source("src/general_functions.R")
 
 # misc --------------------------------------------------------------------
 
@@ -23,6 +24,9 @@ lab_fireProbPerc <- "Probability of fire in a given year (%)"
 # biomass
 lab_bio0 <- expression("Biomass ("*gm^-2*")")
 
+# legend labels
+
+lab_delta <- expression(Delta~Probability)
 
 # colors ------------------------------------------------------------------
 
@@ -32,8 +36,11 @@ cols_prop <- c("#ffeda0","#feb24c", "#f03b20", # reds (from 3-class YlOrRd))
                "#bdc9e1", "#74a9cf", "#0570b0") # blues (from 4-class PuBu)
 
 # change in fire probability with 5 c warming
-breaks_delta0 <- c( 0.001, .002, .003, .005, .01, .07)
+breaks_delta0 <- c( 0.001, .002, .003, .005, .01, 0.1)
 breaks_delta <- c(-rev(breaks_delta0), 0, breaks_delta0)
+
+labels_delta <- label_creator(breaks_delta)
+labels_delta[1] <- paste0("< ", breaks_delta[2])
 
 cols_delta <- c(rev(brewer.pal(8, 'Greens')[-(1:2)]),
                 brewer.pal(8, 'OrRd')[-(1:2)])

@@ -40,6 +40,12 @@ rasts_clim1
 # * dataframe -------------------------------------------------------------
 
 df1 <- dfs_biome0$paint
+dfnona <- df1 %>% 
+  drop_na()
+
+# so all values are positive (for log link)
+dfnona$afgAGB <- dfnona$afgAGB + 0.001
+
 # * model objects ---------------------------------------------------------
 
 # (these objects are very large ~2Gb)
@@ -99,7 +105,7 @@ tm_obs <- tm_shape(rast_fPerPixel, bbox = bbox) +
   basemap(legend.text.size = 0.65) +
   tm_layout(main.title = paste(fig_letters[1], "Number of observed fires (1987-2019)"))
 
-tm_obs
+#tm_obs
 
 
 # * predicted ------------------------------------------------------------
@@ -111,7 +117,7 @@ tm_pred1 <- tm_shape(rast_pred1, bbox = bbox) +
             labels = label_creator(breaks_prob)) +
   basemap(legend.text.size = 0.55) +
   tm_layout(main.title = paste(fig_letters[2], "Predicted annual fire probability"))
-tm_pred1
+#tm_pred1
 
 jpeg("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v1.jpeg", units = 'in', res = 600,
      height = 2.8, width = 7)
@@ -119,7 +125,71 @@ tmap_arrange(tm_obs, tm_pred1,  ncol = 2)
 dev.off()
 
 
-# altered preds ------------------------------------------------------------
+# model afg -------------------------------------------------------------
+
+# creating model relating afgAGB to climate variables. This way 
+# we can create a raster of 'predicted' afgAGB and then apply alterations to that.
+# the point is to get rid of high and low afgAGB values that aren't climate related
+
+clim_vars <- c("MAP", "MAT", "prcpPropSum")
+#pairs(df1[c("afgAGB", clim_vars)])
+cor(dfnona[c("afgAGB", clim_vars)])
+
+mod_afg1 <- glm(afgAGB ~ MAP + MAT + prcpPropSum + prcpPropSum:MAT + prcpPropSum:MAP + MAT:MAP,
+                data = dfnona,
+                family = gaussian(link = 'log'))
+
+summary(mod_afg1)
+
+cor(predict(mod_afg1, type = 'response'), dfnona$afgAGB)
+
+
+# * alter afg -------------------------------------------------------------
+
+pred_afg1 <- predict(mod_afg1, type = 'response', newdata = df1)
+
+dfs_alter_afg1 <- list("afg_pred" = df1, "afg_minus" = df1, "afg_plus" = df1)
+
+
+# replaced observed afg with predicted
+dfs_alter_afg1$afg_pred$afgAGB <- pred_afg1
+
+afg_plus_change <- 1
+afg_minus_change <- 0.20
+dfs_alter_afg1$afg_minus$afgAGB <- pred_afg1 * (1 - afg_minus_change)
+dfs_alter_afg1$afg_plus$afgAGB <- pred_afg1 * (1 + afg_plus_change)
+
+dfs_alter_afg2 <- map(dfs_alter_afg1, function(df) {
+  out <- df
+  
+  # replacing high afgAGB values, in to recreate the step
+  # function described our manuscript
+  # 167 is the max observed afgAGB
+  
+  out$afgAGB <- ifelse(out$afgAGB > 167, 167, out$afgAGB)
+  out$pred <- predict(mod1, newdata = out, type = "response")
+  out
+})
+
+rast_pred_afg1 <- empty
+rast_pred_afg1[] <- dfs_alter_afg2$afg_pred$pred
+
+# rasters of predicted values for given alteration 
+# and the delta compared to no alteration
+rasts_alter_afg1 <- map(dfs_alter_afg2[c("afg_minus", "afg_plus")], function(df) {
+  pred <- empty
+  
+  # raster of predicted values for the given alteration
+  pred[] <- df$pred
+  
+  # difference between the altered prediction and the original
+  # data prediction 
+  delta <- pred - rast_pred_afg1
+  
+  list(pred = pred, delta = delta)
+})
+
+# altered preds (clim) ------------------------------------------------------------
 
 # altering the predictor variables to gauge sensitivity of the model 
 # to changes
@@ -177,7 +247,6 @@ rasts_alter1 <- map(dfs_alter2, function(df) {
 
 # * 6 panel map -----------------------------------------------------------
 
-lab_delta <- "Probability change"
 legend.text.size <- 0.55
 
 delta_titles0 <- c(
@@ -186,15 +255,20 @@ delta_titles0 <- c(
   "map_minus" = paste0("-",map_change*100, "% MAP"),
   "map_plus" = paste0("+",map_change*100, "% MAP"),
   "prop_minus" = paste0("-",prop_change*100, "% prcpPropSum"),
-  "prop_plus" = paste0("+",prop_change*100, "% prcpPropSum")
+  "prop_plus" = paste0("+",prop_change*100, "% prcpPropSum"),
+  "afg_minus"= paste0("-",afg_minus_change*100, "% afgAGB"),
+  "afg_plus"= paste0("+",afg_plus_change*100, "% afgAGB")
 )
 
 delta_titles <- paste(fig_letters[1:length(delta_titles0)], delta_titles0)
 
-stopifnot(names(rasts_alter1) == names(delta_titles)) # make sure elements refer to the same alteration
+rasts_alter2 <- c(rasts_alter1, rasts_alter_afg1)
+
+# make sure elements refer to the same alteration
+stopifnot(names(rasts_alter2) == names(delta_titles))
 
 # combining delta rasters into one rasters w/ multiple layers
-rast_delta1 <- map2(rasts_alter1, names(rasts_alter1), function(x, name) {
+rast_delta1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
   r <- x$delta
   names(r) <- name
   r
@@ -202,26 +276,35 @@ rast_delta1 <- map2(rasts_alter1, names(rasts_alter1), function(x, name) {
   rast()
 
 
-tm_shape(rast_delta1, bbox = bbox) +
-  tm_raster(title = lab_delta,
-            breaks = breaks_delta,
-            palette = cols_delta,
-            midpoint = 0) +
-  tm_layout(panel.labels = delta_titles,
-            panel.label.bg.color = 'white')+
-  tm_facets(ncol =2) +
-  basemap(legend.text.size = legend.text.size)
+
 jpeg("figures/maps_sensitivity/delta-prob_clim-vars_v1.jpeg", units = 'in', res = 600,
      height = 8.5, width = 7.5)
-  tm_shape(rast_delta1, bbox = bbox) +
+  tm_shape(rast_delta1[[1:6]], bbox = bbox) +
     tm_raster(title = lab_delta,
               breaks = breaks_delta,
+              labels = labels_delta,
               palette = cols_delta,
               midpoint = 0) +
     tm_layout(panel.labels = delta_titles,
               panel.label.bg.color = 'white')+
     tm_facets(ncol =2) +
     basemap(legend.text.size = legend.text.size)
+dev.off()
+
+jpeg("figures/maps_sensitivity/delta-prob_all-vars_v1.jpeg", units = 'in', res = 600,
+     height = 8, width = 8)
+tm_shape(rast_delta1, bbox = bbox) +
+  tm_raster(title = lab_delta,
+            breaks = breaks_delta,
+            labels = labels_delta,
+            palette = cols_delta,
+            midpoint = 0) +
+  tm_facets(ncol =3, free.scales = FALSE) +
+  tm_layout(panel.labels = delta_titles,
+            panel.label.bg.color = 'white',
+            legend.position = c(-0.6, -0.07),
+            legend.outside = TRUE) +
+  basemap(layout = FALSE)
 dev.off()
 
 # Other way to make the maps (more flexibility if needed): would need
@@ -241,5 +324,4 @@ dev.off()
 # 
 # tmap_arrange(delta_maps, ncol = 2)
 
-
-
+minmax(rast_delta1)
