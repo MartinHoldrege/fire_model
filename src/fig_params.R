@@ -6,7 +6,7 @@
 # Parameters for figure making
 
 source("src/general_functions.R")
-
+library(RColorBrewer)
 # misc --------------------------------------------------------------------
 
 # so consistent letter theme is used throughout (for multiple
@@ -43,4 +43,10 @@ labels_delta <- label_creator(breaks_delta)
 labels_delta[1] <- paste0("< ", breaks_delta[2])
 
 cols_delta <- c(rev(brewer.pal(8, 'Greens')[-(1:2)]),
-                brewer.pal(8, 'OrRd')[-(1:2)])
+               brewer.pal(8, 'OrRd')[-(1:2)])
+
+# colors and breaks for pfg and afg
+breaks_bio1 <- c(0, 10, 20, 50, 100, 200, 300) # pfg
+palette_bio1 <- brewer.pal(length(breaks_bio1), 'YlGn')
+breaks_bio2 <- c(0, 5, 10, 20, 30, 50, 100, 200) #afg
+palette_bio2 <- brewer.pal(length(breaks_bio1), 'YlGn')

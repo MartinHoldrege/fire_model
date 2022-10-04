@@ -47,11 +47,6 @@ poly <- tibble(
 # * RAP -------------------------------------------------------------------
 
 
-breaks_bio1 <- c(0, 10, 20, 50, 100, 200, 300)
-palette_bio1 <- RColorBrewer::brewer.pal(length(breaks_bio1), 'YlGn')
-breaks_bio2 <- c(0, 5, 10, 20, 30, 50, 100, 200)
-palette_bio2 <- brewer.pal(length(breaks_bio1), 'YlGn')
-
 base <- tmap_options( # increase number of pixels plotted
   max.raster = c(plot = 1e10, view = 1e6) 
 )+

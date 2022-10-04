@@ -480,10 +480,6 @@ for(x in names_5c) {
 
 title <- "\nMean values (1986-2019)"
 
-breaks_bio1 <- c(0, 10, 20, 50, 100, 200, 300)
-palette_bio1 <- RColorBrewer::brewer.pal(length(breaks_bio1), 'YlGn')
-breaks_bio2 <- c(0, 5, 10, 20, 30, 50, 100, 200)
-palette_bio2 <- brewer.pal(length(breaks_bio1), 'YlGn')
 # annuals
 tm_rap1 <- tm_shape(rast_rap1[["afgAGB"]], bbox = bbox) +
   tm_raster(breaks = breaks_bio2,

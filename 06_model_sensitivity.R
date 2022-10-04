@@ -6,8 +6,6 @@
 # variables, and create maps of the output for later use.
 
 
-
-
 # dependencies ------------------------------------------------------------
 
 # this script is useful because it reads in the rasters used below
@@ -80,6 +78,27 @@ rast_pred1 <- empty
 rast_pred1[] <- mod_pred1
 
 
+# functions ---------------------------------------------------------------
+# functions used here that likel rely on objects in the global environment 
+# so best just defined here
+
+# create map of fire probability
+tm_create_prob_map <- function(r, legend.text.size = 0.55,
+                               main.title = "", 
+                               legend.title.size = 0.8,
+                               main.title.size = 0.8) {
+  tm_shape(r, bbox = bbox) +
+    tm_raster(title = "Probability",
+              breaks = breaks_prob,
+              labels = label_creator(breaks_prob)) +
+    basemap(legend.text.size = legend.text.size, 
+            legend.title.size = legend.title.size,
+            main.title.size) +
+    tm_layout(main.title = main.title)
+}
+
+
+
 # observed & predicted map ------------------------------------------------
 
 # simple two panel map showing observed and predicted, for the results
@@ -111,12 +130,9 @@ tm_obs <- tm_shape(rast_fPerPixel, bbox = bbox) +
 # * predicted ------------------------------------------------------------
 
 breaks_prob <- c(seq(0, 0.021, .003), 0.2)
-tm_pred1 <- tm_shape(rast_pred1, bbox = bbox) +
-  tm_raster(title = "Probability",
-            breaks = breaks_prob,
-            labels = label_creator(breaks_prob)) +
-  basemap(legend.text.size = 0.55) +
-  tm_layout(main.title = paste(fig_letters[2], "Predicted annual fire probability"))
+tm_pred1 <- tm_create_prob_map(
+  rast_pred1,
+  main.title = paste(fig_letters[2], "Predicted annual fire probability")) 
 #tm_pred1
 
 jpeg("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v1.jpeg", units = 'in', res = 600,
@@ -187,8 +203,36 @@ rasts_alter_afg1 <- map(dfs_alter_afg2[c("afg_minus", "afg_plus")], function(df)
   delta <- pred - rast_pred_afg1
   
   list(pred = pred, delta = delta)
+  
 })
 
+
+# * plot altered afgAGB ---------------------------------------------------
+
+tm_afg_orig <- tm_shape(rast_rap1[["afgAGB"]], bbox = bbox) +
+  tm_raster(breaks = breaks_bio2,
+            labels = label_creator(breaks_bio2),
+            palette = palette_bio2,
+            title = lab_bio0) +
+  basemap() +
+  tm_layout(main.title = "afgAGB (Original from RAP)")
+
+# AFG from RAP
+
+rast_afg_mod <- empty
+rast_afg_mod[] <- pred_afg1
+tm_afg_mod <- tm_shape(rast_afg_mod, bbox = bbox) +
+  tm_raster(breaks = breaks_bio2,
+            labels = label_creator(breaks_bio2),
+            palette = palette_bio2,
+            title = lab_bio0) +
+  basemap() +
+  tm_layout(main.title = "afgAGB (based on model of afgAGB ~ climate)")
+
+jpeg("figures/maps_veg/afgAGB_RAP-and-modelled_v1.jpeg", units = "in", res = 600,
+     height = 3, width = 8)
+tmap_arrange(tm_afg_orig, tm_afg_mod, ncol = 2)
+dev.off()
 # altered preds (clim) ------------------------------------------------------------
 
 # altering the predictor variables to gauge sensitivity of the model 
@@ -325,3 +369,95 @@ dev.off()
 # tmap_arrange(delta_maps, ncol = 2)
 
 minmax(rast_delta1)
+
+
+# map pages for each altered var ------------------------------------------
+
+# maps showing 1) predicted fire probability (with no alteration),
+# predicted w/ -/+ alterations and delta probability with +/- alterations
+
+
+vars <- names(delta_titles0) %>% 
+  str_replace("_.*", "") %>% 
+  unique()
+
+names(vars) <- vars
+
+main.title.size = 0.7
+legend.text.size = 0.4
+
+tm_alter1 <- map(vars, function(var) {
+  names <- names(delta_titles0) %>% 
+    str_subset(var)
+  
+  stopifnot(length(names) == 2)
+  
+  # predicted fir pobability on the original data
+  pred_orig <- tm_pred1 +
+    tm_layout(main.title = "Predicted fire probability (original data)",
+              legend.text.size = legend.text.size,
+              main.title.size = main.title.size)
+  
+
+  pred1 <- tm_create_prob_map(
+    rasts_alter2[[names[1]]]$pred,
+    main.title = paste("Predicted fire probability, ", delta_titles0[names[1]]),
+    legend.text.size = legend.text.size,
+    main.title.size = main.title.size) 
+  
+  pred2 <- tm_create_prob_map(
+    rasts_alter2[[names[2]]]$pred,
+    main.title = paste("Predicted fire probability, ", delta_titles0[names[2]]),
+    legend.text.size = legend.text.size,
+    main.title.size = main.title.size) 
+  
+  
+  delta1 <- tm_shape(rasts_alter2[[names[1]]]$delta, bbox = bbox) +
+    tm_raster(title = lab_delta,
+              breaks = breaks_delta,
+              labels = labels_delta,
+              palette = cols_delta,
+              midpoint = 0) +
+    basemap(legend.text.size = legend.text.size,
+            main.title.size = main.title.size) +
+    tm_layout(main.title = paste("Change in fire probability, ", 
+                                 delta_titles0[names[1]]))
+  
+  delta2 <- tm_shape(rasts_alter2[[names[2]]]$delta, bbox = bbox) +
+    tm_raster(title = lab_delta,
+              breaks = breaks_delta,
+              labels = labels_delta,
+              palette = cols_delta,
+              midpoint = 0) +
+    basemap(legend.text.size = legend.text.size,
+            main.title.size = main.title.size) +
+    tm_layout(main.title = paste("Change in fire probability, ", 
+                                 delta_titles0[names[2]]))
+  
+  out <- list(pred_orig = pred_orig, 
+              pred1 = pred1, 
+              pred2 = pred2,
+              delta1 = delta1, 
+              delta2 = delta2)
+  
+  out
+  
+})
+
+
+tm_alter1$afg$pred_modafg <- tm_create_prob_map(
+  rast_pred_afg1,
+  main.title = "Predicted fire probability \n(based on modelled afg)",
+  legend.text.size = legend.text.size,
+  main.title.size = main.title.size)
+
+tm_alter2 <- map(tm_alter1, tmap_arrange, ncol = 3)
+
+pdf("figures/maps_sensitivity/pred_delta-prob_all-vars_v1.pdf", 
+     height = 4, width = 8)
+
+tm_alter2
+
+dev.off()
+
+

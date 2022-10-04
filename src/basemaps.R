@@ -48,3 +48,4 @@ basemap <- function(legend.text.size = 0.8,
 
   out
 }
+
