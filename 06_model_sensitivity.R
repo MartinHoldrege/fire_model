@@ -247,8 +247,8 @@ delta_titles0 <- c(
   "mat_hot" = paste0("+", hot, "°C MAT"),
   "map_minus" = paste0("-",map_change*100, "% MAP"),
   "map_plus" = paste0("+",map_change*100, "% MAP"),
-  "prop_minus" = paste0("-",prop_change*100, "% prcpPropSum"),
-  "prop_plus" = paste0("+",prop_change*100, "% prcpPropSum"),
+  "prop_minus" = paste0("-",prop_change*100, "% Proportion summer ppt"),
+  "prop_plus" = paste0("+",prop_change*100, "% Proportion summer ppt"),
   "afg_low"= paste0("Annual biomass (", afg_low_change, " g/m^2)"),
   "afg_mid"= paste0("Annual biomass (", afg_mid_change, " g/m^2)"),
   "afg_hi"= paste0("Annual biomass (", afg_hi_change, " g/m^2)"),
@@ -284,7 +284,16 @@ rast_alter_pred1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
 
 jpeg("figures/maps_sensitivity/delta-prob_clim-vars_v1.jpeg", units = 'in', res = 600,
      height = 8.5, width = 7.5)
-
+tm_shape(rast_delta1[[1:6]], bbox = bbox) +
+  tm_raster(title = lab_delta,
+            breaks = breaks_delta,
+            labels = labels_delta,
+            palette = cols_delta,
+            midpoint = 0) +
+  tm_layout(panel.labels = delta_titles,
+            panel.label.bg.color = 'white')+
+  tm_facets(ncol =2) +
+  basemap(legend.text.size = legend.text.size)
 dev.off()
 
 jpeg("figures/maps_sensitivity/delta-prob_bio-vars_v1.jpeg", units = 'in', res = 600,
@@ -340,7 +349,8 @@ tm_delta_clim1 <- tm_shape(rast_delta1[[1:6]], bbox = bbox) +
   tm_layout(panel.labels = delta_titles0,
             panel.label.bg.color = 'white',
             main.title = "Delta probability",
-            legend.show = FALSE)+
+            legend.show = FALSE,
+            panel.label.size = 0.75)+
   tm_facets(ncol =1) +
   basemap(legend.text.size = legend.text.size,
           main.title.size = 0.7)
@@ -350,7 +360,8 @@ tm_pred_clim1 <- tm_create_prob_map(rast_alter_pred1[[1:6]],
                                     main.title.size = 0.7) +
   tm_layout(panel.labels = delta_titles0,
             panel.label.bg.color = 'white',
-            legend.show = FALSE)+
+            legend.show = FALSE,
+            panel.label.size = 0.75)+
   tm_facets(ncol =1)
 
 jpeg("figures/maps_sensitivity/pred_delta-prob_clim-vars_v1.jpeg", units = 'in', res = 600,
