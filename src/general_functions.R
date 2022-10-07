@@ -168,7 +168,9 @@ get_values <- function(lyr, r) {
 
 #' @examples
 #' label_creator(1:5)
-label_creator <- function(x) {
+label_creator <- function(x, convert2percent = FALSE) {
+  if(convert2percent) x <- x*100
+  
   n <- length(x)
   labels <- vector(mode = 'character', length = n-1)
   

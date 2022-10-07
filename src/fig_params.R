@@ -26,7 +26,7 @@ lab_bio0 <- expression("Biomass ("*gm^-2*")")
 
 # legend labels
 
-lab_delta <- expression(Delta~Probability)
+lab_delta <- expression(Delta~Probability~"(%)")
 
 # colors ------------------------------------------------------------------
 
@@ -37,13 +37,13 @@ cols_prop <- c("#ffeda0","#feb24c", "#f03b20", # reds (from 3-class YlOrRd))
 
 # change in fire probability with 5 c warming
 breaks_delta0 <- c( 0.001, .002, .003, .005, .01, 0.1)
-breaks_delta <- c(-rev(breaks_delta0), 0, breaks_delta0)
+breaks_delta <- c(-rev(breaks_delta0), breaks_delta0)
 
-labels_delta <- label_creator(breaks_delta)
-labels_delta[1] <- paste0("< ", breaks_delta[2])
+labels_delta <- label_creator(breaks_delta, convert2percent = TRUE)
+labels_delta[1] <- paste0("< ", breaks_delta[2]*100)
 
-cols_delta <- c(rev(brewer.pal(8, 'Greens')[-(1:2)]),
-               brewer.pal(8, 'OrRd')[-(1:2)])
+cols_delta <- c(rev(brewer.pal(7, 'Greens')[-(1:2)]), "grey60",
+               brewer.pal(7, 'OrRd')[-(1:2)])
 
 # colors and breaks for pfg and afg
 breaks_bio1 <- c(0, 10, 20, 50, 100, 200, 300) # pfg

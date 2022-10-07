@@ -82,15 +82,18 @@ rast_pred1[] <- mod_pred1
 # functions used here that likel rely on objects in the global environment 
 # so best just defined here
 
+breaks_prob <- c(seq(0, 0.021, .003), 0.2)
+
 # create map of fire probability
 tm_create_prob_map <- function(r, legend.text.size = 0.55,
                                main.title = "", 
                                legend.title.size = 0.8,
                                main.title.size = 0.8) {
+  
   tm_shape(r, bbox = bbox) +
-    tm_raster(title = "Probability",
+    tm_raster(title = "Probability (%)",
               breaks = breaks_prob,
-              labels = label_creator(breaks_prob)) +
+              labels = label_creator(breaks_prob, convert2percent = TRUE)) +
     basemap(legend.text.size = legend.text.size, 
             legend.title.size = legend.title.size,
             main.title.size) +
@@ -109,131 +112,42 @@ tm_create_prob_map <- function(r, legend.text.size = 0.55,
 
 breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 37)
 labels <-  c(0, 1, 2, 3, 4, 5, '>5')
-breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 37)
-labels <-  c(0, 1, 2, 3, 4, 5, '>5')
-prop_change <- c(round(0:5/36, 3), ">0.139")
+prop_change <- c(round(0:5/36, 3)*100, ">13.9")
 labels <- paste0(labels, " (", prop_change, ")")
 palette <- c('grey', RColorBrewer::brewer.pal(7, "YlOrRd")[-1])
 
 
 tm_obs <- tm_shape(rast_fPerPixel, bbox = bbox) +
-  tm_raster(title = "N fires (probability)",
+  tm_raster(title = "N fires (probability [%])",
             breaks = breaks,
             labels = labels,
             palette = palette) +
-  basemap(legend.text.size = 0.65) +
+  basemap(legend.text.size = 0.55,
+          legend.title.size = 0.75) +
   tm_layout(main.title = paste(fig_letters[1], "Number of observed fires (1987-2019)"))
-
-#tm_obs
 
 
 # * predicted ------------------------------------------------------------
 
-breaks_prob <- c(seq(0, 0.021, .003), 0.2)
+
 tm_pred1 <- tm_create_prob_map(
   rast_pred1,
-  main.title = paste(fig_letters[2], "Predicted annual fire probability")) 
-#tm_pred1
+  main.title = paste(fig_letters[2], "Modelled annual fire probability"),
+  legend.title.size = 0.75,
+  legend.text.size = 0.55) 
+
+# legend for later use
+legend_prob <- tm_pred1 +
+  tm_layout(legend.only = TRUE, scale=2, asp=0)
 
 jpeg("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v1.jpeg", units = 'in', res = 600,
-     height = 2.8, width = 7)
+     height = 2.6, width = 7)
 tmap_arrange(tm_obs, tm_pred1,  ncol = 2)
 dev.off()
 
 
-# model afg -------------------------------------------------------------
 
-# creating model relating afgAGB to climate variables. This way 
-# we can create a raster of 'predicted' afgAGB and then apply alterations to that.
-# the point is to get rid of high and low afgAGB values that aren't climate related
-
-clim_vars <- c("MAP", "MAT", "prcpPropSum")
-#pairs(df1[c("afgAGB", clim_vars)])
-cor(dfnona[c("afgAGB", clim_vars)])
-
-mod_afg1 <- glm(afgAGB ~ MAP + MAT + prcpPropSum + prcpPropSum:MAT + prcpPropSum:MAP + MAT:MAP,
-                data = dfnona,
-                family = gaussian(link = 'log'))
-
-summary(mod_afg1)
-
-cor(predict(mod_afg1, type = 'response'), dfnona$afgAGB)
-
-
-# * alter afg -------------------------------------------------------------
-
-pred_afg1 <- predict(mod_afg1, type = 'response', newdata = df1)
-
-dfs_alter_afg1 <- list("afg_pred" = df1, "afg_minus" = df1, "afg_plus" = df1)
-
-
-# replaced observed afg with predicted
-dfs_alter_afg1$afg_pred$afgAGB <- pred_afg1
-
-afg_plus_change <- 1
-afg_minus_change <- 0.20
-dfs_alter_afg1$afg_minus$afgAGB <- pred_afg1 * (1 - afg_minus_change)
-dfs_alter_afg1$afg_plus$afgAGB <- pred_afg1 * (1 + afg_plus_change)
-
-dfs_alter_afg2 <- map(dfs_alter_afg1, function(df) {
-  out <- df
-  
-  # replacing high afgAGB values, in to recreate the step
-  # function described our manuscript
-  # 167 is the max observed afgAGB
-  
-  out$afgAGB <- ifelse(out$afgAGB > 167, 167, out$afgAGB)
-  out$pred <- predict(mod1, newdata = out, type = "response")
-  out
-})
-
-rast_pred_afg1 <- empty
-rast_pred_afg1[] <- dfs_alter_afg2$afg_pred$pred
-
-# rasters of predicted values for given alteration 
-# and the delta compared to no alteration
-rasts_alter_afg1 <- map(dfs_alter_afg2[c("afg_minus", "afg_plus")], function(df) {
-  pred <- empty
-  
-  # raster of predicted values for the given alteration
-  pred[] <- df$pred
-  
-  # difference between the altered prediction and the original
-  # data prediction 
-  delta <- pred - rast_pred_afg1
-  
-  list(pred = pred, delta = delta)
-  
-})
-
-
-# * plot altered afgAGB ---------------------------------------------------
-
-tm_afg_orig <- tm_shape(rast_rap1[["afgAGB"]], bbox = bbox) +
-  tm_raster(breaks = breaks_bio2,
-            labels = label_creator(breaks_bio2),
-            palette = palette_bio2,
-            title = lab_bio0) +
-  basemap() +
-  tm_layout(main.title = "afgAGB (Original from RAP)")
-
-# AFG from RAP
-
-rast_afg_mod <- empty
-rast_afg_mod[] <- pred_afg1
-tm_afg_mod <- tm_shape(rast_afg_mod, bbox = bbox) +
-  tm_raster(breaks = breaks_bio2,
-            labels = label_creator(breaks_bio2),
-            palette = palette_bio2,
-            title = lab_bio0) +
-  basemap() +
-  tm_layout(main.title = "afgAGB (based on model of afgAGB ~ climate)")
-
-jpeg("figures/maps_veg/afgAGB_RAP-and-modelled_v1.jpeg", units = "in", res = 600,
-     height = 3, width = 8)
-tmap_arrange(tm_afg_orig, tm_afg_mod, ncol = 2)
-dev.off()
-# altered preds (clim) ------------------------------------------------------------
+# altered preds  ------------------------------------------------------------
 
 # altering the predictor variables to gauge sensitivity of the model 
 # to changes
@@ -244,7 +158,14 @@ alter_names <- c("mat_warm", # mid level amount of warming
                  "map_minus", # reduction in MAP
                  "map_plus", # increase in MAP
                  "prop_minus", # reduction in prcpPropSum
-                 "prop_plus") # increase in prcpPropSum
+                 "prop_plus", # increase in prcpPropSum
+                 "afg_low", # annuals low biomass
+                 "afg_mid", # mid biomass
+                 "afg_hi", # high
+                 "pfg_low", # perennials
+                 "pfg_mid",
+                 "pfg_hi"
+                 )
 dfs_alter1 <- vector('list', length(alter_names))
 for (i in 1:length(dfs_alter1)) {
   dfs_alter1[[i]] <- df1
@@ -264,6 +185,20 @@ prop_change <- 0.2
 dfs_alter1$prop_minus$prcpPropSum <- df1$prcpPropSum*(1-prop_change)
 dfs_alter1$prop_plus$prcpPropSum <- df1$prcpPropSum*(1+prop_change)
 
+# using fixed biomass levels for afg and pfg
+# afg 
+afg_low_change <- 25 # g/m^2
+afg_mid_change <- 75
+afg_hi_change <- 150
+
+dfs_alter1$afg_low$afgAGB <- afg_low_change
+dfs_alter1$afg_mid$afgAGB <- afg_mid_change
+dfs_alter1$afg_hi$afgAGB <- afg_hi_change
+
+# pfg
+dfs_alter1$pfg_low$pfgAGB <- afg_low_change
+dfs_alter1$pfg_mid$pfgAGB <- afg_mid_change
+dfs_alter1$pfg_hi$pfgAGB <- afg_hi_change
 
 # * predictions -----------------------------------------------------------
 
@@ -288,6 +223,20 @@ rasts_alter1 <- map(dfs_alter2, function(df) {
   list(pred = pred, delta = delta)
 })
 
+# recalculating afg and pfg deltas so that they
+# are relative to the low biomass level
+rasts_alter1[str_subset(alter_names, "afg_")] <- 
+  map(rasts_alter1[str_subset(alter_names, "afg_")], function(x) {
+    x$delta <- x$pred - rasts_alter1$afg_low$pred
+    x
+  })
+
+rasts_alter1[str_subset(alter_names, "pfg_")] <- 
+  map(rasts_alter1[str_subset(alter_names, "pfg_")], function(x) {
+    x$delta <- x$pred - rasts_alter1$pfg_low$pred
+    x
+  })
+
 
 # * 6 panel map -----------------------------------------------------------
 
@@ -300,13 +249,17 @@ delta_titles0 <- c(
   "map_plus" = paste0("+",map_change*100, "% MAP"),
   "prop_minus" = paste0("-",prop_change*100, "% prcpPropSum"),
   "prop_plus" = paste0("+",prop_change*100, "% prcpPropSum"),
-  "afg_minus"= paste0("-",afg_minus_change*100, "% afgAGB"),
-  "afg_plus"= paste0("+",afg_plus_change*100, "% afgAGB")
+  "afg_low"= paste0("Annual biomass (", afg_low_change, " g/m^2)"),
+  "afg_mid"= paste0("Annual biomass (", afg_mid_change, " g/m^2)"),
+  "afg_hi"= paste0("Annual biomass (", afg_hi_change, " g/m^2)"),
+  "pfg_low"= paste0("Perennial biomass (", afg_low_change, " g/m^2)"),
+  "pfg_mid"= paste0("Perennial biomass (", afg_mid_change, " g/m^2)"),
+  "pfg_hi"= paste0("Perennial biomass (", afg_hi_change, " g/m^2)")
 )
 
 delta_titles <- paste(fig_letters[1:length(delta_titles0)], delta_titles0)
-
-rasts_alter2 <- c(rasts_alter1, rasts_alter_afg1)
+names(delta_titles) <- names(delta_titles0)
+rasts_alter2 <- rasts_alter1
 
 # make sure elements refer to the same alteration
 stopifnot(names(rasts_alter2) == names(delta_titles))
@@ -319,35 +272,36 @@ rast_delta1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
 }) %>% 
   rast()
 
+# combining predicted rasters into one rasters w/ multiple layers
+rast_alter_pred1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
+  r <- x$pred
+  names(r) <- name
+  r
+}) %>% 
+  rast()
+
 
 
 jpeg("figures/maps_sensitivity/delta-prob_clim-vars_v1.jpeg", units = 'in', res = 600,
      height = 8.5, width = 7.5)
-  tm_shape(rast_delta1[[1:6]], bbox = bbox) +
-    tm_raster(title = lab_delta,
-              breaks = breaks_delta,
-              labels = labels_delta,
-              palette = cols_delta,
-              midpoint = 0) +
-    tm_layout(panel.labels = delta_titles,
-              panel.label.bg.color = 'white')+
-    tm_facets(ncol =2) +
-    basemap(legend.text.size = legend.text.size)
+
 dev.off()
 
-jpeg("figures/maps_sensitivity/delta-prob_all-vars_v1.jpeg", units = 'in', res = 600,
+jpeg("figures/maps_sensitivity/delta-prob_bio-vars_v1.jpeg", units = 'in', res = 600,
      height = 8, width = 8)
-tm_shape(rast_delta1, bbox = bbox) +
+lyrs <- c("afg_mid", "afg_hi", "pfg_mid", "pfg_hi") # layers to show
+tm_shape(rast_delta1[[lyrs]], 
+         bbox = bbox) +
   tm_raster(title = lab_delta,
             breaks = breaks_delta,
             labels = labels_delta,
             palette = cols_delta,
             midpoint = 0) +
-  tm_facets(ncol =3, free.scales = FALSE) +
-  tm_layout(panel.labels = delta_titles,
+  tm_facets(ncol =2, free.scales = FALSE) +
+  tm_layout(panel.labels = delta_titles0[lyrs],
             panel.label.bg.color = 'white',
-            legend.position = c(-0.6, -0.07),
-            legend.outside = TRUE) +
+            legend.outside = TRUE,
+            main.title = paste("Change in probability relative to", afg_low_change, " g/m^2")) +
   basemap(layout = FALSE)
 dev.off()
 
@@ -371,93 +325,71 @@ dev.off()
 minmax(rast_delta1)
 
 
-# map pages for each altered var ------------------------------------------
-
-# maps showing 1) predicted fire probability (with no alteration),
-# predicted w/ -/+ alterations and delta probability with +/- alterations
+# maps pred and delta  ------------------------------------------------
 
 
-vars <- names(delta_titles0) %>% 
-  str_replace("_.*", "") %>% 
-  unique()
-
-names(vars) <- vars
-
-main.title.size = 0.7
-legend.text.size = 0.4
-
-tm_alter1 <- map(vars, function(var) {
-  names <- names(delta_titles0) %>% 
-    str_subset(var)
-  
-  stopifnot(length(names) == 2)
-  
-  # predicted fir pobability on the original data
-  pred_orig <- tm_pred1 +
-    tm_layout(main.title = "Predicted fire probability (original data)",
-              legend.text.size = legend.text.size,
-              main.title.size = main.title.size)
-  
-
-  pred1 <- tm_create_prob_map(
-    rasts_alter2[[names[1]]]$pred,
-    main.title = paste("Predicted fire probability, ", delta_titles0[names[1]]),
-    legend.text.size = legend.text.size,
-    main.title.size = main.title.size) 
-  
-  pred2 <- tm_create_prob_map(
-    rasts_alter2[[names[2]]]$pred,
-    main.title = paste("Predicted fire probability, ", delta_titles0[names[2]]),
-    legend.text.size = legend.text.size,
-    main.title.size = main.title.size) 
-  
-  
-  delta1 <- tm_shape(rasts_alter2[[names[1]]]$delta, bbox = bbox) +
-    tm_raster(title = lab_delta,
-              breaks = breaks_delta,
-              labels = labels_delta,
-              palette = cols_delta,
-              midpoint = 0) +
-    basemap(legend.text.size = legend.text.size,
-            main.title.size = main.title.size) +
-    tm_layout(main.title = paste("Change in fire probability, ", 
-                                 delta_titles0[names[1]]))
-  
-  delta2 <- tm_shape(rasts_alter2[[names[2]]]$delta, bbox = bbox) +
-    tm_raster(title = lab_delta,
-              breaks = breaks_delta,
-              labels = labels_delta,
-              palette = cols_delta,
-              midpoint = 0) +
-    basemap(legend.text.size = legend.text.size,
-            main.title.size = main.title.size) +
-    tm_layout(main.title = paste("Change in fire probability, ", 
-                                 delta_titles0[names[2]]))
-  
-  out <- list(pred_orig = pred_orig, 
-              pred1 = pred1, 
-              pred2 = pred2,
-              delta1 = delta1, 
-              delta2 = delta2)
-  
-  out
-  
-})
+# * clim vars -------------------------------------------------------------
 
 
-tm_alter1$afg$pred_modafg <- tm_create_prob_map(
-  rast_pred_afg1,
-  main.title = "Predicted fire probability \n(based on modelled afg)",
-  legend.text.size = legend.text.size,
-  main.title.size = main.title.size)
+tm_delta_clim1 <- tm_shape(rast_delta1[[1:6]], bbox = bbox) +
+  tm_raster(title = lab_delta,
+            breaks = breaks_delta,
+            labels = labels_delta,
+            palette = cols_delta,
+            midpoint = 0) +
+  tm_layout(panel.labels = delta_titles0,
+            panel.label.bg.color = 'white',
+            main.title = "Delta probability",
+            legend.show = FALSE)+
+  tm_facets(ncol =1) +
+  basemap(legend.text.size = legend.text.size,
+          main.title.size = 0.7)
 
-tm_alter2 <- map(tm_alter1, tmap_arrange, ncol = 3)
+tm_pred_clim1 <- tm_create_prob_map(rast_alter_pred1[[1:6]],
+                                    main.title = "Predicted probability (%)",
+                                    main.title.size = 0.7) +
+  tm_layout(panel.labels = delta_titles0,
+            panel.label.bg.color = 'white',
+            legend.show = FALSE)+
+  tm_facets(ncol =1)
 
-pdf("figures/maps_sensitivity/pred_delta-prob_all-vars_v1.pdf", 
-     height = 4, width = 8)
-
-tm_alter2
-
+jpeg("figures/maps_sensitivity/pred_delta-prob_clim-vars_v1.jpeg", units = 'in', res = 600,
+     height = 12, width = 4)
+tmap_arrange(tm_pred_clim1, tm_delta_clim1, ncol = 2)
 dev.off()
+
+
+# * veg vars --------------------------------------------------------------
+
+tm_delta_bio1 <- tm_shape(rast_delta1[[-(1:6)]], bbox = bbox) +
+  tm_raster(title = lab_delta,
+            breaks = breaks_delta,
+            labels = labels_delta,
+            palette = cols_delta,
+            midpoint = 0) +
+  tm_layout(panel.labels = delta_titles0[-(1:6)],
+            panel.label.bg.color = 'white',
+            main.title = "Delta probability",
+            legend.show = FALSE,
+            panel.label.size = 0.7)+
+  tm_facets(ncol =1) +
+  basemap(legend.text.size = legend.text.size,
+          main.title.size = 0.7)
+
+tm_pred_bio1 <- tm_create_prob_map(rast_alter_pred1[[-(1:6)]],
+                                    main.title = "Predicted probability (%)",
+                                    main.title.size = 0.7) +
+  tm_layout(panel.labels = delta_titles0[-(1:6)],
+            panel.label.bg.color = 'white',
+            legend.show = FALSE,
+            panel.label.size = 0.7)+
+  tm_facets(ncol =1)
+
+jpeg("figures/maps_sensitivity/pred_delta-prob_bio-vars_v1.jpeg", units = 'in', res = 600,
+     height = 12, width = 4)
+tmap_arrange(tm_pred_bio1, tm_delta_bio1, ncol = 2)
+dev.off()
+
+
 
 
