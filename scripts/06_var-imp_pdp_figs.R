@@ -9,6 +9,7 @@
 # dependencies ------------------------------------------------------------
 
 source("src/fig_params.R")
+source("src/general_functions.R")
 library(vip)
 library(tidyverse)
 library(ggtext)
@@ -50,13 +51,7 @@ dev.off()
 # create pdp --------------------------------------------------------------
 
 # lookup table
-lookup_var <- c(
-  "afgAGB" = "Annual biomass (g/m<sup>2</sup>)",
-  "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)",
-  "MAT" = "MAT (°C)",
-  "MAP" = "MAP (mm)",
-  "prcpPropSum" = "Summer ppt (proportion)"
-)
+lookup_var <- var2lab(x = NULL, units_md = TRUE)
 
 mod_vars <- names(lookup_var)
 names(mod_vars) <- mod_vars

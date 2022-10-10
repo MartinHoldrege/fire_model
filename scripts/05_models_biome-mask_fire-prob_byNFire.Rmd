@@ -558,13 +558,42 @@ map2(pred_glm1_deciles, names(pred_glm1_deciles), function(df, method) {
       add_predicted = TRUE)
 })
 
+
+
+
 # tryng
 map2(pred_glm1_deciles_warm, names(pred_glm1_deciles_warm), function(df, method) {
   map(vars_prop, decile_dotplot, df = df, method = method, 
       add_predicted = TRUE, title = "data w/ +5 deg C warming")
 })
 
+
+# publication quality version
+g <- decile_dotplot_pq(pred_glm1_deciles$paint)
+g
+jpeg("figures/quantile_plots/quantile_plot_v1.jpeg", units = "in", res = 600,
+     width = 5, height = 3.5 )
+g 
+dev.off()
 ```
+
+Publication quality quantile plot
+
+```{r}
+pred_glm1_deciles$paint %>% 
+  filter(!name %in% 'herbAGB') %>% 
+  mutate(label = var2lab(name)) %>% 
+  ggplot(aes_string(x = 'mean_value', y = yvar)) +
+    geom_point(aes(color = "Observed", shape = "Observed"),
+               size = size) +
+    facet_wrap(~name, scales = 'free_x') +
+    labs(x = "Mean of percentile of predictor variable",
+    theme(legend.position = 'top',
+          legend.title = element_blank()) 
+```
+
+
+
 
 Plot observed vs predicted values for the quantile
 

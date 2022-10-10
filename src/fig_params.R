@@ -19,7 +19,7 @@ lab_fireProb <- c("fireProb" = "Long term fire probability (0-1)",
                   "fireProbYr" = "Probability of fire in a given year (0-1)",
                   mtbsOccur = "Probability of fire in a given year (0-1)")
 
-lab_fireProbPerc <- "Probability of fire in a given year (%)"
+lab_fireProbPerc <- "Annual fire probability (%)"
 
 # biomass
 lab_bio0 <- expression("Biomass ("*gm^-2*")")
@@ -27,6 +27,8 @@ lab_bio0 <- expression("Biomass ("*gm^-2*")")
 # legend labels
 
 lab_delta <- expression(Delta~Probability~"(%)")
+
+
 
 # colors ------------------------------------------------------------------
 

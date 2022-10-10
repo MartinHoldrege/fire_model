@@ -4,7 +4,7 @@
 
 # Purpose: Misc. functions to be used in other scripts
 
-
+source("src/fig_params.R")
 # misc. -------------------------------------------------------------------
 
 
@@ -183,6 +183,63 @@ label_creator <- function(x, convert2percent = FALSE) {
   }
   
   labels
+}
+
+
+#' convert variable abbreviation to a better label
+#'
+#' @param x character vector
+#' @param units_md whehter to include units in markdown format
+#' 
+#' @return vector same length as x, with fuller labels. Except if x 
+#' is null, then just the lookup vector returned
+#'
+#' @examples
+#'  var2lab(rev(factor(c("afgAGB", "prcpPropSum", 'MAT', 'MAP', 'pfgAGB'))))
+var2lab <- function(x, units_md = FALSE, add_letters = FALSE) {
+  
+  
+  # Including units that are written using markdown formating
+  lookup_md <- c(
+    "afgAGB" = "Annual biomass (g/m<sup>2</sup>)",
+    "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)",
+    "MAT" = "MAT (°C)",
+    "MAP" = "MAP (mm)",
+    "prcpPropSum" = "Proportion summer ppt"
+  )
+  
+  stopifnot(x %in% names(lookup_md))
+
+  lookup_name_only <- c(
+    "afgAGB" = "Annual biomass",
+    "pfgAGB" = "Perennial biomass",
+    "MAT" = "MAT",
+    "MAP" = "MAP",
+    "prcpPropSum" = "Proportion summer ppt"
+  )
+  
+  lookup <- if(units_md) {
+    lookup_md
+  } else {
+    lookup_name_only
+  }
+  
+  if(add_letters) {
+    new_lookup <- paste(fig_letters[1:length(lookup)], lookup)
+    names(new_lookup) <- names(lookup)
+    lookup <- new_lookup
+  }
+  
+  if(is.null(x)) {
+    return(lookup)
+  }
+  
+  out <- lookup[as.character(x)]
+  
+  # convert to a factor (for ordering in figures)
+  out <- factor(out, levels = lookup)
+
+  out
 }
 
 # quantile plots ----------------------------------------------------------
@@ -503,6 +560,69 @@ decile_dotplot <- function(yvar, df, method = NULL, ylab = 'fire probability (pe
   out
 }
 
+#' publication quality  dotplot of data summarized to quantiles
+#'
+#' @param df dataframe longform with 'mean_value' column
+#' (i.e. mean value of the predictor variable for the given decile) and 'name' 
+#' column which gives the name of the predictor variable
+decile_dotplot_pq <- function(df, size = 0.5) {
+  
+  if('filter_var' %in% names(df)) {
+    stop('filter_var column present, you should used decile_dotplot_filtered()')
+  }
+  
+  
+  # convert k to c
+  df[df$name == "MAT", ]$mean_value <- df[df$name == "MAT", ]$mean_value - 273.15
+  
+  df2 <- df %>% 
+    filter(!name %in% 'herbAGB') %>% 
+    mutate(name = var2lab(name, units_md = TRUE)) %>% 
+    arrange(name) 
+  
+  
+  
+  df2
+  yvar <- "cwf_prop"
+  yvar_pred <- paste0(yvar, "_pred")
+  
+  # convert to %
+  df2[[yvar]] <- df2[[yvar]]*100
+  df2[[yvar_pred]] <- df2[[yvar_pred]]*100
+  
+  letter_df <- tibble(
+    letter = fig_letters[1:length(unique(df2$name))],
+    name = factor(levels(df2$name)),
+    x = -Inf,
+    y = Inf
+  )
+  
+  g <- ggplot(df2, aes_string(x = 'mean_value', y = yvar)) +
+    geom_point(aes(color = "Observed", shape = "Observed"),
+               size = size, alpha = 0.5) +
+    geom_point(aes_string(y = yvar_pred), color = "blue", alpha = 0.5,
+               shape = 17, size = size) +
+    geom_text(data = letter_df, aes(x = x, y = y, label = letter),
+              hjust = -0.8,
+              vjust = 1) +
+    facet_wrap(~name, scales = 'free_x', strip.position = "bottom") +
+    # using annotate to add in line segements because lemon package (facet_rep_wrap)
+    # isn't being maintained anymore
+    annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 1) +
+    labs(y = lab_fireProbPerc) +
+    theme(legend.position = 'top',
+          legend.title = element_blank(),
+          #strip.text = element_text(),
+          strip.background = element_blank(),
+          strip.text = ggtext::element_markdown(),
+          strip.placement = "outside",
+          axis.title.x = element_blank(),
+          axis.line.y = element_blank())+
+    scale_color_manual(name = 'legend', values = c("Observed" = "black", "Predicted" = "blue")) +
+    scale_shape_manual(name = 'legend', values =  c("Observed" = 19, "Predicted" = 17))
+  
+  g
+}
 #' create dotplot of data summarized to quantiles
 #' 
 #' @description for each vegetation 
