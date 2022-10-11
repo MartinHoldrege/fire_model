@@ -242,6 +242,8 @@ var2lab <- function(x, units_md = FALSE, add_letters = FALSE) {
   out
 }
 
+
+
 # quantile plots ----------------------------------------------------------
 
 #' filter rows by climate variables
@@ -688,10 +690,86 @@ decile_dotplot_filtered <- function(yvar, df, method = NULL, ylab = 'fire probab
   g
 }
 
-# df <- predvars2deciles(filter_by_climate(pred_glm1$paint),
-#                        response_vars = response_vars,
-#                        pred_vars = pred_vars,
-#                        filter_var = TRUE) 
+#' create dotplot of data summarized to quantiles, publication quality
+#' 
+#' @description for each vegetation 
+#' variable, only showing data that falls in the highest or lowest deciles
+#' of each of the climate variables. 
+#'
 
+#' @param df dataframe longform in longform, should be output of 
+#' predvars2deciles with the filter_var argument set to TRUE
+#' @param add_smooth logical--whether to add splines
+#' @param size size of points
+decile_dotplot_filtered_pq <- function(df,
+                                    add_smooth = TRUE,
+                                    size = 0.5
+) {
+
+  yvar <- "cwf_prop"
+  df2 <- df %>% 
+    filter(name %in% c("afgAGB", "pfgAGB")) %>% 
+    select(name, filter_var, percentile_category, decile, mean_value,
+           all_of(yvar), all_of(paste0(yvar, "_pred"))) %>% 
+    pivot_longer(cols = all_of(c(yvar, paste0(yvar, "_pred"))),
+                 names_to = 'source',
+                 values_to = 'probability') %>% 
+    mutate(source = ifelse(str_detect(source, "_pred$"),
+                           "predicted", "observed"),
+           percentile_category = paste0(percentile_category, " (", source, ")"),
+           probability = probability*100) # convert to %)
+  
+  letter_df <- expand_grid(filter_var = unique(df2$filter_var), 
+                           name = unique(df2$name)) %>% 
+    mutate(letter = fig_letters[1:n()],
+           x = -Inf,
+           y = Inf)
+  
+  g <- ggplot(df2, aes(x = mean_value, y = probability)) +
+    geom_point(aes(color = percentile_category,
+                   shape = percentile_category),
+               size = size) +
+    facet_grid(filter_var~name, scales = 'free_x', switch = 'x',
+               labeller = labeller(filter_var = ~var2lab(.x, FALSE),
+                                   name = ~var2lab(.x, TRUE))) +
+    labs(#x = "mean of quantile of predictor variable",
+         y = lab_fireProbPerc,
+         tag = 'Climate variable') +
+    # using annotate to add in line segements because lemon package (facet_rep_wrap)
+    # isn't being maintained anymore
+    annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
+    annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7) +
+    geom_text(data = letter_df, aes(x = x, y = y, label = letter),
+              hjust = -0.8,
+              vjust = 1)+
+    labs(y = lab_fireProbPerc) +
+    theme(legend.position = 'top',
+          legend.title = element_text(size = 9),
+          #strip.text = element_text(),
+          strip.background = element_blank(),
+          strip.text = ggtext::element_markdown(),
+          strip.placement = "outside",
+          axis.title.x = element_blank(),
+          axis.line = element_blank(),
+          plot.tag.position = c(1.01, 0.5),
+          plot.tag = element_text(angle = 270),
+          plot.margin = unit(c(5.5, 20, 5.5, 5.5), "points")) +
+    # different colors for each combination of percentile and observed vs predicted,
+    # shapes are observed (circles) vs predicted (triangles)
+    scale_colour_manual(name = "Percentile of climate variable",
+                        values = c("#f03b20","#feb24c", "#0570b0", "#74a9cf"))+
+    scale_shape_manual(name = "Percentile of climate variable",
+                       values = c(19, 17, 19, 17)) +
+    guides(colour = guide_legend(title.position="top", title.hjust = 0.5)) +
+    coord_cartesian(clip = 'off')
+  
+  if(add_smooth) {
+    g <- g +
+      geom_smooth(aes(color = percentile_category),
+                  se = FALSE,
+                  size = 0.7)
+  }
+  g
+}
 
 
