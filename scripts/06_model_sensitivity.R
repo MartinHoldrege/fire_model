@@ -88,15 +88,16 @@ breaks_prob <- c(seq(0, 0.021, .003), 0.2)
 tm_create_prob_map <- function(r, legend.text.size = 0.55,
                                main.title = "", 
                                legend.title.size = 0.8,
-                               main.title.size = 0.8) {
+                               main.title.size = 0.8, ...) {
   
   tm_shape(r, bbox = bbox) +
     tm_raster(title = "Probability (%)",
               breaks = breaks_prob,
-              labels = label_creator(breaks_prob, convert2percent = TRUE)) +
+              labels = label_creator(breaks_prob, convert2percent = TRUE),
+              ...) +
     basemap(legend.text.size = legend.text.size, 
             legend.title.size = legend.title.size,
-            main.title.size) +
+            main.title.size = main.title.size) +
     tm_layout(main.title = main.title)
 }
 
@@ -130,17 +131,23 @@ tm_obs <- tm_shape(rast_fPerPixel, bbox = bbox) +
 # * predicted ------------------------------------------------------------
 
 
-tm_pred1 <- tm_create_prob_map(
-  rast_pred1,
-  main.title = paste(fig_letters[2], "Modelled annual fire probability"),
-  legend.title.size = 0.75,
-  legend.text.size = 0.55) 
+tm_pred1 <-  tm_shape(rast_pred1*100, bbox = bbox) +
+  tm_raster(title = "Probability (%)",
+            breaks = breaks_prob*100,
+            labels = label_creator(breaks_prob, convert2percent = TRUE),
+            legend.hist = TRUE) +
+  basemap(legend.text.size = 0.4, 
+          legend.title.size = 0.75,
+          main.title.size = 0.8) +
+  tm_layout(main.title = paste(fig_letters[2], "Modelled annual fire probability"),
+            legend.hist.width = 1,
+            legend.hist.height = 0.4, 
+            title.position = c("left", "top"),
+            legend.height = 0.9,
+            legend.width = 1)
 
-# legend for later use
-legend_prob <- tm_pred1 +
-  tm_layout(legend.only = TRUE, scale=2, asp=0)
-
-jpeg("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v1.jpeg", units = 'in', res = 600,
+tm_pred1
+jpeg("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v2.jpeg", units = 'in', res = 600,
      height = 2.6, width = 7)
 tmap_arrange(tm_obs, tm_pred1,  ncol = 2)
 dev.off()

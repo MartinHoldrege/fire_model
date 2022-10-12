@@ -4,7 +4,6 @@
 
 # Purpose: Misc. functions to be used in other scripts
 
-source("src/fig_params.R")
 # misc. -------------------------------------------------------------------
 
 
