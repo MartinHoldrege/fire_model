@@ -118,3 +118,12 @@ ggplot(df_pdp2, aes(x_value, yhat*100)) +
   )
 dev.off()
 
+
+# find maxima -------------------------------------------------------------
+# values of the predictor variable for which the probability (from the pdp)
+# is hightest
+
+df_pdp2 %>% 
+  group_by(variable) %>% 
+  filter(yhat == max(yhat))
+
