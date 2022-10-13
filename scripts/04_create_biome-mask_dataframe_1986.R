@@ -105,3 +105,13 @@ dfs_biome0 <- map(rasts_fPerPixel, function(r) {
 dfs_biome2 <- map(dfs_biome0, drop_na)
 
 
+# climate summary ----------------------------------------------------
+# for site description
+if (FALSE) {
+  df_biome0 %>% 
+    mutate(MAT = MAT -273.15) %>% 
+    select(MAT, MAP, prcpPropSum) %>% 
+    summarize(across(everything(), 
+                     .fns = list(mean = mean, min = min, max = max), 
+                     na.rm = TRUE))
+}
