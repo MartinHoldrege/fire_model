@@ -74,7 +74,7 @@ tm_afgAGB <- tm_shape(rast_rap1[["afgAGB"]], bbox = bbox2) +
             title = lab_bio0,
             legend.hist = TRUE) +
   base +
-  tm_layout(main.title = paste(fig_letters[1], "Annual forb and grass aboveground biomass"))
+  tm_layout(main.title = paste(fig_letters[4], "Annual forb and grass aboveground biomass"))
 
 tm_afgAGB
 # perennials
@@ -85,7 +85,7 @@ tm_pfgAGB <- tm_shape(rast_rap1[["pfgAGB"]], bbox = bbox2) +
             title = lab_bio0,
             legend.hist = TRUE) +
   base +
-  tm_layout(main.title = paste(fig_letters[2], "Perennial forb and grass aboveground biomass"))
+  tm_layout(main.title = paste(fig_letters[5], "Perennial forb and grass aboveground biomass"))
 
 
 tm_pfgAGB
@@ -111,7 +111,7 @@ met1 <- tm_shape(rasts_clim1$Yearly[["prcp"]], bbox = bbox2) +
             title = 'MAP (mm)',
             legend.hist = TRUE)  +
   base +
-  tm_layout(main.title = paste(fig_letters[3], "Mean annual precipitation"))
+  tm_layout(main.title = paste(fig_letters[2], "Mean annual precipitation"))
 
 met1
 
@@ -127,7 +127,7 @@ met2 <- tm_shape(rasts_clim1$Yearly[["tavg"]], bbox = bbox2) +
             legend.hist = TRUE,
             midpoint = 6)  +
   base+
-  tm_layout(main.title = paste(fig_letters[4], "Mean annual temperature"))
+  tm_layout(main.title = paste(fig_letters[1], "Mean annual temperature"))
 met2
 met3 <- tm_shape(rasts_clim1$Summer[["prcpProp"]], bbox = bbox2) +
   tm_raster(title = 'Proportion',
@@ -135,13 +135,30 @@ met3 <- tm_shape(rasts_clim1$Summer[["prcpProp"]], bbox = bbox2) +
             palette = cols_prop,
             legend.hist = TRUE)  +
   base+
-  tm_layout(main.title = paste(fig_letters[5], 'Proportion of precipitation that falls in summer (Jun-Aug)'))
+  tm_layout(main.title = paste(fig_letters[3], 'Proportion of precipitation that falls in summer (Jun-Aug)'))
 met3
 
+
+# * empty map -------------------------------------------------------------
+# for blank spot on the map
+blank_map <- tm_shape(spData::us_states) +
+  tm_borders(col = 'white') +
+  tm_layout(frame = FALSE)
 # * combine -----------------------------------------------------------------
 
 jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v1.jpeg", units = 'in', res = 600,
      height = 8.5, width = 7.5)
-tmap_arrange(tm_afgAGB, tm_pfgAGB, met1, met2, met3, ncol = 2)
+tmap_arrange( met2, met1, met3, tm_afgAGB, tm_pfgAGB, ncol = 2)
 dev.off()
+
+jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v2.jpeg", units = 'in', res = 600,
+     height = 8.5, width = 7.5)
+tmap_arrange( met2, met1, met3, blank_map, tm_afgAGB, tm_pfgAGB, ncol = 2)
+dev.off()
+
+jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v1_wide.jpeg", units = 'in', res = 600,
+     height = 8.5*0.66, width = 7.5*1.5)
+tmap_arrange(met2, met1, met3, tm_afgAGB, tm_pfgAGB, ncol = 3)
+dev.off()
+
 
