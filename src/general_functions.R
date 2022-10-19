@@ -200,21 +200,21 @@ var2lab <- function(x, units_md = FALSE, add_letters = FALSE) {
   
   # Including units that are written using markdown formating
   lookup_md <- c(
-    "afgAGB" = "Annual biomass (g/m<sup>2</sup>)",
-    "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)",
-    "MAT" = "MAT (°C)",
+    "MAT" = "MAT ($^\\circ$C)",
     "MAP" = "MAP (mm)",
-    "prcpPropSum" = "Proportion summer ppt"
+    "prcpPropSum" = "Proportion summer ppt",
+    "afgAGB" = "Annual biomass (g/m<sup>2</sup>)",
+    "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)"
   )
   
   stopifnot(x %in% names(lookup_md))
 
   lookup_name_only <- c(
-    "afgAGB" = "Annual biomass",
-    "pfgAGB" = "Perennial biomass",
     "MAT" = "MAT",
     "MAP" = "MAP",
-    "prcpPropSum" = "Proportion summer ppt"
+    "prcpPropSum" = "Proportion summer ppt",
+    "afgAGB" = "Annual biomass",
+    "pfgAGB" = "Perennial biomass"
   )
   
   lookup <- if(units_md) {
