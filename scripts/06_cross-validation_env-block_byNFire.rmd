@@ -20,6 +20,7 @@ source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/resample_functions.R")
 source("src/modeling_functions.R")
 source("src/basemaps.R")
+source("src/fig_params.R")
 library(blockCV) # for creating environmental blocks
 library(sf)
 library(knitr)
@@ -94,7 +95,7 @@ eb1 <- envBlock(rasterLayer = r_clim2,
                speciesData = cells_sf1,
                species = "dummy_col", # name of the column with response
                k = k,
-               standardization = "standard",
+               standardization = "normal",
                rasterBlock = TRUE)
 
 # checking that size of all test datasets sums to the 
@@ -294,9 +295,9 @@ pred_test_deciles1 <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
                  response_vars = response_vars)
 
 map2(pred_test_deciles1, names(pred_test_deciles1), function(df, fold) {
-  decile_dotplot(yvar = response_vars[1], df = df, add_predicted = TRUE,
-                 subtitle = paste0("Predictions on ", fold, 
-                                   " (model fit to other folds)"))
+  decile_dotplot_pq(df = df) +
+    labs(subtitle = paste0("Predictions on ", fold, 
+                           " (model fit to other folds)"))
 })
 ```
 
