@@ -577,7 +577,7 @@ Publication quality quantile plot
 # publication quality version
 g <- decile_dotplot_pq(pred_glm1_deciles$paint)
 g
-jpeg("figures/quantile_plots/quantile_plot_v1.jpeg", units = "in", res = 600,
+jpeg("figures/quantile_plots/quantile_plot_v2.jpeg", units = "in", res = 600,
      width = 5, height = 3.5 )
 g 
 dev.off()
@@ -677,6 +677,24 @@ g <- decile_dotplot_filtered_pq(df = pred_glm1_deciles_filt$paint)
 g
 
 jpeg("figures/quantile_plots/quantile_plot_filtered_v1.jpeg", units = "in", res = 600,
+     width = 5.5, height = 6 )
+g 
+dev.off()
+```
+
+Filtered quantile figure with middle 2 deciles also shown
+
+```{r}
+pred_glm1_deciles_filt_mid <- map(pred_glm1, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars,
+                         filter_var = TRUE,
+                         add_mid = TRUE)
+
+g <- decile_dotplot_filtered_pq(df = pred_glm1_deciles_filt_mid$paint)
+g
+
+jpeg("figures/quantile_plots/quantile_plot_filtered_mid_v1.jpeg", units = "in", res = 600,
      width = 5.5, height = 6 )
 g 
 dev.off()

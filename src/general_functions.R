@@ -200,14 +200,14 @@ var2lab <- function(x, units_md = FALSE, add_letters = FALSE) {
   
   # Including units that are written using markdown formating
   lookup_md <- c(
-    "MAT" = "MAT ($^\\circ$C)",
+    "MAT" = "MAT (\u00b0C)",
     "MAP" = "MAP (mm)",
     "prcpPropSum" = "Proportion summer ppt",
     "afgAGB" = "Annual biomass (g/m<sup>2</sup>)",
     "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)"
   )
   
-  stopifnot(x %in% names(lookup_md))
+  stopifnot(as.character(x) %in% names(lookup_md))
 
   lookup_name_only <- c(
     "MAT" = "MAT",
@@ -252,11 +252,13 @@ var2lab <- function(x, units_md = FALSE, add_letters = FALSE) {
 #' the top two deciles of each climate variable. 
 #'
 #' @param df dataframe that needs to have MAP, MAT, and prcpPropSum column
+#' @param add_mid also add a seperate category of the center 2 deciles of 
+#' each climate variable
 #'
 #' @return dataframe with same columns as df but also filter_var,
 #' percentile_category, which give the names of the climate variable filtered 
 #' by and the percentile cut-off used that the given row fits in
-filter_by_climate <- function(df) {
+filter_by_climate <- function(df, add_mid = FALSE) {
   
   # percentile cuttoffs to use, keeping values below low, and above high
   low <- 0.2
@@ -285,12 +287,31 @@ filter_by_climate <- function(df) {
     df_low$percentile_category <- paste0("<", low*100, "th")
     df_high <- df[percentiles[[var]] > high, ] 
     df_high$percentile_category <- paste0(">", high*100, "th")
+    
     out <- bind_rows(df_low, df_high)
-    out$filter_var <- var
+    
     out$percentile_category <- as.factor(out$percentile_category)
+    
+    # adding seperate category for the middle of the data
+    if(add_mid){
+      df_mid <- df[percentiles[[var]] < .6 & percentiles[[var]] > .4, ]
+      df_mid$percentile_category <- "40th-60th"
+      
+      # create correct factor order
+      levels <- levels(out$percentile_category)
+      levels <- c(levels[1], "40th-60th", levels[2])
+      # convert to character for binding
+      out$percentile_category <- as.character(out$percentile_category)
+      out <- bind_rows(out, df_mid)
+      out$percentile_category <- factor(out$percentile_category,
+                                         levels = levels)
+      
+    }
+    out$filter_var <- var
+    
     out
   })
-  
+  df_filtered$filter_var <- factor(df_filtered$filter_var, levels = clim_vars)
   df_filtered
 }
 
@@ -438,12 +459,15 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
 #' @param filter_var whether to create a filter var (i.e. filter by the
 #' climate variables, so group data into high and low percentiles
 #' of each climate variable)
+#' @param add_mid whether to also filter by the middle percentiles of the 
+#' climate vars
 predvars2deciles <- function(df, response_vars, pred_vars,
                              filter_var = FALSE,
-                             weighted_mean = TRUE) {
+                             weighted_mean = TRUE,
+                             add_mid = FALSE) {
   
   if (filter_var) {
-    df <- filter_by_climate(df)
+    df <- filter_by_climate(df, add_mid = add_mid)
   }
   
   # longformat df
@@ -661,6 +685,7 @@ decile_dotplot_filtered <- function(yvar, df, method = NULL, ylab = 'fire probab
     subtitle <- paste0('y variable is ', yvar, " (", method, " method)")
   }
   
+
   g <- ggplot(df2, aes(x = mean_value, y = probability)) +
     geom_point(aes(color = percentile_category,
                    shape = percentile_category),
@@ -714,8 +739,10 @@ decile_dotplot_filtered_pq <- function(df,
                  names_to = 'source',
                  values_to = 'probability') %>% 
     mutate(source = ifelse(str_detect(source, "_pred$"),
-                           "predicted", "observed"),
-           percentile_category = paste0(percentile_category, " (", source, ")"),
+                           "predicted", "observed")) %>% 
+    arrange(percentile_category, source) %>%  # so factor is ordered
+    mutate(percentile_category = paste0(percentile_category, " (", source, ")"),
+           percentile_category = factor(percentile_category, levels = unique(percentile_category)),
            probability = probability*100) # convert to %)
   
   letter_df <- expand_grid(filter_var = unique(df2$filter_var), 
@@ -724,13 +751,24 @@ decile_dotplot_filtered_pq <- function(df,
            x = -Inf,
            y = Inf)
   
+  # more colors for when mid category is included
+  if (length(unique(df2$percentile_category)) == 6) {
+    # reds, greens, blues
+    colors <- c("#f03b20","#feb24c", "#31a354", "#addd8e", "#0570b0", "#74a9cf")
+    shapes <- c(19, 17, 19, 17, 19, 17)
+  } else {
+    colors <- c("#f03b20","#feb24c", "#0570b0", "#74a9cf")
+    shapes <- c(19, 17, 19, 17)
+  }
+  
   g <- ggplot(df2, aes(x = mean_value, y = probability)) +
     geom_point(aes(color = percentile_category,
                    shape = percentile_category),
                size = size) +
-    facet_grid(filter_var~name, scales = 'free_x', switch = 'x',
-               labeller = labeller(filter_var = ~var2lab(.x, FALSE),
-                                   name = ~var2lab(.x, TRUE))) +
+    facet_grid(filter_var~name, scales = 'free_x', switch = 'x'
+               ,labeller = labeller(#filter_var = ~var2lab(.x, FALSE),
+                                   name = ~var2lab(.x, TRUE))
+               ) +
     labs(#x = "mean of quantile of predictor variable",
          y = lab_fireProbPerc,
          tag = 'Climate variable') +
@@ -756,9 +794,9 @@ decile_dotplot_filtered_pq <- function(df,
     # different colors for each combination of percentile and observed vs predicted,
     # shapes are observed (circles) vs predicted (triangles)
     scale_colour_manual(name = "Percentile of climate variable",
-                        values = c("#f03b20","#feb24c", "#0570b0", "#74a9cf"))+
+                        values = colors)+
     scale_shape_manual(name = "Percentile of climate variable",
-                       values = c(19, 17, 19, 17)) +
+                       values = shapes) +
     guides(colour = guide_legend(title.position="top", title.hjust = 0.5)) +
     coord_cartesian(clip = 'off')
   
