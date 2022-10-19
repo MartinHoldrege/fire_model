@@ -146,19 +146,13 @@ blank_map <- tm_shape(spData::us_states) +
   tm_layout(frame = FALSE)
 # * combine -----------------------------------------------------------------
 
-jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v1.jpeg", units = 'in', res = 600,
-     height = 8.5, width = 7.5)
-tmap_arrange( met2, met1, met3, tm_afgAGB, tm_pfgAGB, ncol = 2)
-dev.off()
 
+# left column is met, right column is biomass
 jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v2.jpeg", units = 'in', res = 600,
      height = 8.5, width = 7.5)
-tmap_arrange( met2, met1, met3, blank_map, tm_afgAGB, tm_pfgAGB, ncol = 2)
+tmap_arrange( met2, tm_afgAGB, met1, tm_pfgAGB, met3,  nrow = 3)
 dev.off()
 
-jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v1_wide.jpeg", units = 'in', res = 600,
-     height = 8.5*0.66, width = 7.5*1.5)
-tmap_arrange(met2, met1, met3, tm_afgAGB, tm_pfgAGB, ncol = 3)
-dev.off()
+
 
 
