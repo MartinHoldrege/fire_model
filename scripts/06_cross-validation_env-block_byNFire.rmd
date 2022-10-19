@@ -232,6 +232,17 @@ df_byNFire2_fold %>%
 
 ```
 
+Describing vegetation in training datasets
+
+```{r}
+map(dfs_train1, function(df) {
+  df %>% 
+    ungroup() %>% 
+    select('afgAGB', 'pfgAGB') %>% 
+    summary()
+})
+```
+
 
 # Fit models
 
@@ -263,25 +274,51 @@ efficiency, I'm predicting across the range of a given predictor
 variable, with other variables held at their mean. 
 
 
-```{r}
+```{r fig.height = 3.5, fig.width = 6.8}
+
+lookup_var <- var2lab(x = NULL, units_md = TRUE)
+
 
 mods_train2 <- c(mods_train1, list('biome-wide' = mods1$paint_cwf))
 preds_avg <- map_dfr(mods_train2, predict_across_avg, pred_vars = pred_vars,
                    df = df_resampled1[pred_vars],
                    .id = 'fold')
 
-ggplot(preds_avg, aes(value, yhat, color = fold)) +
-  geom_line() +
-  facet_wrap(~pred_var, scales = 'free') +
-  labs(x = "Predictor variable",
-       y = "Predicted fire probability",
-       subtitle = "'Pseudo' partial dependence plots for different training datasets",
-       caption = "Each model was fit to data where one environmental block was was left out. 
-       Predictions are across the whole range of a given predictor variable, and for
-       the biome-wide average of all other predictor variables") +
+preds_avg$pred_var_name <- var2lab(preds_avg$pred_var, units_md = TRUE)
+
+# convert to C
+preds_avg$value <- with(preds_avg, ifelse(pred_var == 'MAT', value -273.15, value))
+
+letter_df <- tibble(
+  letter = fig_letters[1:length(lookup_var)],
+  pred_var_name = factor(lookup_var),
+  value = -Inf,
+  yhat = Inf
+)
+
+g <- ggplot(preds_avg, aes(value, yhat*100)) +
+  geom_line(aes(color = fold)) +
+  geom_text(data = letter_df, aes(label = letter),
+            hjust = -0.8,
+            vjust = 1)+
+  facet_wrap(~pred_var_name, scales = 'free', strip.position = "bottom") +
+  theme(strip.text = ggtext::element_markdown(),
+      strip.placement = "outside",
+      axis.title.x = element_blank(),
+      strip.background = element_blank()) +
+    expand_limits(y = 3) +
+  # ggh4x::facetted_pos_scales(
+  #   x = list(pred_var_name == lookup_var['MAP'] ~ scale_x_continuous(limits = c(0, 1000)),
+  #            pred_var_name == lookup_var['MAT'] ~ scale_x_continuous(limits = c(0, 20))))+
+  labs(y = lab_fireProbPerc)+
   scale_color_manual(values = c(cols_fold, 'biome-wide' = 'black'), 
                      name = "Fold left out")
 
+g
+jpeg("figures/pdp/cv_pseudo-pdp_v1.jpeg", units = "in", res = 600,
+     width = 6.8, height = 4)
+g
+dev.off()
 ```
 
 
@@ -289,7 +326,7 @@ ggplot(preds_avg, aes(value, yhat, color = fold)) +
 
 ### Deciles
 
-```{r}
+```{r fig.width = 5, fig.height = 3.5 }
 
 pred_test_deciles1 <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
                  response_vars = response_vars)

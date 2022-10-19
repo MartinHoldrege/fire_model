@@ -766,7 +766,7 @@ decile_dotplot_filtered_pq <- function(df,
                    shape = percentile_category),
                size = size) +
     facet_grid(filter_var~name, scales = 'free_x', switch = 'x'
-               ,labeller = labeller(#filter_var = ~var2lab(.x, FALSE),
+               ,labeller = labeller(filter_var = ~var2lab(.x, FALSE),
                                    name = ~var2lab(.x, TRUE))
                ) +
     labs(#x = "mean of quantile of predictor variable",
