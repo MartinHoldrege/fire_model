@@ -345,11 +345,14 @@ map2(pred_test_deciles1, names(pred_test_deciles1), function(df, fold) {
 pred_test_deciles_filt <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
                  response_vars = response_vars,
                  filter_var = TRUE)
+```
+
+```{r fig.width = 5.5, fig.height = 6 }
 
 map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(df, fold) {
-  decile_dotplot_filtered(yvar = response_vars[1], df = df, add_smooth = TRUE,
-                 subtitle = paste0("Predictions on ", fold, 
-                                   " (model fit to other all other folds)"))
+  decile_dotplot_filtered_pq(df = df) +
+    labs(subtitle = paste0("Predictions on ", fold, 
+                           " (model fit to other folds)"))
 })
 ```
 

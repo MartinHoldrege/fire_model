@@ -647,6 +647,15 @@ map2(pred_glm_deciles_orig[1], names(pred_glm_deciles_orig)[1], function(df, met
 
 ### Deciles Filtered 
 
+20th and 80th percentiles for each climat variable
+
+```{r}
+df <- pred_glm1$paint[, c("MAT", "MAP", "prcpPropSum")] %>% 
+  mutate(MAT = MAT - 273.15) # k to c
+map(df, quantile, probs = c(0.2, 0.8), na.rm = TRUE)
+```
+
+
 Filtered 'Decile' plots of data. These plots show each vegetation variable,
 but only based on data that falls into the upper and lower two deciles of
 each climate variable. 

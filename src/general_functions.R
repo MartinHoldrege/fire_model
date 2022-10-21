@@ -809,4 +809,117 @@ decile_dotplot_filtered_pq <- function(df,
   g
 }
 
-
+# code in development...
+# if (FALSE){
+# g <- ggplot(df2, aes(x = mean_value, y = probability)) +
+#   geom_point(aes(color = percentile_category,
+#                  shape = percentile_category),
+#              size = size) +
+#   facet_grid(filter_var~name, scales = 'free_x', switch = 'x'
+#              ,labeller = labeller(filter_var = ~var2lab(.x, FALSE),
+#                                   name = ~var2lab(.x, TRUE))
+#   ) +
+#   labs(y = lab_fireProbPerc)+
+#   # using annotate to add in line segements because lemon package (facet_rep_wrap)
+#   # isn't being maintained anymore
+#   annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
+#   annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7) +
+#   geom_text(data = letter_df, aes(x = x, y = y, label = letter),
+#             hjust = -0.8,
+#             vjust = 1)+
+#   labs(y = lab_fireProbPerc) +
+#   theme(legend.position = 'right',
+#         legend.title = element_text(size = 9),
+#         strip.background = element_blank(),
+#         strip.text.x = ggtext::element_markdown(),
+#         strip.text.y = element_blank(),
+#         strip.placement = "outside",
+#         axis.title.x = element_blank(),
+#         axis.title.y = element_blank(),
+#         axis.line = element_blank()) +
+#   # different colors for each combination of percentile and observed vs predicted,
+#   # shapes are observed (circles) vs predicted (triangles)
+#   scale_colour_manual(name = "Percentile of climate variable",
+#                       values = colors)+
+#   scale_shape_manual(name = "Percentile of climate variable",
+#                      values = shapes) +
+#   guides(colour = guide_legend(title.position="top", title.hjust = 0.5)) +
+#   coord_cartesian(clip = 'off')
+# g +
+#   theme(plot.margin = unit(c(5.5, 100, 5.5, 5.5), "points")) +
+#   annotate('segment', x = 0, xend = 500, y = 0.6, yend = 0.6)
+# 
+# 
+# 
+# 
+#   add_smooth = TRUE
+#   size = 0.5
+#   yvar <- "cwf_prop"
+#   df2 <- df %>% 
+#     filter(name %in% c("afgAGB", "pfgAGB")) %>% 
+#     select(name, filter_var, percentile_category, decile, mean_value,
+#            all_of(yvar), all_of(paste0(yvar, "_pred"))) %>% 
+#     pivot_longer(cols = all_of(c(yvar, paste0(yvar, "_pred"))),
+#                  names_to = 'source',
+#                  values_to = 'probability') %>% 
+#     mutate(source = ifelse(str_detect(source, "_pred$"),
+#                            "predicted", "observed")) 
+#   
+#   letter_df <- expand_grid(filter_var = unique(df2$filter_var), 
+#                            name = unique(df2$name)) %>% 
+#     mutate(letter = fig_letters[1:n()],
+#            x = -Inf,
+#            y = Inf)
+#   
+#     colors <- c("#f03b20","#feb24c", "#0570b0", "#74a9cf")
+#       shapes <- c(19, 17, 19, 17)
+# 
+#   df3 <- df2 %>% 
+#     filter(filter_var == 'MAT') %>% 
+#     droplevels()
+#   df3
+#   df3_low <- df3 %>% 
+#     filter(percentile_category == "<20th")
+#   g <- ggplot(mapping = aes(x = mean_value, y = probability*100)) +
+#     geom_point(data = df3_low, aes(color = percentile_category,
+#                    shape = percentile_category),
+#                size = size) +
+#     facet_grid(~name, scales = 'free_x', switch = 'x'
+#                ,labeller = labeller(name = ~var2lab(.x, TRUE))
+#     ) +
+#     #labs(y = lab_fireProbPerc) +
+#     # using annotate to add in line segements because lemon package (facet_rep_wrap)
+#     # isn't being maintained anymore
+#     annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
+#     annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7) +
+#     geom_text(data = letter_df[letter_df$filter_var == "MAT", ], aes(x = x, y = y, label = letter),
+#               hjust = -0.8,
+#               vjust = 1)+
+#     theme(legend.position = 'right',
+#           legend.title = element_text(size = 9),
+#           strip.background = element_blank(),
+#           strip.text.x = ggtext::element_markdown(),
+#           strip.placement = "outside",
+#           axis.title.x = element_blank(),
+#           axis.title.y = element_blank(),
+#           axis.line = element_blank()) +
+#     # different colors for each combination of percentile and observed vs predicted,
+#     # shapes are observed (circles) vs predicted (triangles)
+#     scale_colour_manual(name = "Percentile of MAT",
+#                         values = colors)+
+#     scale_shape_manual(name = "Percentile of MAT",
+#                        values = shapes) +
+#     guides(colour = guide_legend(title.position="top", title.hjust = 0.5)) +
+#     expand_limits(y = c(0, 4))
+#   g
+#   if(add_smooth) {
+#     g <- g +
+#       geom_smooth(aes(color = percentile_category),
+#                   se = FALSE,
+#                   size = 0.7)
+#   }
+#   g
+# }
+# 
+# 
+# }
