@@ -38,6 +38,7 @@ source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/general_functions.R")
 source("src/modeling_functions.R")
 source("src/resample_functions.R")
+source("src/basemaps.R")
 theme_set(theme_classic())
 ```
 
@@ -52,6 +53,7 @@ names(method) <- method
 #dfs_biome3 <- map(dfs_biome3, slice_sample, n = 1000) # for testing
 
 ```
+
 
 ```{r}
 set.seed(1234)
@@ -98,7 +100,7 @@ Percent of total possible number of bins filled
 
 ```{r}
 (n_bins/(bin_values^5)*100) %>% 
-  round(1)
+  round(2)
 ```
 
 
@@ -106,7 +108,11 @@ Number of observations per bin
 
 ```{r}
 n_per_bin <- map(dfs_bin, function(df) {
-  as.vector(table(df$bin_all))
+  x <- table(df$bin_all)
+  
+    out <- as.vector(x)
+  names(out) <- names(x) # naming each vector element by the name of the bin
+  out
 })
 
 map(n_per_bin, summary)
@@ -119,8 +125,82 @@ map_dbl(n_per_bin, function(x) mean(x ==1)*100)
 
 ```
 
+# Map of bin density
 
-## Resample data
+```{r}
+
+df_cell_bin <- dfs_bin$bin20 %>% 
+  select(cell_num, bin_all) %>% 
+  # adding in the number of observation for a given bin_all
+  mutate(bin_size = n_per_bin$bin20[bin_all]) %>%
+  # multiple observations can occur per cell (when have >0 fires)
+  # so taking the average bin size for observations belonging
+  # to the given gridcell
+  group_by(cell_num) %>% 
+  summarise(bin_size = mean(bin_size))
+
+```
+
+fill raster with bin sizes
+
+```{r}
+
+r_bin <- rast_cwf1
+r_bin[] <- NA
+r_bin[df_cell_bin$cell_num] <- df_cell_bin$bin_size
+
+cutoff <- resample_bins(dfs_bin$bin20, return_target_bin_size = TRUE)
+
+# percent of grid cells belonging to bins 
+mean(df_cell_bin$bin_size < cutoff)*100
+r_cutoff <- r_bin
+r_cutoff[] <- NA_integer_
+r_cutoff[r_bin < cutoff] <- 1L
+r_cutoff[r_bin == cutoff] <- 2L
+r_cutoff[r_bin > cutoff] <- 3L
+
+
+```
+
+Create map of bin sizes
+
+```{r}
+breaks <- c(1, 4, 9, 20, 50, 100, 500, 1000, 10000)
+tm_bin <- tm_shape(r_bin) +
+  tm_raster(
+    breaks = breaks,
+    labels = label_creator(breaks),
+    palette = "GnBu",
+    title= "Observations/bin"
+  ) +
+  base
+
+tm_bin
+
+jpeg("figures/maps_resampling/bin20_density_v1.jpeg", res = 600, 
+     height = 4, width = 4, units = "in")
+tm_bin 
+dev.off()
+
+
+```
+
+Map of whether a location was upsampled or downsampled
+
+```{r}
+tm_cutoff <- tm_shape(r_cutoff) +
+  tm_raster(
+    breaks = seq(0.5, 3.5, by = 1),
+    labels = c("upsampled", "no change", "downsampled"),
+    palette = c("#67a9cf", "gray", "#ef8a62"), # from RdBu palette
+    title =""
+  ) +
+  base
+tm_cutoff
+```
+
+
+# Resample data
 
 Re-sampling multiple times, to get a sense for the variability
 between random draws

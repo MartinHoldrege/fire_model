@@ -78,6 +78,7 @@ bin_df <- function(df, cols, n_categories = 10) {
 #' Re-sample df based on bins
 #' 
 #' @param df data frame (output from bin_df())
+#' @param return_target_bin_size =
 #'
 #' @return df with ~ same num of rows as the input, but each unique bin_all
 #' value has the same number of rows
@@ -89,9 +90,9 @@ bin_df <- function(df, cols, n_categories = 10) {
 #' )
 #' df2 <- bin_df(df, names(df))
 #' resample_bins(df2)
+#' resample_bins(df2, return_target_bin_size = TRUE)
 #' 
-#' 
-resample_bins <- function(df) {
+resample_bins <- function(df, return_target_bin_size = FALSE) {
   
   stopifnot(
     "bin_all" %in% names(df)
@@ -100,12 +101,17 @@ resample_bins <- function(df) {
   n_bins <- length(unique(df$bin_all))
   n_obs <- nrow(df)
   
+  n <- round(n_obs/n_bins)
+  
+  if(return_target_bin_size) {
+    return(n)
+  }
   out <- df %>% 
     group_by(bin_all) %>% 
     slice_sample(
       # making each bin the same size so end up with
       # ~ as many rows as the original dataset
-      n = round(n_obs/n_bins),
+      n = n,
       replace = TRUE)
   out
 }
