@@ -17,6 +17,7 @@ theme_set(theme_classic())
 
 # read in model objects ---------------------------------------------------
 
+# main model
 mods <- readRDS("models/glm_binomial_models_byNFire_v2_bin20_cwf.RDS")
 mod <- mods$paint_cwf
 
@@ -201,4 +202,23 @@ dev.off()
 df_pdp2 %>% 
   group_by(variable) %>% 
   filter(yhat == max(yhat))
+
+
+# output rounded coefficients ----------------------------------------------
+
+# useful for copy and pasting into manuscript
+coef_df <-  map_dfr(list(HMod = mod_h, main = mod), function(x) {
+    out <- summary(x) %>% 
+    .$coefficients %>% 
+    as_tibble() %>% 
+    mutate(variable = names(x$coefficients),
+           Estimate = map_chr(Estimate, format,scientific = F, digits = 4),
+           `Std. Error` = map_chr(`Std. Error`, format,scientific = F, digits = 3),
+           `z value` =  map_chr(`z value`, format,scientific = F, digits = 3))
+    out
+  },
+  .id = "model")
+
+
+write_csv(coef_df, "models/models_coefs_glm_byNFire_bin20.csv")
 
