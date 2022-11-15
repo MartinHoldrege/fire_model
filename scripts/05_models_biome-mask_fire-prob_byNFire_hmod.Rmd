@@ -1,0 +1,751 @@
+---
+title: "Models of fire probability for the sagebrush biome"
+subtitle: "Before/after fire, resampled/stratified data, hmod included"
+author: "Martin Holdrege"
+date: "`r lubridate::today()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+Same modelling approach as used in the 05_models_biome-maks_fire-prob_byNFire.Rmd.
+
+However, here an additional predictor variabl is added--
+
+This data uses average rap biomass from before a given fire (or for the entire time
+period if no fire). So there can be multiple observations (rows) per grid cell (if
+there are multiple fires)
+
+Here the training data is resampled to be more balanced (i.e., upsampling
+bins of rare data, downsampling bins of common data). 
+
+Note a concern with the up-sampling is that many bins start with only one
+datapoint in them, which is then repeated many times in the resampled dataset.
+Apparently, having duplicated points like this can increase the risk of 
+over-fitting. 
+
+This code is set up to fit models separately to fire data compiled
+in a couple of ways (e.g. paint method, vs reduceToImage), and also
+multiple fire dataset (e.g. mtbs, ifph etc). Meaning this code
+iterates over lists. Right now these lists are of length 1 because I'm only
+looking at the cwf (usgs combined wildfire dataset--which is the best there is),
+and the paint method to convert polygons to rasters (in GEE)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE)
+```
+
+# Dependencies 
+
+User defined parameters
+
+```{r}
+# set to true if want to run for a limited number of rows (i.e. for code testing)
+test_run <- FALSE
+```
+
+
+Sourcing the script that creates a dataframe of historical
+fore occurrence, as well as biotic and climate
+predictors for those same grid-cells. 
+
+```{r source_data, warning=FALSE, message=FALSE, cache = FALSE}
+source("scripts/04_create_biome-mask_dataframe_byNfire.R")
+```
+
+```{r warning=FALSE, message=FALSE}
+source("src/general_functions.R")
+source("src/fig_params.R")
+source("src/modeling_functions.R")
+source("src/resample_functions.R")
+library(tidyverse)
+library(GGally) # for ggpairs()
+library(pdp) # for partial dependence plots
+library(gridExtra)
+library(knitr)
+theme_set(theme_classic())
+```
+
+
+# Prep data
+
+```{r prep_data, cache=FALSE}
+# only interested in cws data source at the moment (the others are worse
+# and make the code slower)
+dfs_biome3 <- dfs_byNFire3_hmod %>% 
+  # some rows have hmod missing, so removing those here
+  map(drop_na)
+dfs_biome3 <- map(dfs_biome3, select, -matches("(occur|nfire)_(ifph|lba|mtbs)"),
+                  -matches("(ifph|lba|mtbs)_prop"))
+method <- names(dfs_biome3)
+names(method) <- method
+
+```
+
+```{r}
+set.seed(1234)
+pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum", 'hmod')
+names(pred_vars) <- pred_vars
+# so that herbAGB is in the final dataframes
+pred_vars2 <- unique(c(pred_vars, 'herbAGB'))
+
+dfs_biome3_orig <- dfs_biome3 # dfs_biome is resampled below
+
+# predictor vars are the same in both dfs
+df_pred <- dfs_biome3[[1]][, pred_vars2]
+```
+
+
+## Bin data
+
+20 bins strikes a good balance, where data isn't very distorted by still more
+balanced than the original data. 
+
+```{r}
+n_categories <- 20 
+# so resampled dataset is the same as before, not including hmod in the
+# 'multidimensional' bins
+df_pred_bin1 <- bin_df(df_pred, cols = pred_vars[pred_vars != 'hmod'],
+                       n_categories = n_categories)
+head(df_pred_bin1)
+```
+
+## Explore bins
+
+Number of unique bins
+
+```{r}
+n_bins <- df_pred_bin1$bin_all %>% 
+  unique %>% 
+  length()
+n_bins
+```
+
+The 10 bins with the most 
+
+```{r}
+n_per_bin_table <- table(df_pred_bin1$bin_all)
+
+n_per_bin <- as.vector(n_per_bin_table)
+
+summary(n_per_bin)
+names(n_per_bin) <- dimnames(n_per_bin_table)[[1]]
+
+
+sort(n_per_bin, decreasing = TRUE)[1:10]
+```
+
+Histograms of the number of observations per bin
+
+```{r }
+  hist(n_per_bin, breaks = 200,
+       main = 'number of observations in each multi-dimensional bin',
+       xlab = "Number of observations in bin")
+
+  hist(n_per_bin[n_per_bin < 100], breaks = 100,
+       main = 'number of observations in each multi-dimensional bin \n(xlim restricted)',
+       xlab = "Number of observations in bin")
+```
+
+## Resample data
+
+```{r resample, message = FALSE}
+# note this chunk of code can't be safely re-run without
+# rerunning code above that creates dfs_biome3
+
+df_pred_resample1 <-  df_pred_bin1 %>% 
+  mutate(row_num = 1:nrow(.)) %>% 
+  group_by(bin_all) %>% 
+  slice_sample(
+  # making each bin the same size so end up with
+  # ~ as many rows as the original dataset
+  n = round(nrow(df_pred_bin1)/n_bins),
+  replace = TRUE)
+
+# repeating the same rows in both dataframes in dfs_biome3
+dfs_biome3 <- map(dfs_biome3, function(df) {
+  df$bin_all <- df_pred_bin1$bin_all
+  
+  out <- df[df_pred_resample1$row_num, ]
+  out
+})
+
+# checking that all bins have the same number of observations
+dfs_biome3$paint$bin_all %>% 
+  table() %>% 
+  as.vector() %>% 
+  unique()
+```
+
+## training data
+
+Note--previously a small sample for now to make model fitting quicker.
+Now the training dataset is all the data.
+
+```{r train, dependson='prep_data', cache = FALSE}
+
+if (test_run) {
+  n = 10000 # for testing
+} else {
+  n = nrow(dfs_biome3[[1]]) # fit models on all the data
+}
+
+row_nums <- 1:nrow(dfs_biome3[[1]])
+rows_train <- sample(row_nums, size = n, replace = FALSE)
+
+# rows for test dataset
+# note set up this way, in case the training
+# dataset is all the data
+rows2sample <- if(n == length(rows_train)) {
+  row_nums
+} else {
+  row_nums[!row_nums %in% rows_train]
+}
+
+# rows used in testing dataset
+rows_test <- sample(rows2sample, size = 40000, replace = FALSE)
+
+# selecting rows this was so both dataframes in list have same rows
+# and differences in models will only be b/ of differences in response
+
+dfs_train <- map(dfs_biome3, function(df) as.data.frame(df[rows_train, ]))
+dfs_test <- map(dfs_biome3, function(df) as.data.frame(df[rows_test, ]))
+
+# all variables (transformed or not, that could be predictor vars)
+all_pred_vars <- names(dfs_biome3[[1]]) %>% 
+  str_subset(pattern = paste0("(", 
+                              paste0(pred_vars2, collapse = ")|("), 
+                              ")")
+             )
+train_pred <- dfs_train[[1]][, all_pred_vars]
+test_pred <- dfs_test[[1]][, all_pred_vars]
+```
+
+# Exploratory figs & summary values
+
+
+```{r summary_table}
+
+create_summary <- function(df) {
+  df %>% 
+    pivot_longer(cols = everything(),
+                 names_to = 'variable') %>% 
+    group_by(variable) %>% 
+    summarise(across(value, .fns = list(mean = mean, min = min, 
+                                        median = median, max = max))) %>% 
+    mutate(across(where(is.numeric), round, 4))
+}
+
+dfs_biome3[[1]][pred_vars2] %>% 
+  create_summary() %>% 
+  knitr::kable(caption = 'summaries of predictor variables')
+
+
+response_summary <- map(dfs_biome3, function(df) {
+  df %>% 
+    dplyr::select(where(is.numeric), -all_of(pred_vars2), -matches("^occur_")) %>% 
+    create_summary()
+})
+
+kable(response_summary$paint, 
+      caption = 'summaries of response variables, calculated using paint')
+
+```
+
+## Plot predictor vars against each other
+
+here using pred dataframe, because smaller and this code is slow. 
+
+```{r pred_v_pred, cache=FALSE, dependson='train'}
+
+cor(test_pred[pred_vars])
+```
+
+## boxplots-- # of fires vs predictor variables
+
+```{r n_fires_boxplots, fig.height=9, fig.width=8, cache = FALSE, dependson='prep_data'}
+
+# vectors of names of response variables
+vars_nfire <- names(dfs_biome3[[1]]) %>% 
+  str_subset("^nfire_")
+
+vars_occur <- names(dfs_biome3[[1]]) %>% 
+  str_subset("^occur_")
+
+names(vars_occur) <- str_replace(vars_occur, "occur_", "")
+
+vars_prop <- str_replace(vars_occur, "occur_", "") %>% 
+  paste0(., "_prop")
+
+names(vars_prop) <- names(vars_occur)
+
+# longformat dataframes for making boxplots
+dfs_biome_long <- map(dfs_biome3, function(df) {
+  # for some reason select() was giving me problems
+  # adding numYrs here so can take weighted average
+  predvars2long(df, response_vars = c(vars_nfire, vars_prop), 
+                pred_vars = pred_vars) %>% 
+    mutate(across(all_of(vars_nfire), factor))
+})
+
+fire_box <- function(xvar, df, method) {
+  ggplot(df, aes_string(x= xvar, y = 'value')) +
+    geom_boxplot() +
+    facet_wrap(~name, scales = 'free_y') +
+    labs(subtitle = paste0(xvar, " (", method, " method)"))
+}
+
+map2(dfs_biome_long, names(dfs_biome_long), function(df, method) {
+  map(vars_nfire, fire_box, df = df, method = method)
+})
+
+  
+```
+
+## Dotplots: deciles vs fire probability
+
+First calculating mean of response variables (proportion of years with fires) 
+for each decile of each predictor
+variable. 
+
+Next plotting deciles (originally was deciles, 10 bins, now
+actually 0.5 percentiles, i.e. 200 bins)
+vs fire probability. Dotplots made for each predictor
+variable and response variable (as well method by which response variable
+was calculated)
+
+```{r observed_deciles}
+
+dfs_deciles1 <- map(dfs_biome_long, longdf2deciles, response_vars = vars_prop,
+                    weighted_mean = TRUE)
+# df <- dfs_deciles1[[1]]
+# yvar = vars_prop[[1]]
+
+map2(dfs_deciles1, names(dfs_deciles1), function(df, method) {
+  map(vars_prop, decile_dotplot, df = df, method = method,
+      ylab = "fire probability (per year)")
+})
+
+```
+
+
+## Histograms of response vars
+
+Histograms for all fire variables, includes all grid cells from sagebrush biome,
+showing fire probability (nfires/nyears)
+
+```{r hists_response, message = FALSE, warning = FALSE}
+
+dfs_prop_long <- map(dfs_biome3, function(df) {
+  df %>% 
+    select(matches("_prop$")) %>% 
+    pivot_longer(cols = everything(),
+                 names_to = "variable",
+                 values_to = 'value') %>% 
+    mutate(probability = value*100)
+})
+
+map(method, function(x) {
+  ggplot(dfs_prop_long[[x]], aes(probability)) +
+  geom_histogram(breaks = seq(-1, 15)) +
+  facet_wrap(~variable, scales = "free_y") +
+  labs(x = lab_fireProbPerc,
+       caption = paste(x, "method used")) +
+  coord_cartesian(xlim = c(-0.1, 15))
+})
+
+```
+
+## Plot response variables against each other
+
+```{r response_ggpairs, cache=FALSE, dependson='train'}
+map(method, function(x) {
+  ggpairs(dfs_test[[x]] , title =  paste0('relationships between response variables (',
+                           x,  " method used)"),
+        columns = vars_nfire,
+        lower = list(continuous = GGally::wrap("points", alpha = 0.1, size=0.2)))
+})
+
+```
+
+# GLMs 
+
+
+## fitting models
+
+### fitting various transforms
+
+Creating formulas where each variable on its own is transformed numerous ways
+(including formula to fit spline), all other variables are left alone,
+that repeated for each variable. So have models with 1 variable transformed,
+2 transformed, etc. 
+
+see documentation for glms_iterate_transforms, in the modelling_functions.R
+script
+
+```{r iterate_transform, warning = FALSE, dependson='train', cache = FALSE}
+set.seed(1234)
+
+# adding an interaction term to help deal with overpredicting fire probability
+# at pixils with high afgaGB and high MAP. perentheses around interaction
+# term are included so that glms_iterate_transforms doesn't transform
+# the interaction term. 
+pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
+                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
+
+# pred_vars_inter <- pred_vars
+
+mods_glm_cwf1 <- glms_iterate_transforms(
+  preds = pred_vars_inter, 
+  df = dfs_train$paint[ , ],
+  response_var = "cwf_prop", 
+  delta_aic = 10,
+  weights_col = "numYrs")
+
+# not including the last element of the list which is final_formula
+mods_glm_cwf2 <- mods_glm_cwf1[-length(mods_glm_cwf1)]
+
+map_dfc(mods_glm_cwf2, ~ names(.$aic[1:5])) %>% 
+  kable(caption = "5 best transformations at each step")
+best_aic_by_step <- map_dbl(mods_glm_cwf2, ~.$aic[1])
+
+best_aic_by_step <- c(step0 = mods_glm_cwf1$step1$aic[['convert_none']], 
+                      best_aic_by_step)
+# AIC improvement by step
+diff(best_aic_by_step)
+plot(y = best_aic_by_step, 
+     x = 1:length(best_aic_by_step) - 1,
+     ylab = "AIC",
+     xlab = "Number of variables transformed")
+
+```
+
+Best transformation each step.
+
+```{r}
+var_transformed <- map(mods_glm_cwf2, function(x) x$var_transformed)
+var_transformed
+```
+
+
+### same model for all response variables
+
+Response variables are the proportion of years in which fires occurred.
+Using best model formula selected in the previous step
+
+```{r fit_glm1, dependson='iterate_transform'}
+
+best_form <- mods_glm_cwf1$final_formula %>% 
+  str_replace(".+(?=~)", "") # remove everything before ~ (i.e. response var)
+forms_glm1 <-  map(paste(vars_prop, best_form), as.formula)
+
+print(best_form)
+names(forms_glm1) <- names(vars_occur)
+mod_glm1 <- map(method, function(x) {
+  # fitting glms for each formula 
+  map(forms_glm1, function(form) {
+    glm(form, data = dfs_train[[x]], family = 'binomial', weights = numYrs)
+  })
+}) 
+
+# should be the same AIC (i.e. refitting the same model)
+AIC(mod_glm1$paint$cwf)
+
+mod_glm1_flat <- flatten_rename(mod_glm1)
+summary(mod_glm1_flat$paint_cwf)
+
+```
+
+## partial dependence & VIP
+
+```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = FALSE, dependson='fit_glm1'}
+# vip::vip(bin_glm1) # variable importance
+vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
+   out <- vip::vip(mod, num_features = 15) +
+    labs(subtitle = name)
+})
+marrangeGrob(vip_plots1, ncol = 3, nrow = 3)
+map(mod_glm1_flat[1], pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
+              train = train_pred)
+
+# pdp for the original data
+map(mod_glm1_flat[1], pdp_all_vars, mod_vars = pred_vars, ylab = 'probability',
+              train = df_pred)
+```
+
+
+## observed vs. predicted
+
+Predicting on the data
+Note now that dfs_train is the whole dataset, i'm predicting on the
+'training' dataframe
+
+```{r}
+
+# create prediction for each each model
+# (i.e. for each fire proporation variable)
+predict_by_response <- function(mods, df) {
+  df_out <- df
+  for(var in names(vars_prop)) {
+    mod <- mods[[var]]
+    
+    response_name <- paste0(vars_prop[[var]], "_pred")
+    df_out[[response_name]] <- predict(mod, df, type = 'response')
+  }
+  df_out
+}
+
+pred_glm1 <- map2(mod_glm1, dfs_train, predict_by_response)
+
+dfs_test_warm <- map(dfs_train, function(df) mutate(df, MAT = MAT + 5))
+
+pred_glm1_warm <- map2(mod_glm1, dfs_test_warm, predict_by_response)
+```
+
+```{r message = FALSE}
+
+# long format so can have observed and predicted columns
+pred_glm1_long <- map(pred_glm1, function(df) { 
+  df %>% 
+    select(matches("_prop")) %>% 
+    mutate(row = 1:n()) %>% 
+    pivot_longer(cols = -row) %>% 
+    mutate(data_source = str_extract(name, "^[a-z]+"),
+           type = ifelse(str_detect(name, "prop_pred$"), 'predicted', 
+                         'observed')) %>% 
+    select(-name) %>% 
+    pivot_wider(id_cols = c('row', 'data_source'), 
+                names_from = 'type',
+                values_from = 'value') %>% 
+    select(-row)
+})
+
+# observed vs predicted ggplots
+g <- ggplot(pred_glm1_long[[1]] %>% filter(observed <= 0.1), 
+            aes(y = predicted)) +
+  facet_wrap(~data_source) +
+  labs(subtitle = 'observed and predicted fire probabilities',
+       y = "predicted probability")
+
+g +
+  geom_boxplot(aes(x = as.factor(as.numeric(as.factor(observed)) - 1)))+
+  labs(x = "number of observed fires")
+
+g +
+  geom_jitter(aes(x = observed), width = 0.005, alpha = 0.1) +
+  geom_smooth(aes(x = observed), method = 'lm') +
+  geom_abline(slope = 1) 
+
+```
+
+### Deciles
+
+Binning predictor variables into deciles (actually percentiles) and looking at the mean
+predicted probability for each percentile. The use of the word deciles
+is just a legacy thing (they started out being actual deciles)
+
+Then predicting on an identical dataset but with warming
+
+```{r fig.width = 5, fig.height = 6}
+vars_prop_pred <- paste0(vars_prop, "_pred")
+response_vars <- c(vars_prop, vars_prop_pred)
+
+pred_glm1_deciles <- map(pred_glm1, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars)
+
+pred_glm1_deciles_warm <- map(pred_glm1_warm, predvars2deciles,
+                              response_vars = response_vars,
+                              pred_vars = pred_vars)
+
+map2(pred_glm1_deciles, names(pred_glm1_deciles), function(df, method) {
+  map(vars_prop, decile_dotplot, df = df, method = method, 
+      add_predicted = TRUE)
+})
+
+
+
+
+# tryng
+map2(pred_glm1_deciles_warm, names(pred_glm1_deciles_warm), function(df, method) {
+  map(vars_prop, decile_dotplot, df = df, method = method, 
+      add_predicted = TRUE, title = "data w/ +5 deg C warming")
+})
+
+
+```
+
+Publication quality quantile plot
+
+```{r}
+
+# publication quality version
+g <- decile_dotplot_pq(pred_glm1_deciles$paint)
+g
+jpeg("figures/quantile_plots/quantile_plot_hmod_v1.jpeg", units = "in", res = 600,
+     width = 5, height = 3.5 )
+g 
+dev.off()
+```
+
+
+
+Plot observed vs predicted values for the quantile
+
+```{r}
+# long format, so have columns of predicted and observed
+# and can facet by response variable
+dfs_obs_v_pred <- map(pred_glm1_deciles, function(df) {
+  df %>% 
+    select(matches("_prop")) %>% 
+    mutate(id = 1:nrow(.)) %>% 
+    pivot_longer(cols = matches("_prop")) %>% 
+    mutate(type = ifelse(str_detect(name, "_pred$"),
+                         "predicted", "observed"),
+           variable = str_extract(name, "^[a-z]+")) %>% 
+    pivot_wider(id_cols = c(id, variable), names_from = 'type')
+})     
+
+map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
+  ggplot(df, aes(observed, predicted)) +
+    geom_point() +
+    facet_wrap(~variable) +
+    geom_abline(slope = 1) +
+    labs(title = paste(method, "method"),
+         subtitle = "fire probability averaged for each decile of each predictor variable",
+         caption = "each panel shows observed and predicted values
+         of annual fire probability, for a given fire dataset")
+})
+
+
+```
+
+R2 of observed vs predicted
+
+```{r}
+m <- lm(predicted ~ observed, dfs_obs_v_pred$paint)
+summary(m)$r.squared
+```
+
+
+### Deciles--original data
+
+Observed/predicted quantiles for the original (non resampled) dataset
+
+```{r}
+
+# just doing for $paint method data
+pred_glm_orig <- map2(mod_glm1[1], dfs_biome3_orig[1], predict_by_response)
+
+pred_glm_deciles_orig <- map(pred_glm_orig, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars)
+
+
+map2(pred_glm_deciles_orig[1], names(pred_glm_deciles_orig)[1], function(df, method) {
+  map(vars_prop, decile_dotplot, df = df, method = method, 
+      add_predicted = TRUE, title = "Original data")
+})
+```
+
+
+
+### Deciles Filtered 
+
+20th and 80th percentiles for each climat variable
+
+```{r}
+df <- pred_glm1$paint[, c("MAT", "MAP", "prcpPropSum")] %>% 
+  mutate(MAT = MAT - 273.15) # k to c
+map(df, quantile, probs = c(0.2, 0.8), na.rm = TRUE)
+```
+
+
+Filtered 'Decile' plots of data. These plots show each vegetation variable,
+but only based on data that falls into the upper and lower two deciles of
+each climate variable. 
+
+
+```{r glm_deciles_filtered, fig.height = 6, message = FALSE}
+
+pred_glm1_deciles_filt <- map(pred_glm1, predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars,
+                         filter_var = TRUE)
+
+pred_glm1_deciles_warm <- map(pred_glm1_warm, predvars2deciles,
+                              response_vars = response_vars,
+                              pred_vars = pred_vars)
+
+map2(pred_glm1_deciles_filt, names(pred_glm1_deciles_filt), function(df, method) {
+  map(vars_prop, decile_dotplot_filtered, df = df, method = method,
+      add_smooth = TRUE)
+})
+
+```
+
+Publication quality
+
+```{r}
+g <- decile_dotplot_filtered_pq(df = pred_glm1_deciles_filt$paint)
+g
+
+jpeg("figures/quantile_plots/quantile_plot_filtered_hmod_v1.jpeg", units = "in", res = 600,
+     width = 5.5, height = 6 )
+g 
+dev.off()
+```
+
+
+### Deciles Filtered --Orig
+
+Filtered deciles for values predicted on the original data.
+
+
+```{r glm_orig_deciles_filtered, fig.height = 6}
+
+# just runningfor the paint method data 
+pred_glm_orig_deciles_filt <- map(pred_glm_orig[1], predvars2deciles, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars,
+                         filter_var = TRUE)
+
+map2(pred_glm_orig_deciles_filt, names(pred_glm_orig_deciles_filt), function(df, method) {
+  map(vars_prop, decile_dotplot_filtered, df = df, method = method,
+      title = "Original (not resampled) data")
+})
+
+```
+
+# Save output
+
+```{r save_output}
+# glm models
+mods2save <- mod_glm1_flat
+mods2save$formula <- best_form
+saveRDS(mods2save, 
+        paste0("models/glm_binomial_models_byNFire_hmod_v1_bin",
+               n_categories, "_cwf.RDS"))
+
+```
+
+# session info
+
+Hash of current commit (i.e. to ID the version of the code used)
+
+```{r}
+system("git rev-parse HEAD", intern=TRUE)
+```
+
+Packages etc.
+
+```{r}
+sessionInfo()
+
+```
+
+
+
+

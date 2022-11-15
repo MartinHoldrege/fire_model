@@ -189,13 +189,17 @@ label_creator <- function(x, convert2percent = FALSE) {
 #'
 #' @param x character vector
 #' @param units_md whehter to include units in markdown format
+#' @param add_letters whether to add letters to factor levels
+#' @param include_hmod whether to include human modification as a level
 #' 
 #' @return vector same length as x, with fuller labels. Except if x 
 #' is null, then just the lookup vector returned
 #'
 #' @examples
 #'  var2lab(rev(factor(c("afgAGB", "prcpPropSum", 'MAT', 'MAP', 'pfgAGB'))))
-var2lab <- function(x, units_md = FALSE, add_letters = FALSE) {
+#'  var2lab("prcpPropSum")
+var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
+                    include_hmod = FALSE) {
   
   
   # Including units that are written using markdown formating
@@ -207,8 +211,6 @@ var2lab <- function(x, units_md = FALSE, add_letters = FALSE) {
     "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)"
   )
   
-  stopifnot(as.character(x) %in% names(lookup_md))
-
   lookup_name_only <- c(
     "MAT" = "MAT",
     "MAP" = "MAP",
@@ -216,6 +218,18 @@ var2lab <- function(x, units_md = FALSE, add_letters = FALSE) {
     "afgAGB" = "Annual biomass",
     "pfgAGB" = "Perennial biomass"
   )
+  
+  # if human modification layer included in the input,
+  # add it here (if not present, it won't be included as 
+  # a factor level)
+  if("hmod" %in% x | include_hmod) {
+    lookup_md <- c(lookup_md, "hmod" = "Human modification")
+    lookup_name_only <- c(lookup_name_only, "hmod" = "Human modification")
+    
+  }
+  stopifnot(as.character(x) %in% names(lookup_md))
+
+
   
   lookup <- if(units_md) {
     lookup_md

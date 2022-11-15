@@ -59,6 +59,12 @@ rast_numYrs <- rast(fire_path)
 # right now this is only for data validation
 rast_cwf1 <- rast("data_processed/fire_probability/cwf_fires-per-pixel_1987-2019_1000m_sagebrush-biome-mask_v1.tif")
 
+
+# * human modification ----------------------------------------------------
+
+# from Theobalds  hmod layer used for calculating 2017-2020 SEI
+rast_hmod <- rast("data_processed/human_mod/HM_US_v3_dd_2019_60ssagebrush_1000m_sagebrush-biome-mask_v1.tif")
+
 # check rasters -----------------------------------------------------------
 # check that all rasters have the same origion, projection, and resolution.
 # throws an error if not true
@@ -71,7 +77,7 @@ compareGeom(rasts_clim1[[1]], rast_rap1, rast_numYrs,
             lyrs = FALSE, crs = TRUE, ext = TRUE,
             rowcol = TRUE)
 
-compareGeom(rasts_clim1[[2]], rast_cwf1,
+compareGeom(rasts_clim1[[2]], rast_cwf1, rast_hmod,
             lyrs = FALSE, crs = TRUE, ext = TRUE,
             rowcol = TRUE)
 
@@ -224,6 +230,17 @@ check <- numYrs_df4 %>%
 # (1987-2019)
 stopifnot(check == 33)
 
+
+# hmod --------------------------------------------------------------------
+
+hmod_df1 <- get_values('constant', rast_hmod) %>% 
+  rename(hmod = value) %>% 
+  select(-lyr)
+
+# note there are some (i.e. 727) gridcells that are NA in the hmod 
+# raster, so are missing in hmod_df1
+sum(!rap_df3$cell_num %in% hmod_df1$cell_num)
+
 # combine -----------------------------------------------------------------
 # combine response and predictor vars
 
@@ -251,9 +268,16 @@ df_byNFire2 <- df_byNFire1 %>%
          # including for legacy code reasons
          occur_cwf = factor(nfire_cwf > 0, c("TRUE", "FALSE")))
 
+# creating this as a separate df to avoid downstream problems because
+# there are are some rows (~700) where hmod is NA
+df_byNFire2_hmod <- df_byNFire2 %>% 
+  left_join(hmod_df1, by = "cell_num")
+
 # so structure is the same as created in other scripts
 # (paint method used in GEE)
 dfs_byNFire3 <- list('paint' = df_byNFire2)
+
+dfs_byNFire3_hmod <- list('paint' = df_byNFire2_hmod)
 
 # *check ------------------------------------------------------------------
 
