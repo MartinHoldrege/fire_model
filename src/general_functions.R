@@ -3,7 +3,7 @@
 # Script started March 1, 2022
 
 # Purpose: Misc. functions to be used in other scripts
-
+library(patchwork)
 # misc. -------------------------------------------------------------------
 
 
@@ -728,6 +728,7 @@ decile_dotplot_filtered <- function(yvar, df, method = NULL, ylab = 'fire probab
   g
 }
 
+
 #' create dotplot of data summarized to quantiles, publication quality
 #' 
 #' @description for each vegetation 
@@ -741,7 +742,8 @@ decile_dotplot_filtered <- function(yvar, df, method = NULL, ylab = 'fire probab
 #' @param size size of points
 decile_dotplot_filtered_pq <- function(df,
                                     add_smooth = TRUE,
-                                    size = 0.5
+                                    size = 0.5,
+                                    return_df = FALSE
 ) {
 
   yvar <- "cwf_prop"
@@ -764,6 +766,10 @@ decile_dotplot_filtered_pq <- function(df,
     mutate(letter = fig_letters[1:n()],
            x = -Inf,
            y = Inf)
+  
+  if(return_df) {
+    return(df2)
+  }
   
   # more colors for when mid category is included
   if (length(unique(df2$percentile_category)) == 6) {
@@ -823,117 +829,170 @@ decile_dotplot_filtered_pq <- function(df,
   g
 }
 
-# code in development...
-# if (FALSE){
-# g <- ggplot(df2, aes(x = mean_value, y = probability)) +
-#   geom_point(aes(color = percentile_category,
-#                  shape = percentile_category),
-#              size = size) +
-#   facet_grid(filter_var~name, scales = 'free_x', switch = 'x'
-#              ,labeller = labeller(filter_var = ~var2lab(.x, FALSE),
-#                                   name = ~var2lab(.x, TRUE))
-#   ) +
-#   labs(y = lab_fireProbPerc)+
-#   # using annotate to add in line segements because lemon package (facet_rep_wrap)
-#   # isn't being maintained anymore
-#   annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
-#   annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7) +
-#   geom_text(data = letter_df, aes(x = x, y = y, label = letter),
-#             hjust = -0.8,
-#             vjust = 1)+
-#   labs(y = lab_fireProbPerc) +
-#   theme(legend.position = 'right',
-#         legend.title = element_text(size = 9),
-#         strip.background = element_blank(),
-#         strip.text.x = ggtext::element_markdown(),
-#         strip.text.y = element_blank(),
-#         strip.placement = "outside",
-#         axis.title.x = element_blank(),
-#         axis.title.y = element_blank(),
-#         axis.line = element_blank()) +
-#   # different colors for each combination of percentile and observed vs predicted,
-#   # shapes are observed (circles) vs predicted (triangles)
-#   scale_colour_manual(name = "Percentile of climate variable",
-#                       values = colors)+
-#   scale_shape_manual(name = "Percentile of climate variable",
-#                      values = shapes) +
-#   guides(colour = guide_legend(title.position="top", title.hjust = 0.5)) +
-#   coord_cartesian(clip = 'off')
-# g +
-#   theme(plot.margin = unit(c(5.5, 100, 5.5, 5.5), "points")) +
-#   annotate('segment', x = 0, xend = 500, y = 0.6, yend = 0.6)
-# 
-# 
-# 
-# 
-#   add_smooth = TRUE
-#   size = 0.5
-#   yvar <- "cwf_prop"
-#   df2 <- df %>% 
-#     filter(name %in% c("afgAGB", "pfgAGB")) %>% 
-#     select(name, filter_var, percentile_category, decile, mean_value,
-#            all_of(yvar), all_of(paste0(yvar, "_pred"))) %>% 
-#     pivot_longer(cols = all_of(c(yvar, paste0(yvar, "_pred"))),
-#                  names_to = 'source',
-#                  values_to = 'probability') %>% 
-#     mutate(source = ifelse(str_detect(source, "_pred$"),
-#                            "predicted", "observed")) 
-#   
-#   letter_df <- expand_grid(filter_var = unique(df2$filter_var), 
-#                            name = unique(df2$name)) %>% 
-#     mutate(letter = fig_letters[1:n()],
-#            x = -Inf,
-#            y = Inf)
-#   
-#     colors <- c("#f03b20","#feb24c", "#0570b0", "#74a9cf")
-#       shapes <- c(19, 17, 19, 17)
-# 
-#   df3 <- df2 %>% 
-#     filter(filter_var == 'MAT') %>% 
-#     droplevels()
-#   df3
-#   df3_low <- df3 %>% 
-#     filter(percentile_category == "<20th")
-#   g <- ggplot(mapping = aes(x = mean_value, y = probability*100)) +
-#     geom_point(data = df3_low, aes(color = percentile_category,
-#                    shape = percentile_category),
-#                size = size) +
-#     facet_grid(~name, scales = 'free_x', switch = 'x'
-#                ,labeller = labeller(name = ~var2lab(.x, TRUE))
-#     ) +
-#     #labs(y = lab_fireProbPerc) +
-#     # using annotate to add in line segements because lemon package (facet_rep_wrap)
-#     # isn't being maintained anymore
-#     annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
-#     annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7) +
-#     geom_text(data = letter_df[letter_df$filter_var == "MAT", ], aes(x = x, y = y, label = letter),
-#               hjust = -0.8,
-#               vjust = 1)+
-#     theme(legend.position = 'right',
-#           legend.title = element_text(size = 9),
-#           strip.background = element_blank(),
-#           strip.text.x = ggtext::element_markdown(),
-#           strip.placement = "outside",
-#           axis.title.x = element_blank(),
-#           axis.title.y = element_blank(),
-#           axis.line = element_blank()) +
-#     # different colors for each combination of percentile and observed vs predicted,
-#     # shapes are observed (circles) vs predicted (triangles)
-#     scale_colour_manual(name = "Percentile of MAT",
-#                         values = colors)+
-#     scale_shape_manual(name = "Percentile of MAT",
-#                        values = shapes) +
-#     guides(colour = guide_legend(title.position="top", title.hjust = 0.5)) +
-#     expand_limits(y = c(0, 4))
-#   g
-#   if(add_smooth) {
-#     g <- g +
-#       geom_smooth(aes(color = percentile_category),
-#                   se = FALSE,
-#                   size = 0.7)
-#   }
-#   g
-# }
-# 
-# 
-# }
+# helper function for generating legends
+legend_generator <- function(df, percentile_name, variable_name) {
+  legend_name = paste(percentile_name, variable_name)
+  
+  colors <- c("#f03b20","#feb24c", "#0570b0", "#74a9cf")
+  shapes <- c(19, 17)
+  
+  if(percentile_name == "Low") {
+    colors <- colors[1:2]
+  } else {
+    colors <- colors[3:4]
+  }
+  
+  
+  g1 <- df %>% 
+    filter(percentile_name == percentile_name) %>% 
+    ggplot(aes(mean_value, probability, color = source, shape = source)) +
+    geom_point() +
+    geom_line() +
+    scale_colour_manual(name = legend_name,
+                        values = colors)+
+    scale_shape_manual(name =  legend_name,
+                       values = shapes) +
+    guides(color = guide_legend(title.position = "left"),
+           shape = guide_legend(title.position = "left")) +
+    theme(legend.title = element_text(size = 8),
+          legend.text = element_text(size = 6))
+  
+  cowplot::get_legend(g1)
+}
+
+# generate a list of legends (to be used decile_dotplot_filter_pq2)
+generate_all_legends <- function(df) {
+  var_names <- c("MAT", "MAP", "prop. sum. ppt.")
+  percentile_names <- c("Low", "High")
+  df_names <- expand_grid(var_names, percentile_names)
+  
+  legends <- list()
+  for(i in 1:nrow(df_names)) {
+    legends[[i]] <- legend_generator(df = df, 
+                                     percentile_name = df_names$percentile_names[i],
+                                     variable_name = df_names$var_names[i])
+  }
+  legends
+}
+
+
+
+#' create dotplot of data summarized to quantiles, publication quality.
+#' 2nd version that has seperate legends for each row of figures
+#' 
+#' @description for each vegetation 
+#' variable, only showing data that falls in the highest or lowest deciles
+#' of each of the climate variables. 
+#'
+
+#' @param df dataframe longform in longform, should be output of 
+#' predvars2deciles with the filter_var argument set to TRUE
+#' @param add_smooth logical--whether to add splines
+#' @param size size of points
+decile_dotplot_filtered_pq2 <- function(df,
+                                        size = 0.5
+) {
+  
+  df2 <- decile_dotplot_filtered_pq(df, return_df = TRUE) %>% 
+    mutate(percentile_name = case_when(
+      str_detect(percentile_category, "<") ~ "Low",
+      str_detect(percentile_category, ">") ~ "High",
+      TRUE ~ "Other"
+    ))
+  
+  letter_df <- expand_grid(filter_var = unique(df2$filter_var), 
+                           name = unique(df2$name)) %>% 
+    mutate(letter = fig_letters[1:n()],
+           x = -Inf,
+           y = Inf)
+  
+  # more colors for when mid category is included
+  if(length(unique(df2$percentile_category)) != 4) {
+    stop('This function only works w/ low and high percentile categories (no
+          more)')
+  }
+  
+  colors <- c("#f03b20","#feb24c", "#0570b0", "#74a9cf")
+  shapes <- c(19, 17, 19, 17)
+  
+  # base for filtered plot
+  base_filt <- function() {
+    list(
+      geom_point(aes(color = percentile_category,
+                     shape = percentile_category),
+                 size = size),
+      facet_grid(filter_var~name),
+      # using annotate to add in line segements because lemon package (facet_rep_wrap)
+      # isn't being maintained anymore
+      annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7),
+      annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7),
+      theme(legend.position = 'none',
+            strip.background = element_blank(),
+            strip.text = element_blank(),
+      ),
+      # different colors for each combination of percentile and observed vs predicted,
+      # shapes are observed (circles) vs predicted (triangles)
+      scale_colour_manual(values = colors),
+      scale_shape_manual(values = shapes),
+      geom_smooth(aes(color = percentile_category),
+                  se = FALSE,
+                  size = 0.7),
+      coord_cartesian(ylim = range(df2$probability))
+    )
+    
+    
+  }
+  g_pfg <- df2 %>% 
+    filter(name == "pfgAGB") %>% 
+    ggplot(aes(x = mean_value, y = probability)) +
+    base_filt() +
+    geom_text(data = filter(letter_df, name == "pfgAGB") , aes(x = x, y = y, label = letter),
+              hjust = -0.8,
+              vjust = 1) +
+    theme(axis.text.y = element_blank(),
+          #axis.ticks.y = element_blank(),
+          axis.title.x = ggtext::element_markdown()) +
+    labs(y = NULL,
+         x = var2lab('pfgAGB', TRUE))
+  
+  g_afg <- df2 %>% 
+    filter(name == "afgAGB") %>% 
+    ggplot(aes(x = mean_value, y = probability)) +
+    base_filt() +
+    geom_text(data = filter(letter_df, name == "afgAGB") , aes(x = x, y = y, label = letter),
+              hjust = -0.8,
+              vjust = 1) +
+    theme(axis.title.x = ggtext::element_markdown()) +
+    labs(y = lab_fireProbPerc,
+         x = var2lab('afgAGB', TRUE))
+  
+  # create seperate legends to be added onto the figure
+  legends <- generate_all_legends(df2)
+  legends2 <- map(legends, ggplotify::as.ggplot)
+  
+  # combining into grid
+  # grid layout
+  m <- 2 # middle (left to right
+  b <- 9 # bottom
+  ll <- 4 # left of legend
+  lr <- 5 # right of legend
+  layout <- c(
+    area(1, 1, b, m),
+    area(1, m+1, b, 4),
+    area(1, ll, r = lr),
+    area(2, ll, r = lr),
+    area(4, ll, r = lr),
+    area(5, ll, r = lr),
+    area(7, ll, r = lr),
+    area(8, ll, r = lr)
+  )
+  # plot(layout)
+  out <- g_afg + g_pfg + 
+    legends2[[1]] + legends2[[2]] +
+    legends2[[3]] + legends2[[4]] +
+    legends2[[5]] + legends2[[6]] +
+    plot_layout(design = layout, 
+                widths = c(1, 0.2, 1, 0.2, 0.8))
+  
+  out
+}

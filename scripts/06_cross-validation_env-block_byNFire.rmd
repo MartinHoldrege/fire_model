@@ -347,13 +347,21 @@ pred_test_deciles_filt <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars
                  filter_var = TRUE)
 ```
 
-```{r fig.width = 5.5, fig.height = 6 }
+```{r fig.width = 7, fig.height = 6 }
 
-map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(df, fold) {
-  decile_dotplot_filtered_pq(df = df) +
-    labs(subtitle = paste0("Predictions on ", fold, 
+g_filt <- map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(df, fold) {
+  g <- decile_dotplot_filtered_pq2(df = df) +
+    patchwork::plot_annotation(subtitle = paste0("Predictions on ", fold, 
                            " (model fit to other folds)"))
+  
+  jpeg(paste0("figures/quantile_plots/cv_quantile_plots_filt_", fold, ".jpeg"),
+       units = "in", res = 600,width = 7, height = 6 )
+    print(g) 
+  dev.off()
+  g
 })
+
+g_filt
 ```
 
 # session info

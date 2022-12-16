@@ -682,11 +682,11 @@ map2(pred_glm1_deciles_filt, names(pred_glm1_deciles_filt), function(df, method)
 Publication quality
 
 ```{r}
-g <- decile_dotplot_filtered_pq(df = pred_glm1_deciles_filt$paint)
+g <- decile_dotplot_filtered_pq2(df = pred_glm1_deciles_filt$paint)
 g
 
-jpeg("figures/quantile_plots/quantile_plot_filtered_v1.jpeg", units = "in", res = 600,
-     width = 5.5, height = 6 )
+jpeg("figures/quantile_plots/quantile_plot_filtered_v2.jpeg", units = "in", res = 600,
+     width = 7, height = 6 )
 g 
 dev.off()
 ```
