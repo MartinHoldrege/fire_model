@@ -38,8 +38,7 @@ rasts_clim1
 # * dataframe -------------------------------------------------------------
 
 df1 <- dfs_biome0$paint
-dfnona <- df1 %>% 
-  drop_na()
+dfnona <- dfs_biome2$paint
 
 # so all values are positive (for log link)
 dfnona$afgAGB <- dfnona$afgAGB + 0.001
@@ -59,6 +58,15 @@ glm_mods_resample1 <- readRDS(
 
 mod1 <- glm_mods_resample1$paint_cwf
 
+# model that includes hmod (human modification) as an additional
+# predictor variable (object created in
+# "scripts/05_models_biome-mask_fire-prob_byNFire_hmod.Rmd")
+
+glm_mods_hmod <- readRDS(
+  paste0("models/glm_binomial_models_byNFire_hmod_v1_", bin_string, "_cwf.RDS"))
+
+hmod1 <- glm_mods_hmod$paint_cwf
+
 # predicted fire probability ----------------------------------------------
 
 
@@ -69,6 +77,8 @@ mod1 <- glm_mods_resample1$paint_cwf
 mod_pred1 <- predict(mod1, newdata = df1,
                         type = "response")
 
+hmod_pred1 <- predict(hmod1, newdata = df1,
+                     type = "response")
 
 empty <- rast_rap1[[1]]
 empty[] <- NA
@@ -77,6 +87,8 @@ empty[] <- NA
 rast_pred1 <- empty
 rast_pred1[] <- mod_pred1
 
+rast_pred_hmod1 <- empty
+rast_pred_hmod1[] <- hmod_pred1
 
 # functions ---------------------------------------------------------------
 # functions used here that likel rely on objects in the global environment 
@@ -408,6 +420,38 @@ jpeg("figures/maps_sensitivity/pred_delta-prob_bio-vars_v1.jpeg", units = 'in', 
 tmap_arrange(tm_pred_bio1, tm_delta_bio1, ncol = 2)
 dev.off()
 
+# delta due to hmod -------------------------------------------------------
+# difference in predicted fire probability when the hmod variable is used.
+
+hmod_delta <- rast_pred1 - rast_pred_hmod1
+
+x <- values(hmod_delta) %>% as.vector()
+hist(x, breaks = 100, xlim = c(-0.01, 0.01))
 
 
 
+tm_hmod <- tm_create_prob_map(rast_pred_hmod1,
+                   main.title = paste(fig_letters[1], "Predicted probability (%)",
+                                      '\nfor model including human modification'),
+                   main.title.size = 0.8,
+                   legend.title.size = 0.6)
+
+tm_hmod_delta <- tm_shape(hmod_delta, bbox = bbox) +
+  tm_raster(title = lab_delta,
+            breaks = breaks_delta,
+            labels = labels_delta,
+            palette = cols_delta,
+            midpoint = 0) +
+  basemap(legend.text.size = legend.text.size,
+          legend.title.size = 0.6) +
+  tm_layout(main.title = paste(fig_letters[2],
+                               "Change in fire probability relative to model",
+                               "\nwithout human modification"),
+            main.title.size = 0.8)
+
+
+
+jpeg("figures/maps_fire_prob/cwf_hmod_predicted_v1.jpeg", units = 'in', res = 600,
+     height = 2.8, width = 7)
+tmap_arrange(tm_hmod, tm_hmod_delta, nrow = 1)
+dev.off()

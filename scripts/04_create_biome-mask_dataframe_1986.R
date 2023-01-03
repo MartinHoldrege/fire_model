@@ -62,13 +62,18 @@ names(fire_paths) <- method
 rasts_fPerPixel <- map(fire_paths, terra::rast)
 names(rasts_fPerPixel[[1]]) <- 'cwf'
 
+# * human modification ----------------------------------------------------
+
+# from Theobalds  hmod layer used for calculating 2017-2020 SEI
+rast_hmod <- rast("data_processed/human_mod/HM_US_v3_dd_2019_60ssagebrush_1000m_sagebrush-biome-mask_v1.tif")
+
 # check rasters -----------------------------------------------------------
 # check that all rasters have the same origion, projection, and resolution.
 # throws an error if not true
 
 # the compare Geom function only seems to be working with comparing 3 S
 # Spatrasters at a time
-compareGeom(rasts_clim1[[1]], rast_rap1,
+compareGeom(rasts_clim1[[1]], rast_rap1, rast_hmod, 
             lyrs = FALSE, crs = TRUE, ext = TRUE,
             rowcol = TRUE)
 
@@ -87,7 +92,8 @@ df_biome0 <- tibble(
   MAT = as.vector(values(rasts_clim1$Yearly$tavg)) + 273.15, # convert C to K,
   MAP = as.vector(values(rasts_clim1$Yearly$prcp)),
   # proportion ppt falling in summer
-  prcpPropSum = as.vector(values(rasts_clim1$Summer$prcpProp))
+  prcpPropSum = as.vector(values(rasts_clim1$Summer$prcpProp)),
+  hmod = as.vector(values(rast_hmod))
 )
 
 # seperate data frames for the two polygon to raster methods
@@ -102,7 +108,13 @@ dfs_biome0 <- map(rasts_fPerPixel, function(r) {
 
 # remove rows with missing values (these should be the cells that 
 # were masked)
-dfs_biome2 <- map(dfs_biome0, drop_na)
+dfs_biome2 <- map(dfs_biome0, function(df) {
+  df %>% 
+    # hmod has some additional NAs (so not including it here
+    # to avoid downstream changes)
+    select(-hmod) %>% 
+    drop_na()
+  })
 
 
 # climate summary ----------------------------------------------------
