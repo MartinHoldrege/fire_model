@@ -353,6 +353,21 @@ dev.off()
 minmax(rast_delta1)
 
 
+# delta summary stats -----------------------------------------------------
+
+quants <- map(names(rast_delta1),  function(name) {
+  r <- rast_delta1[[name]]
+  x <- as.vector(values(r))
+  out <- quantile(x, c(0, 0.05, 0.1, 0.5, 0.9, 0.95, 1), na.rm = TRUE)
+  # mean absolute change
+  out <- c(out, 'mean_abs' = mean(abs(x), na.rm = TRUE))
+  out*100 # convert to percent change
+})
+names(quants) <- names(rast_delta1)
+
+# mean absolute change is larger for mat (both warm and hot) then
+# map or prop changes
+quants[1:6]
 # maps pred and delta  ------------------------------------------------
 
 
