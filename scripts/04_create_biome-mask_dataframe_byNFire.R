@@ -296,3 +296,21 @@ check <- df_byNFire2 %>%
 
 stopifnot(check$diff == 0)
 
+
+# descriptive stats -------------------------------------------------------
+# for figure 3 caption
+
+if (FALSE) {
+  df_byNFire2 %>% 
+    mutate(MAT = MAT -273.15) %>% 
+    select(MAT, MAP) %>% 
+    summarize(across(everything(), 
+                     .fns = list(min = min, max = max), 
+                     na.rm = TRUE),
+              # % over observations ommitted in the pdp plots (b/ of 
+              # truncation of xlim)
+              map_ommitted = mean(MAP > 1000)*100, # % of observations with MAP > 1000,
+              MAT_omitted = mean(MAT < 0 | MAT > 20)*100,
+              )
+}
+
