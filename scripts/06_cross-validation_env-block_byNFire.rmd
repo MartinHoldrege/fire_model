@@ -314,10 +314,16 @@ g <- ggplot(preds_avg, aes(value, yhat*100)) +
   scale_color_manual(values = c(cols_fold, 'biome-wide' = 'black'), 
                      name = "Fold left out")
 
-g
+
 jpeg("figures/pdp/cv_pseudo-pdp_v1.jpeg", units = "in", res = 600,
      width = 6.8, height = 4)
-g
+g 
+dev.off()
+
+jpeg("figures/pdp/cv_pseudo-pdp_v2.jpeg", units = "in", res = 600,
+     width = 6.8, height = 4)
+g +
+  coord_cartesian(ylim = c(0, 3))
 dev.off()
 ```
 
