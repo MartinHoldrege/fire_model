@@ -147,7 +147,8 @@ tm_pred1 <-  tm_shape(rast_pred1*100, bbox = bbox) +
   tm_raster(title = "Probability (%)",
             breaks = breaks_prob*100,
             labels = label_creator(breaks_prob, convert2percent = TRUE),
-            legend.hist = TRUE) +
+            legend.hist = TRUE,
+            palette = RColorBrewer::brewer.pal(11, "RdYlBu")[9:2]) +
   basemap(legend.text.size = 0.4, 
           legend.title.size = 0.75,
           main.title.size = 0.8) +
@@ -159,7 +160,7 @@ tm_pred1 <-  tm_shape(rast_pred1*100, bbox = bbox) +
             legend.width = 1)
 
 tm_pred1
-jpeg("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v2.jpeg", units = 'in', res = 600,
+jpeg("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v3.jpeg", units = 'in', res = 600,
      height = 2.6, width = 7)
 tmap_arrange(tm_obs, tm_pred1,  ncol = 2)
 dev.off()
