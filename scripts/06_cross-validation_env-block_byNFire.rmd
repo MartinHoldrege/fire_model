@@ -183,6 +183,8 @@ dfs_train1 <- map(test_cell_nums, function(x) {
 
 # Describe folds
 
+
+
 ```{r}
 cols_fold <- RColorBrewer::brewer.pal(k, 'RdYlBu')
 names(cols_fold) <- fold_name
@@ -204,29 +206,43 @@ Summarizing fire occurrence by fold
 ```{r}
 df_byNFire2_fold <- df_byNFire2 %>% 
   left_join(df_test_cell_nums, by = 'cell_num')
+
+df_byNFire2_fold$yhat <- predict(mods1$paint_cwf, newdata = df_byNFire2_fold,
+                                 type = 'response')
   
 df_byNFire2_fold %>% 
   group_by(fold) %>% 
-  summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)) %>% 
-  select(fold, observed_fire_probability) %>% 
-  kable(caption = "Mean observed fire probability by fold")
+  summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)*100,
+            predicted_fire_probability = weighted.mean(yhat, w = numYrs)*100) %>% 
+  select(fold, observed_fire_probability, predicted_fire_probability) %>% 
+  kable(caption = "Mean observed/predicted fire probability by fold",
+        digits = 3)
+
+df_byNFire2_fold %>% 
+  summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)*100,
+            predicted_fire_probability = weighted.mean(yhat, w = numYrs)*100) %>% 
+  select(observed_fire_probability, predicted_fire_probability) %>% 
+  kable(caption = "biome-wide Mean observed/predicted fire probability",
+        digits = 3)
+
 ```
 
 Climate by fold
 
 ```{r}
 df_byNFire2_fold %>% 
-  filter(!duplicated(cell_num)) %>% 
   group_by(fold) %>% 
   mutate(MAT = MAT - 273.15) %>% 
-  summarise(across(c(MAT, MAP, prcpPropSum),
-                .fns = list(mean = mean,min = min, max =  max, sd = sd))) %>% 
+  summarise(across(c(MAT, MAP, prcpPropSum, pfgAGB, afgAGB),
+                .fns = list(mean = weighted.mean),
+                w = numYrs)) %>% 
   pivot_longer(cols = -fold,
                names_to = c("variable", "summary_stat"),
                names_sep = "_") %>% 
   pivot_wider(names_from = 'variable') %>% 
   mutate(across(matches("MAT|MAP"), round, digits = 1),
-       across(matches("prcpPropSum"), round, digits = 3)) %>% 
+       across(matches("prcpPropSum"), round, digits = 3),
+       across(matches('AGB'), round, digits = 1)) %>% 
   arrange(summary_stat) %>% 
   kable(caption = "Summary of climate variables by fold")
 
@@ -269,25 +285,15 @@ dfs_test2 <- map2(mods_train1, dfs_test1, function(mod, df) {
 
 ## PDP
 
-These aren't real partial dependence plots--for the sake of computational
-efficiency, I'm predicting across the range of a given predictor
+These are true PDP plots--an earlier version of this code created
+'pseudo' pdp plots where I was predicting across the range of a given predictor
 variable, with other variables held at their mean. 
 
 
-```{r fig.height = 3.5, fig.width = 6.8}
-
+```{r}
 lookup_var <- var2lab(x = NULL, units_md = TRUE)
 
-
 mods_train2 <- c(mods_train1, list('biome-wide' = mods1$paint_cwf))
-preds_avg <- map_dfr(mods_train2, predict_across_avg, pred_vars = pred_vars,
-                   df = df_resampled1[pred_vars],
-                   .id = 'fold')
-
-preds_avg$pred_var_name <- var2lab(preds_avg$pred_var, units_md = TRUE)
-
-# convert to C
-preds_avg$value <- with(preds_avg, ifelse(pred_var == 'MAT', value -273.15, value))
 
 letter_df <- tibble(
   letter = fig_letters[1:length(lookup_var)],
@@ -296,35 +302,40 @@ letter_df <- tibble(
   yhat = Inf
 )
 
-g <- ggplot(preds_avg, aes(value, yhat*100)) +
+```
+
+```{r create_pdp_df, cache=TRUE}
+df_pdp_by_fold1 <- map_dfr(mods_train2, create_pdp_df, 
+                   mod_vars = names(lookup_var),
+                   .id = 'fold')
+```
+
+
+```{r fig.height = 3.5, fig.width = 6.8}
+
+df_pdp_by_fold2 <- df_pdp_by_fold1 %>% 
+  mutate(pred_var_name = var2lab(pred_var, units_md = TRUE))
+
+g2 <- ggplot(df_pdp_by_fold2, aes(value, yhat*100)) +
   geom_line(aes(color = fold)) +
   geom_text(data = letter_df, aes(label = letter),
             hjust = -0.8,
-            vjust = 1)+
+            vjust = 1) +
   facet_wrap(~pred_var_name, scales = 'free', strip.position = "bottom") +
   theme(strip.text = ggtext::element_markdown(),
       strip.placement = "outside",
       axis.title.x = element_blank(),
       strip.background = element_blank()) +
     expand_limits(y = 3) +
-  # ggh4x::facetted_pos_scales(
-  #   x = list(pred_var_name == lookup_var['MAP'] ~ scale_x_continuous(limits = c(0, 1000)),
-  #            pred_var_name == lookup_var['MAT'] ~ scale_x_continuous(limits = c(0, 20))))+
   labs(y = lab_fireProbPerc)+
   scale_color_manual(values = c(cols_fold, 'biome-wide' = 'black'), 
                      name = "Fold left out")
 
-
-jpeg("figures/pdp/cv_pseudo-pdp_v1.jpeg", units = "in", res = 600,
+jpeg("figures/pdp/cv_pdp_v1.jpeg", units = "in", res = 600,
      width = 6.8, height = 4)
-g 
+  g2
 dev.off()
-
-jpeg("figures/pdp/cv_pseudo-pdp_v2.jpeg", units = "in", res = 600,
-     width = 6.8, height = 4)
-g +
-  coord_cartesian(ylim = c(0, 3))
-dev.off()
+g2
 ```
 
 
