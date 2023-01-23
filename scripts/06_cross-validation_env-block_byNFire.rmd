@@ -104,19 +104,6 @@ stopifnot(length(unique(df_byNFire2$cell_num))
           == sum(eb1$records$test_0 +eb1$records$test_1))
 ```
 
-size of folds
-
-```{r}
-fold_size <- eb1$records %>% 
-  mutate(fold_size = test_0 + test_1,
-         fold = 1:nrow(.)) %>% 
-  select(fold_size, fold) 
-
-kable(fold_size, caption = "Number of pixels per fold")
-```
-
-
-
 # Prepare Data
 
 ## Resample
@@ -207,20 +194,20 @@ Summarizing fire occurrence by fold
 df_byNFire2_fold <- df_byNFire2 %>% 
   left_join(df_test_cell_nums, by = 'cell_num')
 
-df_byNFire2_fold$yhat <- predict(mods1$paint_cwf, newdata = df_byNFire2_fold,
+df_byNFire2_fold$cwf_prop_pred <- predict(mods1$paint_cwf, newdata = df_byNFire2_fold,
                                  type = 'response')
   
 df_byNFire2_fold %>% 
   group_by(fold) %>% 
   summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)*100,
-            predicted_fire_probability = weighted.mean(yhat, w = numYrs)*100) %>% 
+            predicted_fire_probability = weighted.mean(cwf_prop_pred, w = numYrs)*100) %>% 
   select(fold, observed_fire_probability, predicted_fire_probability) %>% 
   kable(caption = "Mean observed/predicted fire probability by fold",
         digits = 2)
 
 df_byNFire2_fold %>% 
   summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)*100,
-            predicted_fire_probability = weighted.mean(yhat, w = numYrs)*100) %>% 
+            predicted_fire_probability = weighted.mean(cwf_prop_pred, w = numYrs)*100) %>% 
   select(observed_fire_probability, predicted_fire_probability) %>% 
   kable(caption = "biome-wide Mean observed/predicted fire probability",
         digits = 2)
@@ -258,17 +245,30 @@ df_byNFire2_fold %>%
   kable(caption = "biome-wide summary of climate variables")
 ```
 
-Describing vegetation in training datasets
+## size
+
+Note here the number of observations per fold means the number of rows
+of data (not # of pixels). Some pixels have multiple observations (i.e.,
+when a fire occurred)
 
 ```{r}
-map(dfs_train1, function(df) {
-  df %>% 
-    ungroup() %>% 
-    select('afgAGB', 'pfgAGB') %>% 
-    summary()
-})
-```
+# number of grid cells in the fold (original, raw data)
+fold_size <- df_byNFire2_fold %>% 
+  group_by(fold) %>% 
+  summarize(fold_size_raw = n()) 
 
+# number of grid cells in the fold (resampled data)
+fold_size_resample <- dfs_test1 %>% 
+  bind_rows(.id = 'fold') %>% 
+  group_by(fold) %>% 
+  summarize(fold_size_resampled = n())
+
+fold_size %>% 
+  left_join(fold_size_resample, by = 'fold') %>% 
+  select(fold, everything()) %>% 
+  kable(caption = "Number of observations per fold")
+
+```
 
 # Fit models
 
@@ -322,7 +322,6 @@ df_pdp_by_fold1 <- map_dfr(mods_train2, create_pdp_df,
 
 
 ```{r fig.height = 3.5, fig.width = 6.8}
-
 df_pdp_by_fold2 <- df_pdp_by_fold1 %>% 
   mutate(pred_var_name = var2lab(pred_var, units_md = TRUE))
 
@@ -363,6 +362,39 @@ map2(pred_test_deciles1, names(pred_test_deciles1), function(df, fold) {
     labs(subtitle = paste0("Predictions on ", fold, 
                            " (model fit to other folds)"))
 })
+```
+
+
+
+### original data
+
+Quantile plots made based on the observed & predicted values from
+the original data (not resampled)
+
+```{r fig.width = 5, fig.height = 3.5 }
+pred_orig_deciles1 <- df_byNFire2_fold %>% 
+  split(., .$fold) %>% 
+  map(predvars2deciles, pred_vars = pred_vars,
+      response_vars = response_vars)
+
+
+map2(pred_orig_deciles1 , names(pred_orig_deciles1), function(df, fold) {
+  decile_dotplot_pq(df = df) +
+    labs(subtitle = paste0("Predictions on ", fold, 
+                           " (by main model)"),
+         caption = "Observed and predicted values calculated from the raw
+         (not resampled) data")
+})
+```
+
+average predicted/observed for fold 5 (checking
+because some model bias in that fold)
+
+```{r}
+pred_orig_deciles1$fold5 %>% 
+  group_by(name) %>% 
+  summarise(observed = mean(cwf_prop)*100,
+         predicted = mean(cwf_prop_pred)*100)
 ```
 
 
