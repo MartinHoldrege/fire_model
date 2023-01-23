@@ -621,7 +621,7 @@ decile_dotplot_pq <- function(df, size = 0.5) {
   
   
   
-  df2
+
   yvar <- "cwf_prop"
   yvar_pred <- paste0(yvar, "_pred")
   
@@ -636,11 +636,11 @@ decile_dotplot_pq <- function(df, size = 0.5) {
     y = Inf
   )
   
-  g <- ggplot(df2, aes_string(x = 'mean_value', y = yvar)) +
+  g <- ggplot(df2, aes(x = mean_value, y = cwf_prop)) +
     geom_point(aes(color = "Observed", shape = "Observed"),
-               size = size, alpha = 0.5) +
-    geom_point(aes_string(y = yvar_pred), color = "blue", alpha = 0.5,
-               shape = 17, size = size) +
+               size = size, alpha = 0.6) +
+    geom_point(aes(y = cwf_prop_pred, color = 'Predicted', alpha = 0.5,
+               shape = 'Predicted'), size = size, alpha = 0.6) +
     geom_text(data = letter_df, aes(x = x, y = y, label = letter),
               hjust = -0.8,
               vjust = 1) +
