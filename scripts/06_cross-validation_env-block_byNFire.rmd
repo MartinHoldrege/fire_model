@@ -216,14 +216,14 @@ df_byNFire2_fold %>%
             predicted_fire_probability = weighted.mean(yhat, w = numYrs)*100) %>% 
   select(fold, observed_fire_probability, predicted_fire_probability) %>% 
   kable(caption = "Mean observed/predicted fire probability by fold",
-        digits = 3)
+        digits = 2)
 
 df_byNFire2_fold %>% 
   summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)*100,
             predicted_fire_probability = weighted.mean(yhat, w = numYrs)*100) %>% 
   select(observed_fire_probability, predicted_fire_probability) %>% 
   kable(caption = "biome-wide Mean observed/predicted fire probability",
-        digits = 3)
+        digits = 2)
 
 ```
 
@@ -243,9 +243,19 @@ df_byNFire2_fold %>%
   mutate(across(matches("MAT|MAP"), round, digits = 1),
        across(matches("prcpPropSum"), round, digits = 3),
        across(matches('AGB'), round, digits = 1)) %>% 
-  arrange(summary_stat) %>% 
   kable(caption = "Summary of climate variables by fold")
 
+
+df_byNFire2_fold %>% 
+  ungroup() %>% 
+  mutate(MAT = MAT - 273.15) %>% 
+  summarise(across(c(MAT, MAP, prcpPropSum, pfgAGB, afgAGB),
+                .fns = list(mean = weighted.mean),
+                w = numYrs)) %>% 
+  mutate(across(matches("MAT|MAP"), round, digits = 1),
+       across(matches("prcpPropSum"), round, digits = 3),
+       across(matches('AGB'), round, digits = 1)) %>% 
+  kable(caption = "biome-wide summary of climate variables")
 ```
 
 Describing vegetation in training datasets
