@@ -887,10 +887,15 @@ generate_all_legends <- function(df) {
 
 #' @param df dataframe longform in longform, should be output of 
 #' predvars2deciles with the filter_var argument set to TRUE
-#' @param add_smooth logical--whether to add splines
+#'
+#' @param insets_left list of inset elements (from patchwork) to
+#' add to the left column of plots
+#' @param insets_right list of inset elements to add to right column of plots
 #' @param size size of points
 decile_dotplot_filtered_pq2 <- function(df,
-                                        size = 0.5
+                                        size = 0.5,
+                                        insets_left = NULL,
+                                        insets_right = NULL
 ) {
   
   df2 <- decile_dotplot_filtered_pq(df, return_df = TRUE) %>% 
@@ -987,7 +992,14 @@ decile_dotplot_filtered_pq2 <- function(df,
     area(8, ll, r = lr)
   )
   # plot(layout)
-  out <- g_afg + g_pfg + 
+  out <- g_afg + g_pfg 
+  
+  if(!is.null(insets_left) & !is.null(insets_right)) {
+    out <- g_afg + insets_left +  g_pfg + insets_right
+
+  }
+  
+  out <- out + 
     legends2[[1]] + legends2[[2]] +
     legends2[[3]] + legends2[[4]] +
     legends2[[5]] + legends2[[6]] +
@@ -995,4 +1007,37 @@ decile_dotplot_filtered_pq2 <- function(df,
                 widths = c(1, 0.2, 1, 0.2, 0.8))
   
   out
+}
+
+#' create inset obs vs predicted plots for 
+#' for the filtered quantile plots. single inset created
+#'
+#' @param df dataframe, long form, quantile averages, for a given predictor variable
+#' and filter 
+#' 
+#'
+#' @return ggplot scatterplot (observed vs predicted, colored by high/low
+#' of the climate variable)
+create_inset_filt <- function(df) {
+  # red, blue. these are the mid point (https://meyerweb.com/eric/tools/color-blend/_)
+  # of the two red and blue colors
+  # used for obs/predicted in the main figure)
+  colors <- c("<20th" = "#F77736",  ">80th" = "#3D8DC0")
+  ggplot(df, aes(x = cwf_prop_pred*100, y = cwf_prop*100)) +
+    geom_abline(slope = 1, linewidth = 0.5, color = 'grey') +
+    geom_point(aes(color = percentile_category), 
+               shape = 4, size = 0.3) +
+    # setting lims to 3 makes 1 point not visible
+    # but rest of plot much clearer
+    coord_cartesian(xlim = c(0, 3), ylim = c(0, 3)) +
+    theme(legend.position = 'none',
+          axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title.x = element_text(size = 5.5, vjust = 4),
+          axis.title.y = element_text(size = 5.5, vjust = -3),
+          plot.margin = margin()
+    ) +
+    labs(y = "Observed",
+         x = "Predicted") +
+    scale_color_manual(values = colors)
 }
