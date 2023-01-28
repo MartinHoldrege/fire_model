@@ -53,6 +53,23 @@ names(clim_paths) <- seasons
 r_clim1 <- map(clim_paths, raster::brick) # list of rasters
 ```
 
+# functions
+
+```{r}
+# summarizing across columns of interest
+summarize_pred_response <- function(df) {
+  out <- df %>% 
+    mutate(MAT = MAT - 273.15,
+           # convert from probability to percent
+         across(matches("cwf_prop"),
+                        .fns = function(x) x*100)) %>% 
+    summarise(across(c(MAT, MAP, prcpPropSum, afgAGB, pfgAGB, matches("cwf_prop")),
+                  .fns = weighted.mean,
+                  w = numYrs))
+  out
+}
+```
+
 
 # Determine Blocks
 
@@ -188,87 +205,8 @@ base +
 
 ```
 
-Summarizing fire occurrence by fold
-
-```{r}
-df_byNFire2_fold <- df_byNFire2 %>% 
-  left_join(df_test_cell_nums, by = 'cell_num')
-
-df_byNFire2_fold$cwf_prop_pred <- predict(mods1$paint_cwf, newdata = df_byNFire2_fold,
-                                 type = 'response')
-  
-df_byNFire2_fold %>% 
-  group_by(fold) %>% 
-  summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)*100,
-            predicted_fire_probability = weighted.mean(cwf_prop_pred, w = numYrs)*100) %>% 
-  select(fold, observed_fire_probability, predicted_fire_probability) %>% 
-  kable(caption = "Mean observed/predicted fire probability by fold",
-        digits = 2)
-
-df_byNFire2_fold %>% 
-  summarise(observed_fire_probability = weighted.mean(cwf_prop, w = numYrs)*100,
-            predicted_fire_probability = weighted.mean(cwf_prop_pred, w = numYrs)*100) %>% 
-  select(observed_fire_probability, predicted_fire_probability) %>% 
-  kable(caption = "biome-wide Mean observed/predicted fire probability",
-        digits = 2)
-
-```
-
-Climate by fold
-
-```{r}
-df_byNFire2_fold %>% 
-  group_by(fold) %>% 
-  mutate(MAT = MAT - 273.15) %>% 
-  summarise(across(c(MAT, MAP, prcpPropSum, pfgAGB, afgAGB),
-                .fns = list(mean = weighted.mean),
-                w = numYrs)) %>% 
-  pivot_longer(cols = -fold,
-               names_to = c("variable", "summary_stat"),
-               names_sep = "_") %>% 
-  pivot_wider(names_from = 'variable') %>% 
-  mutate(across(matches("MAT|MAP"), round, digits = 1),
-       across(matches("prcpPropSum"), round, digits = 3),
-       across(matches('AGB'), round, digits = 1)) %>% 
-  kable(caption = "Summary of climate variables by fold")
 
 
-df_byNFire2_fold %>% 
-  ungroup() %>% 
-  mutate(MAT = MAT - 273.15) %>% 
-  summarise(across(c(MAT, MAP, prcpPropSum, pfgAGB, afgAGB),
-                .fns = list(mean = weighted.mean),
-                w = numYrs)) %>% 
-  mutate(across(matches("MAT|MAP"), round, digits = 1),
-       across(matches("prcpPropSum"), round, digits = 3),
-       across(matches('AGB'), round, digits = 1)) %>% 
-  kable(caption = "biome-wide summary of climate variables")
-```
-
-## size
-
-Note here the number of observations per fold means the number of rows
-of data (not # of pixels). Some pixels have multiple observations (i.e.,
-when a fire occurred)
-
-```{r}
-# number of grid cells in the fold (original, raw data)
-fold_size <- df_byNFire2_fold %>% 
-  group_by(fold) %>% 
-  summarize(fold_size_raw = n()) 
-
-# number of grid cells in the fold (resampled data)
-fold_size_resample <- dfs_test1 %>% 
-  bind_rows(.id = 'fold') %>% 
-  group_by(fold) %>% 
-  summarize(fold_size_resampled = n())
-
-fold_size %>% 
-  left_join(fold_size_resample, by = 'fold') %>% 
-  select(fold, everything()) %>% 
-  kable(caption = "Number of observations per fold")
-
-```
 
 # Fit models
 
@@ -347,6 +285,97 @@ dev.off()
 g2
 ```
 
+## Summary stats
+
+Summarizing fire occurrence by fold. Note -here using the raw (not balanced)
+data. And predictions are made by the main model. 
+
+```{r}
+df_byNFire2_fold <- df_byNFire2 %>% 
+  left_join(df_test_cell_nums, by = 'cell_num')
+
+df_byNFire2_fold <- df_byNFire2_fold %>% 
+  split(., .$fold) %>%
+  # cross validation predictions
+  # for each fold creat prediction from model not fit to data from that fold
+  map2(mods_train1, function(df, mod) {
+    df$cwf_prop_pred_cv <- predict(mod, newdata = df,
+                                   type = 'response')
+    df
+  }) %>% 
+  bind_rows(.id = "fold")
+
+# prediction from the main model
+df_byNFire2_fold$cwf_prop_pred_main <- predict(mods1$paint_cwf, newdata = df_byNFire2_fold,
+                                 type = 'response')
+
+digits <- c(NA, 1, 0, 3, 1, 1, 2, 2, 2)
+
+df_byNFire2_fold %>% 
+  group_by(fold) %>% 
+  summarize_pred_response() %>% 
+  kable(caption = "Mean pred vars and observed/predicted fire probability by fold",
+        digits = digits) 
+
+df_byNFire2_fold %>% 
+  ungroup() %>% 
+  summarize_pred_response() %>% 
+  kable(caption = "Mean pred vars and observed/predicted fire probability across biome",
+        digits = digits[-1]) 
+```
+
+Descriptive stats for each fold, including the out of bag predictions
+Note unlike in the section above 'describe folds' these descriptions here
+are of the balanced (resampled) data
+
+```{r}
+df_test2 <- bind_rows(dfs_test2, .id = 'fold') %>% 
+  # these are the cross validation predictions
+  rename(cwf_prop_pred_cv = cwf_prop_pred)
+
+df_test2$cwf_prop_pred_main <- predict(mods_train2$`biome-wide`, 
+                                          newdata = df_test2,
+                                          type = "response")
+
+df_test2  %>% 
+  group_by(fold) %>% 
+  summarize_pred_response() %>%  
+  kable(caption = "Summary of variables by fold (balanced data)",
+        digits = digits)
+
+df_test2  %>% 
+  ungroup() %>% 
+  #select(-cwf_prop_pred_cv) %>% 
+  summarize_pred_response() %>%  
+  kable(caption = "Summary of variables (biome-wide) (balanced data)",
+        digits = digits[-1])
+```
+
+## size
+
+Note here the number of observations per fold means the number of rows
+of data (not # of pixels). Some pixels have multiple observations (i.e.,
+when a fire occurred)
+
+```{r}
+# number of grid cells in the fold (original, raw data)
+fold_size <- df_byNFire2_fold %>% 
+  group_by(fold) %>% 
+  summarize(fold_size_raw = n()) 
+
+# number of grid cells in the fold (resampled data)
+fold_size_resample <- dfs_test1 %>% 
+  bind_rows(.id = 'fold') %>% 
+  group_by(fold) %>% 
+  summarize(fold_size_resampled = n())
+
+fold_size %>% 
+  left_join(fold_size_resample, by = 'fold') %>% 
+  select(fold, everything()) %>% 
+  kable(caption = "Number of observations per fold")
+
+```
+
 
 ## Observed vs predicted
 
@@ -372,6 +401,11 @@ Quantile plots made based on the observed & predicted values from
 the original data (not resampled)
 
 ```{r fig.width = 5, fig.height = 3.5 }
+
+df_byNFire2_fold <- df_byNFire2_fold %>% 
+  # renaming needed for functions below to work
+  rename(cwf_prop_pred = cwf_prop_pred_main)
+
 pred_orig_deciles1 <- df_byNFire2_fold %>% 
   split(., .$fold) %>% 
   map(predvars2deciles, pred_vars = pred_vars,
@@ -421,6 +455,94 @@ g_filt <- map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(d
 })
 
 g_filt
+```
+
+# Model selection 
+
+Fitting separate models to each fold, and in each case going through model
+selection (i.e., seeing which transformations are best). Doing this to
+figure out how the relationships are different between folds. 
+
+Creating formulas where each variable on its own is transformed numerous ways, all other variables are left alone,
+that repeated for each variable. So have models with 1 variable transformed,
+2 transformed, etc. 
+
+see documentation for glms_iterate_transforms, in the modelling_functions.R
+script
+
+## Iteration
+
+```{r iterate_transform, warning = FALSE}
+set.seed(1234)
+
+# parentheses around interaction
+# term are included so that glms_iterate_transforms doesn't transform
+# the interaction term. 
+pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
+                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
+
+# pred_vars_inter <- pred_vars
+
+best_formulas1 <- map(dfs_test1, function(df) {
+  out <- glms_iterate_transforms(
+    preds = pred_vars_inter, 
+    df = df,
+    response_var = "cwf_prop", 
+    delta_aic = 10,
+    weights_col = "numYrs")
+
+  out
+})
+
+```
+
+## formulas
+
+formulas of the 'best' model for each fold
+
+```{r}
+best_formulas2 <- map(best_formulas1, function(x) x$final_formula)
+best_formulas2
+```
+
+fit best models. The function above does save the model objects
+so here re-creating the best models
+
+```{r}
+best_mods1 <- map2(best_formulas2, dfs_test1, function(form, df) {
+  glm(as.formula(form), data = df , family = 'binomial', weights = numYrs)
+})
+```
+
+## PDP
+
+Creating partial dependence plots of the best models fit to each fold
+
+```{r pdp_best}
+
+df_pdp_best_mod_fold1 <- map_dfr(best_mods1, create_pdp_df, 
+                   mod_vars = names(lookup_var),
+                   .id = 'fold')
+
+```
+
+```{r fig.height = 3.5, fig.width = 6.8}
+df_pdp_best_mod_fold1 <- df_pdp_best_mod_fold1 %>% 
+  mutate(pred_var_name = var2lab(pred_var, units_md = TRUE))
+
+g2 <- ggplot(df_pdp_best_mod_fold1, aes(value, yhat*100)) +
+  geom_line(aes(color = fold)) +
+  facet_wrap(~pred_var_name, scales = 'free', strip.position = "bottom") +
+  theme(strip.text = ggtext::element_markdown(),
+      strip.placement = "outside",
+      axis.title.x = element_blank(),
+      strip.background = element_blank()) +
+    expand_limits(y = 3) +
+  labs(y = lab_fireProbPerc)+
+  scale_color_manual(values = cols_fold, 
+                     name = "Fold model fit to")
+
+g2
 ```
 
 # session info
