@@ -30,7 +30,8 @@ looking at the cwf (usgs combined wildfire dataset--which is the best there is),
 and the paint method to convert polygons to rasters (in GEE)
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE,
+                      message = FALSE)
 ```
 
 # Dependencies 
@@ -68,10 +69,20 @@ theme_set(theme_classic())
 
 # Prep data
 
+```{r}
+dfs_biome3 <- dfs_byNFire3
+
+# small dataset for if testing the data
+if(test_run) {
+  dfs_biome3 <- map(dfs_biome3, sample_n, size = 1000)
+}
+```
+
+
 ```{r prep_data, cache=FALSE}
 # only interested in cws data source at the moment (the others are worse
 # and make the code slower)
-dfs_biome3 <- dfs_byNFire3
+
 dfs_biome3 <- map(dfs_biome3, select, -matches("(occur|nfire)_(ifph|lba|mtbs)"),
                   -matches("(ifph|lba|mtbs)_prop"))
 method <- names(dfs_biome3)
@@ -178,33 +189,28 @@ dfs_biome3$paint$bin_all %>%
 Note--previously a small sample for now to make model fitting quicker.
 Now the training dataset is all the data.
 
-```{r train, dependson='prep_data', cache = TRUE}
-
-if (test_run) {
-  n = 10000 # for testing
-} else {
-  n = nrow(dfs_biome3[[1]]) # fit models on all the data
-}
-
-row_nums <- 1:nrow(dfs_biome3[[1]])
-rows_train <- sample(row_nums, size = n, replace = FALSE)
+```{r train}
 
 # rows for test dataset
 # note set up this way, in case the training
 # dataset is all the data
-rows2sample <- if(n == length(rows_train)) {
-  row_nums
-} else {
-  row_nums[!row_nums %in% rows_train]
-}
+rows2sample <- 1:nrow(dfs_biome3[[1]])
 
-# rows used in testing dataset
-rows_test <- sample(rows2sample, size = 40000, replace = FALSE)
+# rows used in testing dataset (this is somewhat legacy code)
+# and now the test dataset is mostly used to for some figures
+# where smaller dataset is need (isn't actually a test dataset)
+if(40000 > length(rows2sample)) {
+  # if statement in case this is a test_run with few rows overall
+  size = length(rows2sample)
+} else {
+  size <- 40000
+}
+rows_test <- sample(rows2sample, size = size, replace = FALSE)
 
 # selecting rows this was so both dataframes in list have same rows
 # and differences in models will only be b/ of differences in response
 
-dfs_train <- map(dfs_biome3, function(df) as.data.frame(df[rows_train, ]))
+dfs_train <- dfs_biome3
 dfs_test <- map(dfs_biome3, function(df) as.data.frame(df[rows_test, ]))
 
 # all variables (transformed or not, that could be predictor vars)
@@ -686,26 +692,29 @@ but only based on data that falls into the upper and lower two deciles of
 each climate variable. 
 
 
-```{r glm_deciles_filtered, fig.height = 6, message = FALSE}
-
+```{r glm_deciles_filtered, fig.height = 10, fig.width = 5, message = FALSE}
+clim_vars <- c("MAT", "MAP", "prcpPropSum")
 pred_glm1_deciles_filt <- map(pred_glm1, predvars2deciles, 
                          response_vars = response_vars,
                          pred_vars = pred_vars,
-                         filter_var = TRUE)
+                         filter_var = TRUE,
+                         filter_vars = pred_vars) 
 
-pred_glm1_deciles_warm <- map(pred_glm1_warm, predvars2deciles,
-                              response_vars = response_vars,
-                              pred_vars = pred_vars)
 
-map2(pred_glm1_deciles_filt, names(pred_glm1_deciles_filt), function(df, method) {
-  map(vars_prop, decile_dotplot_filtered, df = df, method = method,
-      add_smooth = TRUE)
-})
+map(pred_glm1_deciles_filt, decile_dotplot_filtered_pq)
 
 ```
 
-Publication quality
+Climate variables shown on the x axis
 
+```{r fig.height = 10, fig.width = 7}
+map(pred_glm1_deciles_filt, decile_dotplot_filtered_pq,
+    xvars = clim_vars)
+```
+
+
+
+Publication quality
 
 
 ```{r insets}
@@ -742,9 +751,10 @@ D <- inset_element(inset_l1$pfgAGB_MAP, l, b[2], l + w, b[2] + h)
 E <- inset_element(inset_l1$afgAGB_prcpPropSum, l, b[1], l + w, b[1] + h)
 f <- inset_element(inset_l1$pfgAGB_prcpPropSum, l, b[1], l + w, b[1] + h)
 
-g2 <- decile_dotplot_filtered_pq2(df = pred_glm1_deciles_filt$paint,
-                                  insets_left = list(A, C, E),
-                                  insets_right = list(B, D, f))
+g2 <- pred_glm1_deciles_filt$paint %>% 
+  filter(filter_var %in% clim_vars) %>% 
+  decile_dotplot_filtered_pq2(insets_left = list(A, C, E),
+                              insets_right = list(B, D, f))
 g2
 # add insets
 
@@ -759,7 +769,9 @@ version without insets
 
 ```{r fig.width = 7, fig.height = 8}
 
-g <- decile_dotplot_filtered_pq2(df = pred_glm1_deciles_filt$paint)
+g <- pred_glm1_deciles_filt$paint %>% 
+  filter(filter_var %in% clim_vars) %>% 
+  decile_dotplot_filtered_pq2()
 
 jpeg("figures/quantile_plots/quantile_plot_filtered_v3.jpeg", units = "in", res = 600,
      width = 7, height = 8 )

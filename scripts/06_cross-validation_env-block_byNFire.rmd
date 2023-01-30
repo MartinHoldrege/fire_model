@@ -13,6 +13,12 @@ output:
 The goal here is to split the data into multiple training/testing
 blocks based on clustering grid-cells by climate.
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,
+                      message = FALSE)
+```
+
+
 # Dependencies
 
 ```{r, message = FALSE, warning = FALSE}
@@ -26,6 +32,11 @@ library(sf)
 library(knitr)
 
 ```
+
+```{r}
+test_run <- FALSE # runs code on data subset, for testing
+```
+
 
 ## Read in data
 
@@ -129,6 +140,7 @@ First, bin the data.
 
 ```{r}
 pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
+clim_vars <- c("MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
 response_vars <- c("cwf_prop", "cwf_prop_pred")
 
@@ -184,6 +196,18 @@ dfs_train1 <- map(test_cell_nums, function(x) {
 })
 
 ```
+
+```{r}
+if (test_run) {
+  n <- 1000
+  dfs_test1 <- map(dfs_test1, ungroup) %>% 
+    map(sample_n, size = n)
+  dfs_train1 <- map(dfs_train1, ungroup) %>% 
+    map(sample_n, size = n)
+  df_byNFire2 <- sample_n(ungroup(df_byNFire2), size = n*5)
+}
+```
+
 
 # Describe folds
 
@@ -252,14 +276,14 @@ letter_df <- tibble(
 
 ```
 
-```{r create_pdp_df, cache=TRUE}
+```{r create_pdp_df, cache=TRUE, eval= !test_run}
 df_pdp_by_fold1 <- map_dfr(mods_train2, create_pdp_df, 
                    mod_vars = names(lookup_var),
                    .id = 'fold')
 ```
 
 
-```{r fig.height = 3.5, fig.width = 6.8}
+```{r fig.height = 3.5, fig.width = 6.8, eval = !test_run}
 df_pdp_by_fold2 <- df_pdp_by_fold1 %>% 
   mutate(pred_var_name = var2lab(pred_var, units_md = TRUE))
 
@@ -393,8 +417,6 @@ map2(pred_test_deciles1, names(pred_test_deciles1), function(df, fold) {
 })
 ```
 
-
-
 ### original data
 
 Quantile plots made based on the observed & predicted values from
@@ -434,6 +456,8 @@ pred_orig_deciles1$fold5 %>%
 
 ### deciles filtered
 
+Predictions are made by models fit to the other folds
+
 ```{r}
 pred_test_deciles_filt <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
                  response_vars = response_vars,
@@ -456,6 +480,43 @@ g_filt <- map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(d
 
 g_filt
 ```
+
+#### main model preds
+
+Predictions for each fold made by the main model (i.e. this part isn't actually
+cross validation)
+
+```{r fig.height = 10, fig.width = 5}
+
+pred_test_deciles_filt_main <- df_test2 %>%
+  rename(cwf_prop_pred = cwf_prop_pred_main) %>% 
+  split(., .$fold) %>% 
+  map(predvars2deciles, pred_vars = pred_vars,
+                 response_vars = response_vars,
+                 filter_var = TRUE,
+                 filter_vars = pred_vars)
+
+figs <- map(pred_test_deciles_filt_main, decile_dotplot_filtered_pq)
+
+map2(figs, names(figs), function(g, fold) {
+  g +
+    labs(subtitle = paste('Balanced data from', fold, 
+                          '(predictions by main model)'))
+})
+```
+
+```{r fig.height = 10, fig.width = 7}
+figs2 <- map(pred_test_deciles_filt_main, decile_dotplot_filtered_pq,
+    xvars = clim_vars)
+
+map2(figs2, names(figs2), function(g, fold) {
+  g +
+    labs(subtitle = paste('Balanced data from', fold, 
+                          '(predictions by main model)'))
+})
+```
+
+
 
 # Model selection 
 

@@ -263,16 +263,20 @@ var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
 #' 
 #' @description filters the dataframe by percentiles of the climate variable
 #' columns. So the output includes rows corresponding the bottom 2 deciles and 
-#' the top two deciles of each climate variable. 
+#' the top two deciles of each climate variable. Note this function has
+#' been updated to filter by an arbitrary number of columns (not just climate)
 #'
 #' @param df dataframe that needs to have MAP, MAT, and prcpPropSum column
 #' @param add_mid also add a seperate category of the center 2 deciles of 
 #' each climate variable
+#' @param filter_vars variables (usually climate variables), to split the others
+#' into response and predicted
 #'
 #' @return dataframe with same columns as df but also filter_var,
 #' percentile_category, which give the names of the climate variable filtered 
 #' by and the percentile cut-off used that the given row fits in
-filter_by_climate <- function(df, add_mid = FALSE) {
+filter_by_climate <- function(df, add_mid = FALSE,
+                              filter_vars = c('MAT', 'MAP', 'prcpPropSum')) {
   
   # percentile cuttoffs to use, keeping values below low, and above high
   low <- 0.2
@@ -281,22 +285,21 @@ filter_by_climate <- function(df, add_mid = FALSE) {
   # creating total herbacious biomass category
   df$herbAGB <- df$afgAGB + df$pfgAGB
   
-  clim_vars <- c("MAT", "MAP", "prcpPropSum")
-  names(clim_vars) <- clim_vars
-  stopifnot(clim_vars %in% names(df))
+  names(filter_vars) <- filter_vars
+  stopifnot(filter_vars %in% names(df))
   
   # fitting empirical cdf's so that percentiles of the climate variables
   # can be computed
-  ecdf_list <- map(df[clim_vars], ecdf)
+  ecdf_list <- map(df[filter_vars], ecdf)
   
   # dataframe, where each column provides the percentiles of a climate variable
   # percentiles correspond to rows in df
-  percentiles <- map_dfc(clim_vars, function(var) {
+  percentiles <- map_dfc(filter_vars, function(var) {
     ecdf_list[[var]](df[[var]])
   })
   
   # only keep rows falling in the low or high category, for each climate var
-  df_filtered <- map_dfr(clim_vars, function(var) {
+  df_filtered <- map_dfr(filter_vars, function(var) {
     df_low <- df[percentiles[[var]] < low, ]
     df_low$percentile_category <- paste0("<", low*100, "th")
     df_high <- df[percentiles[[var]] > high, ] 
@@ -325,7 +328,7 @@ filter_by_climate <- function(df, add_mid = FALSE) {
     
     out
   })
-  df_filtered$filter_var <- factor(df_filtered$filter_var, levels = clim_vars)
+  df_filtered$filter_var <- factor(df_filtered$filter_var, levels = filter_vars)
   df_filtered
 }
 
@@ -336,7 +339,7 @@ filter_by_climate <- function(df, add_mid = FALSE) {
 
 #' Make long format dataframe with predictor variable becoming a column
 #'
-#' @param df dataframe
+#' @param df dataframe (could be output from filter_by_climate)
 #' @param response_vars names of response variables
 #' @param pred_vars names of predictor variables
 #' @param filter_var logical--whether this dataframe also includes 
@@ -473,15 +476,24 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
 #' @param filter_var whether to create a filter var (i.e. filter by the
 #' climate variables, so group data into high and low percentiles
 #' of each climate variable)
+#' @param filter_vars vector of names of columns to use
+#' as filter variables (only relevant if filter_var = TRUE)
 #' @param add_mid whether to also filter by the middle percentiles of the 
 #' climate vars
 predvars2deciles <- function(df, response_vars, pred_vars,
                              filter_var = FALSE,
+                             filter_vars = c('MAT', 'MAP', 'prcpPropSum'),
                              weighted_mean = TRUE,
                              add_mid = FALSE) {
   
+  stopifnot(
+    is.logical(filter_var)
+  )
+  
   if (filter_var) {
-    df <- filter_by_climate(df, add_mid = add_mid)
+    stopifnot(is.character(filter_vars))
+    df <- filter_by_climate(df, add_mid = add_mid,
+                            filter_vars = filter_vars)
   }
   
   # longformat df
@@ -740,15 +752,17 @@ decile_dotplot_filtered <- function(yvar, df, method = NULL, ylab = 'fire probab
 #' predvars2deciles with the filter_var argument set to TRUE
 #' @param add_smooth logical--whether to add splines
 #' @param size size of points
+#' @param xvars = vector of variables to show along the x axis
 decile_dotplot_filtered_pq <- function(df,
                                     add_smooth = TRUE,
                                     size = 0.5,
-                                    return_df = FALSE
+                                    return_df = FALSE,
+                                    xvars = c("afgAGB", "pfgAGB")
 ) {
 
   yvar <- "cwf_prop"
   df2 <- df %>% 
-    filter(name %in% c("afgAGB", "pfgAGB")) %>% 
+    filter(name %in% xvars) %>% 
     select(name, filter_var, percentile_category, decile, mean_value,
            all_of(yvar), all_of(paste0(yvar, "_pred"))) %>% 
     pivot_longer(cols = all_of(c(yvar, paste0(yvar, "_pred"))),
@@ -791,7 +805,7 @@ decile_dotplot_filtered_pq <- function(df,
                ) +
     labs(#x = "mean of quantile of predictor variable",
          y = lab_fireProbPerc,
-         tag = 'Climate variable') +
+         tag = 'Filtering variable') +
     # using annotate to add in line segements because lemon package (facet_rep_wrap)
     # isn't being maintained anymore
     annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
@@ -813,9 +827,9 @@ decile_dotplot_filtered_pq <- function(df,
           plot.margin = unit(c(5.5, 20, 5.5, 5.5), "points")) +
     # different colors for each combination of percentile and observed vs predicted,
     # shapes are observed (circles) vs predicted (triangles)
-    scale_colour_manual(name = "Percentile of climate variable",
+    scale_colour_manual(name = "Percentile of filtering variable",
                         values = colors)+
-    scale_shape_manual(name = "Percentile of climate variable",
+    scale_shape_manual(name = "Percentile of filtering variable",
                        values = shapes) +
     guides(colour = guide_legend(title.position="top", title.hjust = 0.5)) +
     coord_cartesian(clip = 'off')
@@ -982,14 +996,15 @@ decile_dotplot_filtered_pq2 <- function(df,
   ll <- 4 # left of legend
   lr <- 5 # right of legend
   layout <- c(
-    area(1, 1, b, m),
-    area(1, m+1, b, 4),
-    area(1, ll, r = lr),
-    area(2, ll, r = lr),
-    area(4, ll, r = lr),
-    area(5, ll, r = lr),
-    area(7, ll, r = lr),
-    area(8, ll, r = lr)
+    # terra also has area function
+    patchwork::area(1, 1, b, m),
+    patchwork::area(1, m+1, b, 4),
+    patchwork::area(1, ll, r = lr),
+    patchwork::area(2, ll, r = lr),
+    patchwork::area(4, ll, r = lr),
+    patchwork::area(5, ll, r = lr),
+    patchwork::area(7, ll, r = lr),
+    patchwork::area(8, ll, r = lr)
   )
   # plot(layout)
   out <- g_afg + g_pfg 
