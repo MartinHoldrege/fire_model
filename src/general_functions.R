@@ -761,6 +761,10 @@ decile_dotplot_filtered_pq <- function(df,
 ) {
 
   yvar <- "cwf_prop"
+  
+  # convert k to c
+  df[df$name == "MAT", ]$mean_value <- 
+    df[df$name == "MAT", ]$mean_value - 273.15
   df2 <- df %>% 
     filter(name %in% xvars) %>% 
     select(name, filter_var, percentile_category, decile, mean_value,
