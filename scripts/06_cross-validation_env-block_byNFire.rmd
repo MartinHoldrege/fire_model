@@ -37,7 +37,7 @@ params
 
 ```{r}
 test_run <- FALSE # runs code on data subset, for testing
-s <- "_S-T_A-T" # string to paste to file names (summer ppt * MAT) and annuals*temperature interactions
+s <- "_S-T_A-T_A-Pr" # string to paste to file names (summer ppt * MAT) and annuals*temperature interactions
 ```
 
 
