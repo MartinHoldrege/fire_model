@@ -33,8 +33,11 @@ library(knitr)
 
 ```
 
+params
+
 ```{r}
 test_run <- FALSE # runs code on data subset, for testing
+s <- "_S-T_A-T" # string to paste to file names (summer ppt * MAT) and annuals*temperature interactions
 ```
 
 
@@ -43,7 +46,8 @@ test_run <- FALSE # runs code on data subset, for testing
 Read in model object (for the formula)
 
 ```{r}
-mods1 <- readRDS("models/glm_binomial_models_byNFire_v2_bin20_cwf.RDS")
+mods1 <- readRDS(paste0("models/glm_binomial_models_byNFire_v2_bin20_cwf",
+                        s, ".RDS"))
 ```
 
 Reading in the data again here because below the data needs to be 
@@ -302,7 +306,7 @@ g2 <- ggplot(df_pdp_by_fold2, aes(value, yhat*100)) +
   scale_color_manual(values = c(cols_fold, 'biome-wide' = 'black'), 
                      name = "Fold left out")
 
-jpeg("figures/pdp/cv_pdp_v1.jpeg", units = "in", res = 600,
+jpeg(paste0("figures/pdp/cv_pdp_v1", s, ".jpeg"), units = "in", res = 600,
      width = 6.8, height = 4)
   g2
 dev.off()
@@ -471,8 +475,8 @@ g_filt <- map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(d
     patchwork::plot_annotation(subtitle = paste0("Predictions on ", fold, 
                            " (model fit to other folds)"))
   
-  jpeg(paste0("figures/quantile_plots/cv_quantile_plots_filt_", fold, ".jpeg"),
-       units = "in", res = 600,width = 7, height = 6 )
+  jpeg(paste0("figures/quantile_plots/cv_quantile_plots_filt_", fold, s, 
+              ".jpeg"), units = "in", res = 600,width = 7, height = 6 )
     print(g) 
   dev.off()
   g
@@ -570,7 +574,7 @@ best_formulas2 <- map(best_formulas1, function(x) x$final_formula)
 best_formulas2
 ```
 
-fit best models. The function above does save the model objects
+fit best models. The function above does not save the model objects
 so here re-creating the best models
 
 ```{r}

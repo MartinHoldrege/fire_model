@@ -9,6 +9,8 @@ output:
     toc_float:
       collapsed: false
 ---
+This version of the model includes interactions between MAT and summer ppt,
+and annuals and MAT.
 
 This data uses average rap biomass from before a given fire (or for the entire time
 period if no fire). So there can be multiple observations (rows) per grid cell (if
@@ -41,6 +43,7 @@ User defined parameters
 ```{r}
 # set to true if want to run for a limited number of rows (i.e. for code testing)
 test_run <- FALSE
+s <- "_S-T_A-T" # string to paste to file names (summer ppt * MAT) and annuals*temperature interactions
 ```
 
 
@@ -393,7 +396,9 @@ set.seed(1234)
 # term are included so that glms_iterate_transforms doesn't transform
 # the interaction term. 
 pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
-                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
+                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)",
+                     "afgAGB:MAT" = "(afgAGB:MAT)",
+                     "MAT:prcpPropSum" = "(MAT:prcpPropSum)")
 
 # pred_vars_inter <- pred_vars
 
@@ -648,8 +653,8 @@ g2 <- g +
   inset_element(inset, left = 0.7, bottom = -0.15,
                 right = 1, top = 0.4)
 g2
-jpeg("figures/quantile_plots/quantile_plot_v3.jpeg", units = "in", res = 600,
-     width = 5, height = 3.5 )
+jpeg(paste0("figures/quantile_plots/quantile_plot_v3", s,  ".jpeg"), 
+     units = "in", res = 600, width = 5, height = 3.5 )
 g2
 dev.off()
 ```
@@ -758,8 +763,8 @@ g2 <- pred_glm1_deciles_filt$paint %>%
 g2
 # add insets
 
-jpeg("figures/quantile_plots/quantile_plot_filtered_insets_v1.jpeg", units = "in", res = 600,
-     width = 7, height = 8 )
+jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v1", 
+            s, ".jpeg"), units = "in", res = 600, width = 7, height = 8 )
 g2
 dev.off()
 
@@ -773,8 +778,8 @@ g <- pred_glm1_deciles_filt$paint %>%
   filter(filter_var %in% clim_vars) %>% 
   decile_dotplot_filtered_pq2()
 
-jpeg("figures/quantile_plots/quantile_plot_filtered_v3.jpeg", units = "in", res = 600,
-     width = 7, height = 8 )
+jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_v3", s,  ".jpeg"), 
+     units = "in", res = 600, width = 7, height = 8 )
 g 
 dev.off()
 g
@@ -792,8 +797,8 @@ pred_glm1_deciles_filt_mid <- map(pred_glm1, predvars2deciles,
 g <- decile_dotplot_filtered_pq(df = pred_glm1_deciles_filt_mid$paint)
 g
 
-jpeg("figures/quantile_plots/quantile_plot_filtered_mid_v1.jpeg", units = "in", res = 600,
-     width = 5.5, height = 6 )
+jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_mid_v1", s, ".jpeg"),
+     units = "in", res = 600, width = 5.5, height = 6 )
 g 
 dev.off()
 ```
@@ -827,7 +832,7 @@ mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
 saveRDS(mods2save, 
         paste0("models/glm_binomial_models_byNFire_v2_bin",
-               n_categories, "_cwf.RDS"))
+               n_categories, "_cwf", s, ".RDS"))
 
 ```
 
