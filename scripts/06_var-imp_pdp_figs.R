@@ -15,10 +15,18 @@ library(tidyverse)
 library(ggtext)
 theme_set(theme_classic())
 
+
+# params ------------------------------------------------------------------
+
+# string defining model name
+s <- "_S-T_A-T_A-Pr"
+# s <- "" # original model string
+
 # read in model objects ---------------------------------------------------
 
 # main model
-mods <- readRDS("models/glm_binomial_models_byNFire_v2_bin20_cwf.RDS")
+mods <- readRDS(paste0("models/glm_binomial_models_byNFire_v2_bin20_cwf",
+                       s, ".RDS"))
 mod <- mods$paint_cwf
 
 # model fit with human modification
@@ -126,8 +134,8 @@ base_pdp <- function() {
   )
 }
 
-jpeg("figures/pdp/pdp_pub-qual_v1.jpeg", units = "in", res = 600,
-     width = 6, height = 3.5)
+jpeg(paste0("figures/pdp/pdp_pub-qual_v1", s, ".jpeg"), 
+     units = "in", res = 600,  width = 6, height = 3.5)
 ggplot(df_pdp2, aes(x_value, yhat*100)) +
   geom_line() +
   geom_rug(data = deciles, aes(x = decile, y = NULL), sides = 'b') +

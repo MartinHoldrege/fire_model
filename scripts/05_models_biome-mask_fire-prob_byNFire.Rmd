@@ -9,8 +9,6 @@ output:
     toc_float:
       collapsed: false
 ---
-This version of the model includes interactions between MAT and summer ppt,
-annuals and MAT, and annuals and perennials.
 
 This data uses average rap biomass from before a given fire (or for the entire time
 period if no fire). So there can be multiple observations (rows) per grid cell (if
@@ -43,7 +41,7 @@ User defined parameters
 ```{r}
 # set to true if want to run for a limited number of rows (i.e. for code testing)
 test_run <- FALSE
-s <- "_S-T_A-T_A-Pr" # string to paste to file names (summer ppt * MAT) and annuals*temperature interactions
+s <- "" # string to paste to file names (summer ppt * MAT) and annuals*temperature interactions
 ```
 
 
@@ -396,10 +394,10 @@ set.seed(1234)
 # term are included so that glms_iterate_transforms doesn't transform
 # the interaction term. 
 pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
-                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)",
-                     "afgAGB:MAT" = "(afgAGB:MAT)",
-                     "MAT:prcpPropSum" = "(MAT:prcpPropSum)",
-                     "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)")
+                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
+                     # "afgAGB:MAT" = "(afgAGB:MAT)",
+                     # "MAT:prcpPropSum" = "(MAT:prcpPropSum)",
+                     # "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)")
 
 # pred_vars_inter <- pred_vars
 
