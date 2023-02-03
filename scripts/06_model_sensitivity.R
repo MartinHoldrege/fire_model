@@ -17,6 +17,14 @@ source("src/fig_params.R")
 source("src/general_functions.R")
 library(RColorBrewer)
 
+
+# params ------------------------------------------------------------------
+
+s <- "_S-T_A-T_A-Pr"
+# s <- "" # original model string
+
+bin_string <- "bin20"
+
 # * fire data -------------------------------------------------------------
 
 # number of observed fires per pixel, cwf (combined wildand fire dataset) 
@@ -52,9 +60,10 @@ dfnona$afgAGB <- dfnona$afgAGB + 0.001
 # here the bin_string refers to how many bins each predictor variable
 # was split into before resampling, and the by NFire means that
 # data was split into before/after fires for training
-bin_string <- "bin20"
+
 glm_mods_resample1 <- readRDS(
-  paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf.RDS"))
+  paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf", s,
+  ".RDS"))
 
 mod1 <- glm_mods_resample1$paint_cwf
 
@@ -160,8 +169,8 @@ tm_pred1 <-  tm_shape(rast_pred1*100, bbox = bbox) +
             legend.width = 1)
 
 tm_pred1
-jpeg("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v3.jpeg", units = 'in', res = 600,
-     height = 2.6, width = 7)
+jpeg(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v3", s, 
+            ".jpeg"), units = 'in', res = 600, height = 2.6, width = 7)
 tmap_arrange(tm_obs, tm_pred1,  ncol = 2)
 dev.off()
 
@@ -258,6 +267,8 @@ rasts_alter1[str_subset(alter_names, "pfg_")] <-
   })
 
 
+
+
 # * 6 panel map -----------------------------------------------------------
 
 legend.text.size <- 0.55
@@ -302,8 +313,8 @@ rast_alter_pred1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
 
 
 
-jpeg("figures/maps_sensitivity/delta-prob_clim-vars_v1.jpeg", units = 'in', res = 600,
-     height = 8.5, width = 7.5)
+jpeg(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v1", s, ".jpeg"), 
+            units = 'in', res = 600, height = 8.5, width = 7.5)
 tm_shape(rast_delta1[[1:6]], bbox = bbox) +
   tm_raster(title = lab_delta,
             breaks = breaks_delta,
@@ -316,8 +327,8 @@ tm_shape(rast_delta1[[1:6]], bbox = bbox) +
   basemap(legend.text.size = legend.text.size)
 dev.off()
 
-jpeg("figures/maps_sensitivity/delta-prob_bio-vars_v1.jpeg", units = 'in', res = 600,
-     height = 8, width = 8)
+jpeg(paste0("figures/maps_sensitivity/delta-prob_bio-vars_v1", s, 
+            ".jpeg"), units = 'in', res = 600,  height = 8, width = 8)
 lyrs <- c("afg_mid", "afg_hi", "pfg_mid", "pfg_hi") # layers to show
 tm_shape(rast_delta1[[lyrs]], 
          bbox = bbox) +
@@ -353,6 +364,47 @@ dev.off()
 
 minmax(rast_delta1)
 
+# * histograms --------------------------------------------------------------
+
+x <- as.numeric(values(rast_pred1))
+x <- x[!is.na(x)]
+
+
+hist(rast_pred1)
+
+values_non
+# extracting values from rasters (excluding biomass alterations)
+df_pred1 <- rasts_alter2[!str_detect(names(rasts_alter2), "(pfg)|(afg)")] %>% 
+  map_dfr(function(x) {
+    out <- tibble(
+      pred = values_nona(x$pred)*100, # convert to percent
+      delta = values_nona(x$delta)*100
+    )
+    out
+  }, 
+  .id = "scenario")
+
+df_pred2 <- df_pred1 %>% 
+  mutate(name = delta_titles0[scenario])
+
+df_pred3 <- tibble(pred = values_nona(rast_pred1)*100, # convert to percent
+       scenario = "original",
+       name = "original data") %>% 
+  bind_rows(df_pred2) %>% 
+  mutate(name = factor(name, levels = c(delta_titles0, "original data")))
+
+# summarize 
+summary1 <- df_pred3 %>% 
+  group_by(scenario, name) %>% 
+  summarize(pred_max = max(pred),
+            delta_min = min(delta),
+            delta_max = max(delta),
+            .groups = 'drop')
+summary1
+
+ggplot(df_pred3, aes(x = pred)) +
+  geom_histogram() +
+  facet_wrap(~name)
 
 # delta summary stats -----------------------------------------------------
 
@@ -380,7 +432,8 @@ tm_delta_clim1 <- tm_shape(rast_delta1[[1:6]], bbox = bbox) +
             breaks = breaks_delta,
             labels = labels_delta,
             palette = cols_delta,
-            midpoint = 0) +
+            midpoint = 0,
+            legend.hist = TRUE) +
   tm_layout(panel.labels = delta_titles0,
             panel.label.bg.color = 'white',
             main.title = "Delta probability",
@@ -398,9 +451,9 @@ tm_pred_clim1 <- tm_create_prob_map(rast_alter_pred1[[1:6]],
             legend.show = FALSE,
             panel.label.size = 0.75)+
   tm_facets(ncol =1)
-
-jpeg("figures/maps_sensitivity/pred_delta-prob_clim-vars_v1.jpeg", units = 'in', res = 600,
-     height = 12, width = 4)
+tm_pred_clim1
+jpeg(paste0("figures/maps_sensitivity/pred_delta-prob_clim-vars_v1", s, ".jpeg"), 
+     units = 'in', res = 600, height = 12, width = 4)
 tmap_arrange(tm_pred_clim1, tm_delta_clim1, ncol = 2)
 dev.off()
 
@@ -431,8 +484,8 @@ tm_pred_bio1 <- tm_create_prob_map(rast_alter_pred1[[-(1:6)]],
             panel.label.size = 0.7)+
   tm_facets(ncol =1)
 
-jpeg("figures/maps_sensitivity/pred_delta-prob_bio-vars_v1.jpeg", units = 'in', res = 600,
-     height = 12, width = 4)
+jpeg(paste0("figures/maps_sensitivity/pred_delta-prob_bio-vars_v1", s, ".jpeg"), 
+     units = 'in', res = 600, height = 12, width = 4)
 tmap_arrange(tm_pred_bio1, tm_delta_bio1, ncol = 2)
 dev.off()
 
