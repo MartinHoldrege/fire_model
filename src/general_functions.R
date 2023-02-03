@@ -158,6 +158,17 @@ get_values <- function(lyr, r) {
   out 
 }
 
+#' extract values as a vector from raster
+#'
+#' @param r raster
+#'
+#' @return vector of cell values, NAs removed
+values_nona <- function(r) {
+  x <- as.numeric(values(r)) 
+  out <- x[!is.na(x)]
+   out 
+}
+
 #' create legend labels
 #'
 #' @param x numeric vector of break points
@@ -404,11 +415,14 @@ predvars2long <- function(df, response_vars,
 #' @param weighted_mean logical, whether to take the weighted mean
 #' of the observed fire probability (currently requires presence of
 #' numYrs column).
+#' @param return_mean logical. if false return the dataframe before
+#' means have been calculated for each quantile
 #' 
 #' @return For each predictor variable calculate the mean of each decile
 #' and the corresponding mean (of those same rows) of the response variable
 longdf2deciles <- function(df, response_vars, filter_var = FALSE,
-                           weighted_mean = FALSE) {
+                           weighted_mean = FALSE,
+                           return_means = TRUE) {
   
   if(weighted_mean & !'numYrs' %in% names(df)) {
     stop('numYrs column not present (needed for weighted mean)')
@@ -447,6 +461,10 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
     # calculate mean of response variables for each decile of each predictor
     # variable
     group_by(across(all_of(c(group_vars, 'decile')))) 
+  
+  if(!return_means) {
+    return(out0)
+  }
   
   if(weighted_mean) {
     out <- out0 %>% 
