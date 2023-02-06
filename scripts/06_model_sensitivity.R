@@ -20,7 +20,7 @@ library(RColorBrewer)
 
 # params ------------------------------------------------------------------
 
-s <- "_S-T_A-T_A-Pr"
+s <- "_S-T_A2-T2_A-Pr"
 # s <- "" # original model string
 
 bin_string <- "bin20"
@@ -267,8 +267,6 @@ rasts_alter1[str_subset(alter_names, "pfg_")] <-
   })
 
 
-
-
 # * 6 panel map -----------------------------------------------------------
 
 legend.text.size <- 0.55
@@ -372,7 +370,7 @@ x <- x[!is.na(x)]
 
 hist(rast_pred1)
 
-values_non
+
 # extracting values from rasters (excluding biomass alterations)
 df_pred1 <- rasts_alter2[!str_detect(names(rasts_alter2), "(pfg)|(afg)")] %>% 
   map_dfr(function(x) {
