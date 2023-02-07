@@ -364,12 +364,6 @@ minmax(rast_delta1)
 
 # * histograms --------------------------------------------------------------
 
-x <- as.numeric(values(rast_pred1))
-x <- x[!is.na(x)]
-
-
-hist(rast_pred1)
-
 
 # extracting values from rasters (excluding biomass alterations)
 df_pred1 <- rasts_alter2[!str_detect(names(rasts_alter2), "(pfg)|(afg)")] %>% 
@@ -394,15 +388,31 @@ df_pred3 <- tibble(pred = values_nona(rast_pred1)*100, # convert to percent
 # summarize 
 summary1 <- df_pred3 %>% 
   group_by(scenario, name) %>% 
-  summarize(pred_max = max(pred),
-            delta_min = min(delta),
-            delta_max = max(delta),
+  summarize(across(c(pred, delta), 
+                   .fns = list(mean = mean, median = median, min = min,
+                               max = max)),
             .groups = 'drop')
 summary1
 
+summary_long1 <-  summary1 %>% 
+  pivot_longer(cols = c(starts_with("pred_"), starts_with("delta_")),
+               names_to = c('variable', "summary_stat"),
+               names_sep = "_") %>% 
+  pivot_wider(names_from = 'variable') %>% 
+  mutate(summary_stat = factor(summary_stat,
+                               levels = c("min", "median", "mean", "max")))
+
 ggplot(df_pred3, aes(x = pred)) +
-  geom_histogram() +
-  facet_wrap(~name)
+  geom_vline(data = summary_long1, aes(xintercept = pred, color = summary_stat)) +
+  geom_histogram(bins = 200) +
+  facet_wrap(~name)+
+  theme_bw()
+
+ggplot(df_pred3, aes(x = delta)) +
+  geom_vline(data = summary_long1, aes(xintercept = delta, color = summary_stat)) +
+  geom_histogram(bins = 200) +
+  facet_wrap(~name)+
+  theme_bw()
 
 # delta summary stats -----------------------------------------------------
 
