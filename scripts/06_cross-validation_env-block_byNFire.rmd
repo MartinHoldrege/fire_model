@@ -37,7 +37,7 @@ params
 
 ```{r}
 test_run <- FALSE # runs code on data subset, for testing
-s <-  "_A-T_A-Pr"  # string to paste to file names (often named based on added interactions)
+s <-  "_A2-T2_A-Pr"  # string to paste to file names (often named based on added interactions)
 ```
 
 
