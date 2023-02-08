@@ -20,10 +20,21 @@ library(RColorBrewer)
 
 # params ------------------------------------------------------------------
 
-s <- "_S-T_A2-T2_A-Pr"
-# s <- "" # original model string
-
+# strings of model names
 bin_string <- "bin20"
+# string vector, part of the name of the model, usually identifying
+# the model interactions
+sv <-  c("", "_S-T_A-T", "_A-T_A-Pr", "_A2-T2_A-Pr", "_S-T_A-T_A-Pr",
+         "_S-T_A2-T2_A-Pr")
+files_mod <- paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf", 
+                sv, ".RDS")
+sv[sv == ""] <- "original"
+names(files_mod) <- sv
+
+s_target <- "original" # which model (based on files_mod names) do you want
+# to make publication quality figures for? This if files_mod has names
+# of multiple model objects, figures for all those are just packaged 
+# together pdfs for exploration
 
 # * fire data -------------------------------------------------------------
 
@@ -41,8 +52,6 @@ rast_rap1
 # as the RAP & fire data that we're using for the nFire model
 rasts_clim1
 
-
-
 # * dataframe -------------------------------------------------------------
 
 df1 <- dfs_biome0$paint
@@ -57,15 +66,21 @@ dfnona$afgAGB <- dfnona$afgAGB + 0.001
 
 # glm models fit to resampled/balanced data
 
-# here the bin_string refers to how many bins each predictor variable
+# here the bin_string in the file name refers to how many bins each predictor variable
 # was split into before resampling, and the by NFire means that
 # data was split into before/after fires for training
+glm_mods_resample1 <- map(files_mod, readRDS)
 
-glm_mods_resample1 <- readRDS(
-  paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf", s,
-  ".RDS"))
+mods1 <- map(glm_mods_resample1, function(x) x$paint)
+formulas1 <- map_chr(glm_mods_resample1, function(x) x$formula)
 
-mod1 <- glm_mods_resample1$paint_cwf
+# removing , 2, raw = TRUE from formula terms, just to shorten the string
+formulas2 <- str_replace_all(formulas1, ",[ ]*2[ ]*,[ ]*raw[ ]*=[ ]*TRUE[ ]*", "") %>% 
+  str_replace_all("[ ]*", "") %>% # getting rid of additional spaces
+  # new line so prints on two lines (2nd line is interactions)
+  str_replace_all("poly\\(prcpPropSum\\)", "poly\\(prcpPropSum\\)\n") 
+names(formulas2) <- sv
+cat(formulas2, sep = "\n")
 
 # model that includes hmod (human modification) as an additional
 # predictor variable (object created in
@@ -83,8 +98,7 @@ hmod1 <- glm_mods_hmod$paint_cwf
 # predicting on the 'old' data where there is just 1 row per pixel
 # regardless of whether there was a fire--otherwise you have multiple
 # predictions per pixel which is a bit harder to deal with
-mod_pred1 <- predict(mod1, newdata = df1,
-                        type = "response")
+mods_pred1 <- map(mods1, predict, newdata = df1, type = "response")
 
 hmod_pred1 <- predict(hmod1, newdata = df1,
                      type = "response")
@@ -93,8 +107,11 @@ empty <- rast_rap1[[1]]
 empty[] <- NA
 
 # filling empty raster w/ predicted values
-rast_pred1 <- empty
-rast_pred1[] <- mod_pred1
+rasts_pred1 <- map(mods_pred1, function(x) {
+  out <- empty
+  out[] <- x
+  out
+})
 
 rast_pred_hmod1 <- empty
 rast_pred_hmod1[] <- hmod_pred1
@@ -151,27 +168,61 @@ tm_obs <- tm_shape(rast_fPerPixel, bbox = bbox) +
 
 # * predicted ------------------------------------------------------------
 
+tms_pred1 <-  map(rasts_pred1, function(r) {
+  tm_shape(r*100, bbox = bbox) +
+    tm_raster(title = "Probability (%)",
+              breaks = breaks_prob*100,
+              labels = label_creator(breaks_prob, convert2percent = TRUE),
+              legend.hist = TRUE,
+              palette = RColorBrewer::brewer.pal(11, "RdYlBu")[9:2]) +
+    basemap(legend.text.size = 0.4, 
+            legend.title.size = 0.75,
+            main.title.size = 0.8) +
+    tm_layout(main.title = paste(fig_letters[2], "Modelled annual fire probability"),
+              legend.hist.width = 1,
+              legend.hist.height = 0.4, 
+              title.position = c("left", "top"),
+              legend.height = 0.9,
+              legend.width = 1)
+})
 
-tm_pred1 <-  tm_shape(rast_pred1*100, bbox = bbox) +
-  tm_raster(title = "Probability (%)",
-            breaks = breaks_prob*100,
-            labels = label_creator(breaks_prob, convert2percent = TRUE),
-            legend.hist = TRUE,
-            palette = RColorBrewer::brewer.pal(11, "RdYlBu")[9:2]) +
-  basemap(legend.text.size = 0.4, 
-          legend.title.size = 0.75,
-          main.title.size = 0.8) +
-  tm_layout(main.title = paste(fig_letters[2], "Modelled annual fire probability"),
-            legend.hist.width = 1,
-            legend.hist.height = 0.4, 
-            title.position = c("left", "top"),
-            legend.height = 0.9,
-            legend.width = 1)
 
-tm_pred1
-jpeg(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v3", s, 
+jpeg(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v3", s_target, 
             ".jpeg"), units = 'in', res = 600, height = 2.6, width = 7)
-tmap_arrange(tm_obs, tm_pred1,  ncol = 2)
+  tmap_arrange(tm_obs, tms_pred1[[s_target]],  ncol = 2)
+dev.off()
+
+# predicted fire probability maps, for each model (for exploration) 
+
+# dimensions for figure flexible depending on the number of maps
+n <- length(tms_pred1)
+if(n == 1) {
+  width = 3.5
+  height <- 2.6
+  ncol <- 1
+} else {
+  ncol <- 2
+  width <- 7
+  rows <- ceiling(n/2) # number of rows
+  height <- 2.6*rows
+}
+
+tms_pred2 <- map2(tms_pred1, names(tms_pred1), function(x, name) {
+  x2 <- x +
+    tm_credits(text = formulas2[name],
+               size = 0.6,
+               position = c("center", "BOTTOM"),
+               bg.color = 'white') +
+    tm_layout(main.title = paste(name, "model"))
+  x2
+})
+
+
+jpeg("figures/maps_fire_prob/cwf_observed_predicted_maps_v3.jpeg",
+    units = 'in', res = 600, height = height, width = width)
+
+tmap_arrange(tms_pred2, ncol = ncol)
+
 dev.off()
 
 
@@ -187,13 +238,7 @@ alter_names <- c("mat_warm", # mid level amount of warming
                  "map_minus", # reduction in MAP
                  "map_plus", # increase in MAP
                  "prop_minus", # reduction in prcpPropSum
-                 "prop_plus", # increase in prcpPropSum
-                 "afg_low", # annuals low biomass
-                 "afg_mid", # mid biomass
-                 "afg_hi", # high
-                 "pfg_low", # perennials
-                 "pfg_mid",
-                 "pfg_hi"
+                 "prop_plus" # increase in prcpPropSum
                  )
 dfs_alter1 <- vector('list', length(alter_names))
 for (i in 1:length(dfs_alter1)) {
@@ -214,60 +259,30 @@ prop_change <- 0.2
 dfs_alter1$prop_minus$prcpPropSum <- df1$prcpPropSum*(1-prop_change)
 dfs_alter1$prop_plus$prcpPropSum <- df1$prcpPropSum*(1+prop_change)
 
-# using fixed biomass levels for afg and pfg
-# afg 
-afg_low_change <- 25 # g/m^2
-afg_mid_change <- 75
-afg_hi_change <- 150
-
-dfs_alter1$afg_low$afgAGB <- afg_low_change
-dfs_alter1$afg_mid$afgAGB <- afg_mid_change
-dfs_alter1$afg_hi$afgAGB <- afg_hi_change
-
-# pfg
-dfs_alter1$pfg_low$pfgAGB <- afg_low_change
-dfs_alter1$pfg_mid$pfgAGB <- afg_mid_change
-dfs_alter1$pfg_hi$pfgAGB <- afg_hi_change
 
 # * predictions -----------------------------------------------------------
+# create predictions for each model and climate scenario
+# map over models
+rasts_alter1 <- map2(mods1, rasts_pred1, function(mod, r) {
+  # map over dataframes
+  map(dfs_alter1, function(df) {
 
-dfs_alter2 <- map(dfs_alter1, function(df) {
-  out <- df
-  out$pred <- predict(mod1, newdata = df, type = "response")
-  out
-})
-
-# rasters of predicted values for given alteration 
-# and the delta compared to no alteration
-rasts_alter1 <- map(dfs_alter2, function(df) {
-  pred <- empty
-  
-  # raster of predicted values for the given alteration
-  pred[] <- df$pred
-  
-  # difference between the altered prediction and the original
-  # data prediction 
-  delta <- pred - rast_pred1
-  
-  list(pred = pred, delta = delta)
-})
-
-# recalculating afg and pfg deltas so that they
-# are relative to the low biomass level
-rasts_alter1[str_subset(alter_names, "afg_")] <- 
-  map(rasts_alter1[str_subset(alter_names, "afg_")], function(x) {
-    x$delta <- x$pred - rasts_alter1$afg_low$pred
-    x
+    pred <- empty
+    
+    # raster of predicted values for the given alteration and model
+    pred[] <- predict(mod, newdata = df, type = "response")
+    
+    # difference between the altered prediction and the original
+    # data prediction 
+    delta <- pred - r
+    
+    list(pred = pred, delta = delta)
   })
-
-rasts_alter1[str_subset(alter_names, "pfg_")] <- 
-  map(rasts_alter1[str_subset(alter_names, "pfg_")], function(x) {
-    x$delta <- x$pred - rasts_alter1$pfg_low$pred
-    x
-  })
+})
 
 
 # * 6 panel map -----------------------------------------------------------
+# delta fire probabilities for each of 6 climate scenarios
 
 legend.text.size <- 0.55
 
@@ -277,13 +292,7 @@ delta_titles0 <- c(
   "map_minus" = paste0("-",map_change*100, "% MAP"),
   "map_plus" = paste0("+",map_change*100, "% MAP"),
   "prop_minus" = paste0("-",prop_change*100, "% Proportion summer ppt"),
-  "prop_plus" = paste0("+",prop_change*100, "% Proportion summer ppt"),
-  "afg_low"= paste0("Annual biomass (", afg_low_change, " g/m^2)"),
-  "afg_mid"= paste0("Annual biomass (", afg_mid_change, " g/m^2)"),
-  "afg_hi"= paste0("Annual biomass (", afg_hi_change, " g/m^2)"),
-  "pfg_low"= paste0("Perennial biomass (", afg_low_change, " g/m^2)"),
-  "pfg_mid"= paste0("Perennial biomass (", afg_mid_change, " g/m^2)"),
-  "pfg_hi"= paste0("Perennial biomass (", afg_hi_change, " g/m^2)")
+  "prop_plus" = paste0("+",prop_change*100, "% Proportion summer ppt")
 )
 
 delta_titles <- paste(fig_letters[1:length(delta_titles0)], delta_titles0)
@@ -291,83 +300,71 @@ names(delta_titles) <- names(delta_titles0)
 rasts_alter2 <- rasts_alter1
 
 # make sure elements refer to the same alteration
-stopifnot(names(rasts_alter2) == names(delta_titles))
+stopifnot(names(rasts_alter2[[1]]) == names(delta_titles))
 
-# combining delta rasters into one rasters w/ multiple layers
-rast_delta1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
-  r <- x$delta
-  names(r) <- name
-  r
-}) %>% 
-  rast()
+# combining delta rasters for a given model into one raster w/ multiple layers
+# creating one multilayered raster per model
+rasts_delta1 <- map(rasts_alter2, function(x_list) {
+  out <- map2(x_list, names(x_list), function(x, name) {
+    r <- x$delta
+    names(r) <- name
+    r
+  }) 
+  rast(out)
+})
 
-# combining predicted rasters into one rasters w/ multiple layers
-rast_alter_pred1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
-  r <- x$pred
-  names(r) <- name
-  r
-}) %>% 
-  rast()
+# combining predicted rasters for a given model into one raster w/ multiple layers
+# creating one multilayered raster per model
+rasts_alter_pred1 <- map(rasts_alter2, function(x_list) {
+  out <- map2(x_list, names(x_list), function(x, name) {
+    r <- x$pred
+    names(r) <- name
+    r
+  }) 
+  rast(out)
+})
 
 
+tms_delta <- map(rasts_delta1, function(r) {
+  tm_shape(r, bbox = bbox) +
+    tm_raster(title = lab_delta,
+              breaks = breaks_delta,
+              labels = labels_delta,
+              palette = cols_delta,
+              midpoint = 0) +
+    tm_layout(panel.labels = delta_titles,
+              panel.label.bg.color = 'white')+
+    tm_facets(ncol =2) +
+    basemap(legend.text.size = legend.text.size)
+})
 
-jpeg(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v1", s, ".jpeg"), 
+jpeg(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v2", s_target, ".jpeg"), 
             units = 'in', res = 600, height = 8.5, width = 7.5)
-tm_shape(rast_delta1[[1:6]], bbox = bbox) +
-  tm_raster(title = lab_delta,
-            breaks = breaks_delta,
-            labels = labels_delta,
-            palette = cols_delta,
-            midpoint = 0) +
-  tm_layout(panel.labels = delta_titles,
-            panel.label.bg.color = 'white')+
-  tm_facets(ncol =2) +
-  basemap(legend.text.size = legend.text.size)
+  tms_delta[[s_target]]
 dev.off()
 
-jpeg(paste0("figures/maps_sensitivity/delta-prob_bio-vars_v1", s, 
-            ".jpeg"), units = 'in', res = 600,  height = 8, width = 8)
-lyrs <- c("afg_mid", "afg_hi", "pfg_mid", "pfg_hi") # layers to show
-tm_shape(rast_delta1[[lyrs]], 
-         bbox = bbox) +
-  tm_raster(title = lab_delta,
-            breaks = breaks_delta,
-            labels = labels_delta,
-            palette = cols_delta,
-            midpoint = 0) +
-  tm_facets(ncol =2, free.scales = FALSE) +
-  tm_layout(panel.labels = delta_titles0[lyrs],
-            panel.label.bg.color = 'white',
-            legend.outside = TRUE,
-            main.title = paste("Change in probability relative to", afg_low_change, " g/m^2")) +
-  basemap(layout = FALSE)
+# creating version for all models (for exploration)
+
+tms_delta2 <- map2(tms_delta, names(tms_delta), function(x, name) {
+  x2 <- x +
+    tm_layout(main.title = paste(name, "model\n", formulas2[name]),
+              main.title.size = 0.5)
+  x2
+})
+
+pdf("figures/maps_sensitivity/delta-prob_clim-vars_by-mod_v1.pdf",
+     height = 8.5, width = 7.5)
+  tms_delta2
 dev.off()
-
-# Other way to make the maps (more flexibility if needed): would need
-# to create the legend seperately and than combine all together
-# delta_maps <- map2(rasts_alter1, delta_titles, function(x, title) {
-#   r <- x$delta
-#   out <- tm_shape(r, bbox = bbox) +
-#     tm_raster(title = lab_delta,
-#               breaks = breaks_delta,
-#               palette = cols_delta,
-#               midpoint = 0) +
-#     basemap(legend.text.size = legend.text.size) +
-#     tm_layout(main.title = title)
-#   
-#   out
-# })
-# 
-# tmap_arrange(delta_maps, ncol = 2)
-
-minmax(rast_delta1)
 
 # * histograms --------------------------------------------------------------
 
-
-# extracting values from rasters (excluding biomass alterations)
-df_pred1 <- rasts_alter2[!str_detect(names(rasts_alter2), "(pfg)|(afg)")] %>% 
-  map_dfr(function(x) {
+# creating 1 dataframe for each model
+# where each dataframe includes predicted and delta values
+# for each climate scenario
+# (memory hog)
+dfs_pred1 <- map(rasts_alter2, function(r_list) {
+  map_dfr(r_list, function(x) {
     out <- tibble(
       pred = values_nona(x$pred)*100, # convert to percent
       delta = values_nona(x$delta)*100
@@ -375,24 +372,35 @@ df_pred1 <- rasts_alter2[!str_detect(names(rasts_alter2), "(pfg)|(afg)")] %>%
     out
   }, 
   .id = "scenario")
+})
 
-df_pred2 <- df_pred1 %>% 
-  mutate(name = delta_titles0[scenario])
 
-df_pred3 <- tibble(pred = values_nona(rast_pred1)*100, # convert to percent
-       scenario = "original",
-       name = "original data") %>% 
-  bind_rows(df_pred2) %>% 
-  mutate(name = factor(name, levels = c(delta_titles0, "original data")))
+dfs_pred2 <- map(dfs_pred1, mutate, name = delta_titles0[scenario])
+
+# dfs of predicted values for the observed (climate, veg) data, for each model
+dfs_pred_obs <- map(rasts_pred1, function(r) {
+  tibble(pred = values_nona(r)*100, # convert to percent
+       scenario = "observed",
+       name = "observed data")
+})
+
+# combining predicted data from climate scenarios with predictions on
+# the original (observed) data
+dfs_pred3 <- map2(dfs_pred_obs, dfs_pred2, function(x, y) {
+  out <- bind_rows(x, y)%>% 
+    mutate(name = factor(name, levels = c(delta_titles0, "observed data")))
+  out
+})
 
 # summarize 
-summary1 <- df_pred3 %>% 
-  group_by(scenario, name) %>% 
-  summarize(across(c(pred, delta), 
-                   .fns = list(mean = mean, median = median, min = min,
-                               max = max)),
-            .groups = 'drop')
-summary1
+summary1 <- map_dfr(dfs_pred3, function(df) {
+  out <- df %>% 
+    group_by(scenario, name) %>% 
+    summarize(across(c(pred, delta), 
+                     .fns = list(mean = mean, median = median, min = min,
+                                 max = max)),
+              .groups = 'drop')
+}, .id = 'model')
 
 summary_long1 <-  summary1 %>% 
   pivot_longer(cols = c(starts_with("pred_"), starts_with("delta_")),
@@ -402,40 +410,84 @@ summary_long1 <-  summary1 %>%
   mutate(summary_stat = factor(summary_stat,
                                levels = c("min", "median", "mean", "max")))
 
-ggplot(df_pred3, aes(x = pred)) +
-  geom_vline(data = summary_long1, aes(xintercept = pred, color = summary_stat)) +
-  geom_histogram(bins = 200) +
-  facet_wrap(~name)+
-  theme_bw()
+# ** predicted probability ------------------------------------------------
 
-ggplot(df_pred3, aes(x = delta)) +
-  geom_vline(data = summary_long1, aes(xintercept = delta, color = summary_stat)) +
-  geom_histogram(bins = 200) +
-  facet_wrap(~name)+
-  theme_bw()
+
+hists_pred1 <- map2(dfs_pred3, names(dfs_pred3), function(df, name) {
+  ggplot(df, aes(x = pred)) +
+    geom_vline(data = summary_long1[summary_long1$model == name, ], 
+               aes(xintercept = pred, color = summary_stat)) +
+    geom_histogram(bins = 200) +
+    facet_wrap(~name, scales = "free_x")+
+    theme_bw() +
+    labs(x = paste(lab_fireProbPerc, "(predicted)"),
+         subtitle = paste(name, "model"),
+         caption = formulas2[name])
+})
+#hists_pred1[[1]]
+
+# version with fixed limits (across figures)
+hists_pred2 <- map(hists_pred1, function(g) {
+  g +
+    # so all figures have the same limits
+    coord_cartesian(xlim = range(summary_long1$pred)) 
+})
+
+
+# ** delta probability ----------------------------------------------------
+
+
+hists_delta1 <- map2(dfs_pred3, names(dfs_pred3), function(df, name) {
+  ggplot(df, aes(x = delta)) +
+    geom_vline(data = summary_long1[summary_long1$model == name, ],
+               aes(xintercept = delta, color = summary_stat)) +
+    geom_histogram(bins = 200) +
+    facet_wrap(~name, scales = "free_x")+
+    theme_bw() +
+    labs(x = lab_delta,
+         title = paste(name, "model"),
+         subtitle = 'Difference in fire probabily relative to observed data',
+         caption = formulas2[name])
+})
+#hists_delta1[[1]]
+
+# version with fixed limits (across figures)
+hists_delta2 <- map(hists_delta1, function(g) {
+  g +
+    # so all figures have the same limits
+    coord_cartesian(xlim = range(summary_long1$delta, na.rm = TRUE)) 
+})
+
+# this code is slow (takes several minutes)
+pdf("figures/histograms/hists_pred_and_delta_by-model_v1.pdf",
+    width = 8, height = 6)
+  hists_pred2
+  hists_pred1
+  hists_delta2
+  hists_delta1
+dev.off()
 
 # delta summary stats -----------------------------------------------------
 
-quants <- map(names(rast_delta1),  function(name) {
-  r <- rast_delta1[[name]]
+quants <- map(names(rasts_delta1[[s_target]]),  function(name) {
+  r <- rasts_delta1[[s_target]][[name]]
   x <- as.vector(values(r))
   out <- quantile(x, c(0, 0.05, 0.1, 0.5, 0.9, 0.95, 1), na.rm = TRUE)
   # mean absolute change
   out <- c(out, 'mean_abs' = mean(abs(x), na.rm = TRUE))
   out*100 # convert to percent change
 })
-names(quants) <- names(rast_delta1)
+names(quants) <- names(rasts_delta1[[s_target]])
 
 # mean absolute change is larger for mat (both warm and hot) then
 # map or prop changes
-quants[1:6]
+quants
 # maps pred and delta  ------------------------------------------------
 
 
 # * clim vars -------------------------------------------------------------
 
-
-tm_delta_clim1 <- tm_shape(rast_delta1[[1:6]], bbox = bbox) +
+tm_delta_clim1 <- tm_shape(rasts_delta1[[s_target]], bbox = bbox) +
   tm_raster(title = lab_delta,
             breaks = breaks_delta,
             labels = labels_delta,
@@ -451,7 +503,7 @@ tm_delta_clim1 <- tm_shape(rast_delta1[[1:6]], bbox = bbox) +
   basemap(legend.text.size = legend.text.size,
           main.title.size = 0.7)
 
-tm_pred_clim1 <- tm_create_prob_map(rast_alter_pred1[[1:6]],
+tm_pred_clim1 <- tm_create_prob_map(rasts_alter_pred1[[s_target]],
                                     main.title = "Predicted probability (%)",
                                     main.title.size = 0.7) +
   tm_layout(panel.labels = delta_titles0,
@@ -459,48 +511,20 @@ tm_pred_clim1 <- tm_create_prob_map(rast_alter_pred1[[1:6]],
             legend.show = FALSE,
             panel.label.size = 0.75)+
   tm_facets(ncol =1)
-tm_pred_clim1
-jpeg(paste0("figures/maps_sensitivity/pred_delta-prob_clim-vars_v1", s, ".jpeg"), 
+
+jpeg(paste0("figures/maps_sensitivity/pred_delta-prob_clim-vars_v1", s_target, ".jpeg"), 
      units = 'in', res = 600, height = 12, width = 4)
-tmap_arrange(tm_pred_clim1, tm_delta_clim1, ncol = 2)
+  tmap_arrange(tm_pred_clim1, tm_delta_clim1, ncol = 2)
 dev.off()
 
-
-# * veg vars --------------------------------------------------------------
-
-tm_delta_bio1 <- tm_shape(rast_delta1[[-(1:6)]], bbox = bbox) +
-  tm_raster(title = lab_delta,
-            breaks = breaks_delta,
-            labels = labels_delta,
-            palette = cols_delta,
-            midpoint = 0) +
-  tm_layout(panel.labels = delta_titles0[-(1:6)],
-            panel.label.bg.color = 'white',
-            main.title = "Delta probability",
-            legend.show = FALSE,
-            panel.label.size = 0.7)+
-  tm_facets(ncol =1) +
-  basemap(legend.text.size = legend.text.size,
-          main.title.size = 0.7)
-
-tm_pred_bio1 <- tm_create_prob_map(rast_alter_pred1[[-(1:6)]],
-                                    main.title = "Predicted probability (%)",
-                                    main.title.size = 0.7) +
-  tm_layout(panel.labels = delta_titles0[-(1:6)],
-            panel.label.bg.color = 'white',
-            legend.show = FALSE,
-            panel.label.size = 0.7)+
-  tm_facets(ncol =1)
-
-jpeg(paste0("figures/maps_sensitivity/pred_delta-prob_bio-vars_v1", s, ".jpeg"), 
-     units = 'in', res = 600, height = 12, width = 4)
-tmap_arrange(tm_pred_bio1, tm_delta_bio1, ncol = 2)
-dev.off()
 
 # delta due to hmod -------------------------------------------------------
 # difference in predicted fire probability when the hmod variable is used.
 
-hmod_delta <- rast_pred1 - rast_pred_hmod1
+# caution--make sure you actually want to use the s_target
+# model to compare (i.e. make sure calculating delta from model
+# with all the same terms in it (but without hmod))
+hmod_delta <- rasts_pred1[[s_target]] - rast_pred_hmod1
 
 x <- values(hmod_delta) %>% as.vector()
 hist(x, breaks = 100, xlim = c(-0.01, 0.01))

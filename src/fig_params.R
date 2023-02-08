@@ -38,7 +38,8 @@ cols_prop <- c("#ffeda0","#feb24c", "#f03b20", # reds (from 3-class YlOrRd))
                "#bdc9e1", "#74a9cf", "#0570b0") # blues (from 4-class PuBu)
 
 # change in fire probability with 5 c warming
-breaks_delta0 <- c( 0.001, .002, .003, .005, .01, 0.1)
+# breaks_delta0 <- c( 0.001, .002, .003, .005, .01, 0.1) # original breaks
+breaks_delta0 <- c( 0.001, .005, .01, .02, .05, 0.2)
 breaks_delta <- c(-rev(breaks_delta0), breaks_delta0)
 
 labels_delta <- label_creator(breaks_delta, convert2percent = TRUE)
