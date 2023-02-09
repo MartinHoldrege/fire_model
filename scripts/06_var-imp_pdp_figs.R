@@ -18,10 +18,14 @@ theme_set(theme_classic())
 
 # params ------------------------------------------------------------------
 
-# string defining model name
-s <- "_S2-T2_A2-T2_A-Pr"
-# s <- "" # original model string
+# string vector, part of the name of the model, usually identifying
+# the model interactions
+sv <-  c("", "_S-T_A-T", "_A-T_A-Pr", "_A2-T2_A-Pr", "_S-T_A-T_A-Pr",
+         "_S-T_A2-T2_A-Pr", "_S2-T2_A2-T2_A-Pr")
 
+# looping through models
+for (s in sv) {
+  message(s, " model")
 # read in model objects ---------------------------------------------------
 
 # main model
@@ -35,6 +39,7 @@ mod_h <- mods_h$paint_cwf
 
 # create vip --------------------------------------------------------------
 
+if(FALSE){
 g <- vip(mod, num_features = 13)
 # g$data$Variable %>% 
 #   paste(collapse = "' = , '")
@@ -55,11 +60,11 @@ lookup <- c('sqrt(afgAGB)' = 'sqrt(afgAGB)',
 
 g$data$Variable <- lookup[g$data$Variable]
 
-# jpeg('figures/vip_v3_glm_byNFire.jpeg', width = 3, height = 3, units = 'in', 
-#      res = 600)
-# g
-# dev.off()
-
+jpeg('figures/vip_v3_glm_byNFire.jpeg', width = 3, height = 3, units = 'in',
+     res = 600)
+g
+dev.off()
+}
 
 # create pdp --------------------------------------------------------------
 
@@ -167,13 +172,14 @@ base_pdp <- function() {
 
 jpeg(paste0("figures/pdp/pdp_pub-qual_v2", s, ".jpeg"), 
      units = "in", res = 600,  width = 6, height = 3.5)
-ggplot(df_pdp3, aes(x_value, yhat*100)) +
+g <- ggplot(df_pdp3, aes(x_value, yhat*100)) +
   geom_line() +
   geom_rug(data = deciles, aes(x = decile, y = NULL), sides = 'b') +
   geom_text(data = letter_df, aes(label = letter),
             hjust = -0.8,
             vjust = 1) +
   base_pdp()
+print(g)
 dev.off()
 
 
@@ -260,4 +266,4 @@ coef_df <-  map_dfr(list(HMod = mod_h, main = mod), function(x) {
 
 # temporarily commenting out
 # write_csv(coef_df, "models/models_coefs_glm_byNFire_bin20.csv")
-
+}
