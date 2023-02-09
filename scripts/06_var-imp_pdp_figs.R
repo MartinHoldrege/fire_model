@@ -19,7 +19,7 @@ theme_set(theme_classic())
 # params ------------------------------------------------------------------
 
 # string defining model name
-s <- "_S-T_A-T_A-Pr"
+s <- "_S2-T2_A2-T2_A-Pr"
 # s <- "" # original model string
 
 # read in model objects ---------------------------------------------------
@@ -55,10 +55,10 @@ lookup <- c('sqrt(afgAGB)' = 'sqrt(afgAGB)',
 
 g$data$Variable <- lookup[g$data$Variable]
 
-jpeg('figures/vip_v3_glm_byNFire.jpeg', width = 3, height = 3, units = 'in', 
-     res = 600)
-g
-dev.off()
+# jpeg('figures/vip_v3_glm_byNFire.jpeg', width = 3, height = 3, units = 'in', 
+#      res = 600)
+# g
+# dev.off()
 
 
 # create pdp --------------------------------------------------------------
@@ -105,8 +105,39 @@ deciles <- mod$data %>%
                names_to = "variable",
                values_to = "decile") %>% 
   mutate(xlab = lookup_var[variable],
-         xlab = factor(xlab, levels = unique(xlab)))
+         xlab = factor(xlab, levels = unique(xlab))) %>% 
+  group_by(variable) %>% 
+  # don't want to plot the first and last deciles (i.e. min/max values)
+  # b/ they stretch the xlims to areas with very little data
+  filter(decile != max(decile),
+         decile != min(decile))
 
+# limiting data to the average of the first and last percentile
+# so that these pdp plots show the same range of data as the quantile plots
+xlims <- mod$data %>% 
+  select(all_of(names(lookup_var))) %>% 
+  mutate(MAT = MAT - 273.15) %>% # k to c 
+  pivot_longer(cols = everything(),
+               names_to = 'var') %>% 
+  group_by(var) %>% 
+  # calculating percentiles after first fitting an empirical cdf function
+  mutate(percentile = ecdf(value)(value), 
+         group = case_when(percentile < 0.01 ~ 'min',
+                           percentile > 0.99 ~ 'max',
+                           TRUE ~ 'middle')) %>% 
+  filter(group != "middle") %>% 
+  group_by(var, group) %>% 
+  summarise(value = mean(value), .groups = 'drop') %>% 
+  pivot_wider(id_cols = 'var',
+              names_from = 'group',
+              values_from = "value")
+
+df_pdp3 <- df_pdp2 %>% 
+  left_join(xlims, by = c("variable" = "var")) %>% 
+  filter(x_value <= max & x_value >= min) %>% 
+  select(-max, -min)
+  
+  
 letter_df_h <- tibble(
   letter = fig_letters[1:length(mod_vars_h)],
   xlab = factor(lookup_var_h),
@@ -126,17 +157,17 @@ base_pdp <- function() {
           strip.background = element_blank()),
       labs(y = "Annual fire probability (%)"),
       #scale_y_continuous(expand = c(0.1, 0)) +
-      expand_limits(y = 2.2),
-      ggh4x::facetted_pos_scales(
-        x = list(xlab == lookup_var['MAP'] ~ scale_x_continuous(limits = c(0, 1000)),
-                 xlab == lookup_var['MAT'] ~ scale_x_continuous(limits = c(0, 20)))
-      )
+      expand_limits(y = c(0, 3))
+      # ggh4x::facetted_pos_scales(
+      #   x = list(xlab == lookup_var['MAP'] ~ scale_x_continuous(limits = c(0, 1000)),
+      #            xlab == lookup_var['MAT'] ~ scale_x_continuous(limits = c(0, 20)))
+      # )
   )
 }
 
-jpeg(paste0("figures/pdp/pdp_pub-qual_v1", s, ".jpeg"), 
+jpeg(paste0("figures/pdp/pdp_pub-qual_v2", s, ".jpeg"), 
      units = "in", res = 600,  width = 6, height = 3.5)
-ggplot(df_pdp2, aes(x_value, yhat*100)) +
+ggplot(df_pdp3, aes(x_value, yhat*100)) +
   geom_line() +
   geom_rug(data = deciles, aes(x = decile, y = NULL), sides = 'b') +
   geom_text(data = letter_df, aes(label = letter),
@@ -183,24 +214,24 @@ deciles_h <- mod_h$data %>%
          xlab = factor(xlab, levels = unique(xlab)))
 
 
-
-jpeg("figures/pdp/pdp_pub-qual_hmod_v1.jpeg", units = "in", res = 600,
-     width = 6, height = 3.5)
-ggplot(df_pdp2_h, aes(x_value, yhat*100)) +
-  geom_line(aes(color = 'Model with human modification',
-                linetype = 'Model with human modification')) +
-  geom_rug(data = deciles_h, aes(x = decile, y = NULL), sides = 'b') +
-  geom_text(data = letter_df_h, aes(label = letter),
-            hjust = -0.8,
-            vjust = 1) +
-  base_pdp() +
-  geom_line(data = df_pdp2, aes(color = "Original model",
-                                linetype = "Original model")) +
-  theme(legend.title = element_blank(),
-        legend.position = "top") +
-  scale_color_manual(values = c("black", "blue"), name = 'name') +
-  scale_linetype_manual(values = c(1, 2), name = 'name')
-dev.off()
+# temporarily commenting out
+# jpeg("figures/pdp/pdp_pub-qual_hmod_v1.jpeg", units = "in", res = 600,
+#      width = 6, height = 3.5)
+# ggplot(df_pdp2_h, aes(x_value, yhat*100)) +
+#   geom_line(aes(color = 'Model with human modification',
+#                 linetype = 'Model with human modification')) +
+#   geom_rug(data = deciles_h, aes(x = decile, y = NULL), sides = 'b') +
+#   geom_text(data = letter_df_h, aes(label = letter),
+#             hjust = -0.8,
+#             vjust = 1) +
+#   base_pdp() +
+#   geom_line(data = df_pdp2, aes(color = "Original model",
+#                                 linetype = "Original model")) +
+#   theme(legend.title = element_blank(),
+#         legend.position = "top") +
+#   scale_color_manual(values = c("black", "blue"), name = 'name') +
+#   scale_linetype_manual(values = c(1, 2), name = 'name')
+# dev.off()
 
 
 # find maxima -------------------------------------------------------------
@@ -227,6 +258,6 @@ coef_df <-  map_dfr(list(HMod = mod_h, main = mod), function(x) {
   },
   .id = "model")
 
-
-write_csv(coef_df, "models/models_coefs_glm_byNFire_bin20.csv")
+# temporarily commenting out
+# write_csv(coef_df, "models/models_coefs_glm_byNFire_bin20.csv")
 
