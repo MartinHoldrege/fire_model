@@ -37,7 +37,7 @@ params
 
 ```{r}
 test_run <- FALSE # runs code on data subset, for testing
-s <-  "_S2-T2_A2-T2_A-Pr"  # string to paste to file names (often named based on added interactions)
+s <-  "_S2-T2_A2-T2_A2-Pr2"  # string to paste to file names (often named based on added interactions)
 ```
 
 
@@ -547,9 +547,16 @@ set.seed(1234)
 # parentheses around interaction
 # term are included so that glms_iterate_transforms doesn't transform
 # the interaction term. 
-pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
-                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
 
+# some older model objects don't have interactions included
+# so doing this so the code doesn't crash
+pred_vars_inter <- if(!is.null(mods1$pred_vars_inter)) {
+  mods1$pred_vars_inter
+} else {
+  message('actual model interactions not provided')
+  c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
+    "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
+}
 # pred_vars_inter <- pred_vars
 
 best_formulas1 <- map(dfs_test1, function(df) {

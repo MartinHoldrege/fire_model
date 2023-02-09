@@ -41,7 +41,7 @@ User defined parameters
 ```{r}
 # set to true if want to run for a limited number of rows (i.e. for code testing)
 test_run <- FALSE
-s <- "_S2-T2_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
+s <- "_S2-T2_A2-T2_A2-Pr2" # string to paste to file names e.g., that defines the interactions in the model
 # such as (summer ppt * MAT) and annuals*temperature interactions
 ```
 
@@ -404,8 +404,8 @@ pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
                      "afgAGB2:MAT2" = "I(afgAGB^2):I(MAT^2)",
                      "MAT:prcpPropSum" = "(MAT:prcpPropSum)",
                      "MAT2:prcpPropSum2" = "I(MAT^2):I(prcpPropSum^2)",
-                     "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)"
-                     #"afgAGB2:pfgAGB2" = "I(afgAGB^2):I(pfgAGB^2)"
+                     "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)",
+                     "afgAGB2:pfgAGB2" = "I(afgAGB^2):I(pfgAGB^2)"
                      )
 
 # pred_vars_inter <- pred_vars
@@ -838,6 +838,7 @@ map2(pred_glm_orig_deciles_filt, names(pred_glm_orig_deciles_filt), function(df,
 # glm models
 mods2save <- mod_glm1_flat
 mods2save$formula <- best_form
+mods2save$pred_vars_inter <- pred_vars_inter # so have interactions
 saveRDS(mods2save, 
         paste0("models/glm_binomial_models_byNFire_v2_bin",
                n_categories, "_cwf", s, ".RDS"))
