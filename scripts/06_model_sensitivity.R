@@ -25,7 +25,7 @@ bin_string <- "bin20"
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 sv <-  c("", "_S-T_A-T", "_A-T_A-Pr", "_A2-T2_A-Pr", "_S-T_A-T_A-Pr",
-         "_S-T_A2-T2_A-Pr")
+         "_S-T_A2-T2_A-Pr", "_S2-T2_A2-T2_A-Pr")
 files_mod <- paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf", 
                 sv, ".RDS")
 sv[sv == ""] <- "original"
@@ -338,7 +338,12 @@ tms_delta <- map(rasts_delta1, function(r) {
     basemap(legend.text.size = legend.text.size)
 })
 
-jpeg(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v2", s_target, ".jpeg"), 
+# work in progress
+
+
+
+
+jpeg(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v3", s_target, ".jpeg"), 
             units = 'in', res = 600, height = 8.5, width = 7.5)
   tms_delta[[s_target]]
 dev.off()

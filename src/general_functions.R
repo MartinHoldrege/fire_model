@@ -286,6 +286,7 @@ var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
 #' @return dataframe with same columns as df but also filter_var,
 #' percentile_category, which give the names of the climate variable filtered 
 #' by and the percentile cut-off used that the given row fits in
+
 filter_by_climate <- function(df, add_mid = FALSE,
                               filter_vars = c('MAT', 'MAP', 'prcpPropSum')) {
   
@@ -422,7 +423,8 @@ predvars2long <- function(df, response_vars,
 #' and the corresponding mean (of those same rows) of the response variable
 longdf2deciles <- function(df, response_vars, filter_var = FALSE,
                            weighted_mean = FALSE,
-                           return_means = TRUE) {
+                           return_means = TRUE,
+                           cut_points = seq(0, 1, 0.01)) {
   
   if(weighted_mean & !'numYrs' %in% names(df)) {
     stop('numYrs column not present (needed for weighted mean)')
@@ -456,8 +458,8 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
     select(-cdf) %>% 
     unnest(cols = c("data", "percentile")) %>% 
     group_by(across(all_of(group_vars))) %>% 
-    mutate(decile = cut(percentile, seq(0, 1, 0.01),
-                        labels = 1:100)) %>% 
+    mutate(decile = cut(percentile, cut_points,
+                        labels = 1:(length(cut_points) - 1))) %>% 
     # calculate mean of response variables for each decile of each predictor
     # variable
     group_by(across(all_of(c(group_vars, 'decile')))) 
@@ -498,11 +500,14 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
 #' as filter variables (only relevant if filter_var = TRUE)
 #' @param add_mid whether to also filter by the middle percentiles of the 
 #' climate vars
+#' @param cut_points how to group/cut the percentiles before avging. By default
+#' compute the average for each percentile
 predvars2deciles <- function(df, response_vars, pred_vars,
                              filter_var = FALSE,
                              filter_vars = c('MAT', 'MAP', 'prcpPropSum'),
                              weighted_mean = TRUE,
-                             add_mid = FALSE) {
+                             add_mid = FALSE,
+                             cut_points = seq(0, 1, 0.01)) {
   
   stopifnot(
     is.logical(filter_var)
@@ -521,7 +526,8 @@ predvars2deciles <- function(df, response_vars, pred_vars,
   # mean of deciles
   out <- longdf2deciles(long_df, response_vars = response_vars,
                         filter_var = filter_var,
-                        weighted_mean = weighted_mean)
+                        weighted_mean = weighted_mean,
+                        cut_points = cut_points)
   out
 }
 
