@@ -746,7 +746,8 @@ decile_dotplot_pq <- function(df, size = 0.5) {
 #' @param g ggplot object created in decile_dotplot_pq
 #' @param df dataframe (same dataframe used for decile_dotplot_pq)
 #' @param add_smooth whether to add a smoother to the inset
-add_dotplot_inset <- function(g, df, add_smooth = FALSE) {
+#' @param ... arguments passed to geom_smooth
+add_dotplot_inset <- function(g, df, add_smooth = FALSE, ...) {
   max <- max(df$cwf_prop, df$cwf_prop_pred)*100
   inset <- ggplot(df, aes(cwf_prop_pred*100, cwf_prop*100)) +
     geom_point(shape = 4, alpha = 0.2, size = 0.3) +
@@ -766,7 +767,7 @@ add_dotplot_inset <- function(g, df, add_smooth = FALSE) {
   
   if(add_smooth) {
     inset <- inset +
-      geom_smooth(se = FALSE, color = 'gray')
+      geom_smooth(se = FALSE, color = 'gray', ...)
   }
   
   

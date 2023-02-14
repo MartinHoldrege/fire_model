@@ -18,6 +18,10 @@
 sv <-  c("", "_S-T_A-T", "_A-T_A-Pr", "_A2-T2_A-Pr", "_S-T_A-T_A-Pr",
          "_S-T_A2-T2_A-Pr", "_S2-T2_A2-T2_A-Pr", "_S2-T2_A2-T2_A2-Pr2")
 
+# whether to create quantile plots based on 10,000 bins (which is slow)
+run_10k <- TRUE 
+
+
 # dependencies ------------------------------------------------------------
 
 source("src/general_functions.R")
@@ -104,6 +108,7 @@ dfs_bgcn2 <- map(dfs_bgcn1, filter, group_cell_num %in% big_groups)
 
 # * by quantile -----------------------------------------------------------
 
+# by percentile (100 bins)
 quant1 <- map_dfr(dfs1, predvars2deciles, 
                   response_vars = response_vars, pred_vars = pred_vars,
                   .id = 'model') %>% 
@@ -114,8 +119,22 @@ quant1 <- map_dfr(dfs1, predvars2deciles,
 quant2 <- quant1 %>% 
   mutate(residual = cwf_prop - cwf_prop_pred,
          model = factor(model, levels = sv))
-  
 
+# by 1000 bins
+quant1k <-   map_dfr(dfs1, predvars2deciles, 
+                     response_vars = response_vars, pred_vars = pred_vars,
+                     cut_points = seq(0, 1, 0.001),
+                     .id = 'model') %>% 
+  mutate(model = factor(model, levels = sv))
+
+# by 10000 bins
+if(run_10k){
+quant10k <-   map_dfr(dfs1, predvars2deciles, 
+                     response_vars = response_vars, pred_vars = pred_vars,
+                     cut_points = seq(0, 1, 0.0001),
+                     .id = 'model') %>% 
+  mutate(model = factor(model, levels = sv))
+}
 # figures -----------------------------------------------------------------
 
 
@@ -145,6 +164,46 @@ pdf("figures/spatial_grouping/obs_and_pred_by_group_v1.pdf",
     width = 6, height = 4.5)
   plots_bgcn
 dev.off()
+
+
+# * quantile (1k bins) ----------------------------------------------
+
+plots_1k <- split(quant1k, quant1k$model) %>% 
+  map2(., names(.), function(df, name) {
+    g <- decile_dotplot_pq(df) +
+      labs(subtitle = paste(name, "model"),
+           caption = 'predictor variables cut into 1000 bins (based on quantile)')+
+      theme(plot.caption = element_text(size = 6))
+    
+    
+    out <- add_dotplot_inset(g, df, add_smooth = TRUE, method = 'loess')
+    out
+  })
+
+pdf("figures/quantile_plots/quantile_plot_1k_by_mod_v1.pdf", 
+    width = 6, height = 4.5)
+plots_1k 
+dev.off()
+
+# * quantile (10k bins) ----------------------------------------------
+
+if(run_10k){
+plots_10k <- split(quant10k, quant10k$model) %>% 
+  map2(., names(.), function(df, name) {
+    g <- decile_dotplot_pq(df) +
+      labs(subtitle = paste(name, "model"),
+           caption = 'predictor variables cut into 10,000 bins (based on quantile)')+
+      theme(plot.caption = element_text(size = 6))
+    
+    out <- add_dotplot_inset(g, df, add_smooth = FALSE)
+    out
+  })
+
+pdf("figures/quantile_plots/quantile_plot_10k_by_mod_v1.pdf", 
+    width = 6, height = 4.5)
+plots_10k
+dev.off()
+}
 
 # * residuals -------------------------------------------------------------
 
