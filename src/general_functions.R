@@ -266,7 +266,46 @@ var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
   out
 }
 
-
+#' spatially group cell numbers
+#'
+#' @param r spatraster, to be used as a template. Needs to have
+#' the same extent, projection, resolution etc. as the rasters
+#' from which data of interest came from
+#' @param fact passed to aggregate(). Number of cells (in each direction) to
+#' aggregate into a bigger cell
+#'
+#' @return table with two columns cell_num (the original cell_num) and
+#' group_cell_num giving the number of the larger 'grouped' cell that the
+#' specific cell_num belongs to
+#' 
+#' @example 
+#' r <- rast(nrow = 11, ncol = 26)
+#' r[] <- 1:ncell(r)
+#' plot(r)
+#' group_cell_nums(r, fact = 5)
+group_cell_nums <- function(r, fact = 100) {
+  r <- r[[1]] # in case r is multi-layered
+  cell_num <- 1:terra::ncell(r) 
+  r[] <- cell_num
+  
+  r_agg <- terra::aggregate(r, fact = fact, fun = 'min')
+  
+  r_agg[] <- 1:terra::ncell(r_agg)
+  
+  # convert back to the original resolution, but with
+  # grid cellsof the aggregrated
+  # raster
+  r_disagg <- terra::disagg(r_agg, fact = fact)
+  
+  # aggregate can increase the extent when fact doesn't divid perfectly into
+  # the dimensions, therefore r_disagg can also be bigger than r
+  # here cropping back so that r_disagg has the same number of
+  # cells as r
+  r_disagg2 <- terra::crop(r_disagg, r)
+  out <- tibble::tibble(cell_num = cell_num,
+                group_cell_num = as.numeric(terra::values(r_disagg2)))
+  out
+}
 
 # quantile plots ----------------------------------------------------------
 
@@ -648,7 +687,10 @@ decile_dotplot_pq <- function(df, size = 0.5) {
   
   
   # convert k to c
-  df[df$name == "MAT", ]$mean_value <- df[df$name == "MAT", ]$mean_value - 273.15
+    if(max(df[df$name == "MAT", ]$mean_value) > 150) {
+      df[df$name == "MAT", ]$mean_value <- df[df$name  == "MAT", ]$mean_value - 273.15
+    }
+  
   
   df2 <- df %>% 
     filter(!name %in% 'herbAGB') %>% 
@@ -698,6 +740,42 @@ decile_dotplot_pq <- function(df, size = 0.5) {
   
   g
 }
+
+#' add observed vs predicted inset to quantile dotplot
+#'
+#' @param g ggplot object created in decile_dotplot_pq
+#' @param df dataframe (same dataframe used for decile_dotplot_pq)
+#' @param add_smooth whether to add a smoother to the inset
+add_dotplot_inset <- function(g, df, add_smooth = FALSE) {
+  max <- max(df$cwf_prop, df$cwf_prop_pred)*100
+  inset <- ggplot(df, aes(cwf_prop_pred*100, cwf_prop*100)) +
+    geom_point(shape = 4, alpha = 0.2, size = 0.3) +
+    geom_abline(slope = 1, size = 0.5) +
+    labs(y = "Observed probability (%)",
+         x = "Predicted probability (%)") +
+    geom_text(data = tibble(
+      letter = fig_letters[6],
+      x = -Inf,
+      y = Inf),
+      aes(x = x, y = y, label = letter),
+      hjust = -0.8, vjust = 1) +
+    theme(axis.title = element_text(size = 6),
+          axis.text = element_text(size = 6))+
+    coord_cartesian(xlim = c(0, max),
+                    ylim = c(0, max))
+  
+  if(add_smooth) {
+    inset <- inset +
+      geom_smooth(se = FALSE, color = 'gray')
+  }
+  
+  
+  g2 <- g +
+    inset_element(inset, left = 0.7, bottom = -0.15,
+                  right = 1, top = 0.4)
+  g2
+}
+
 #' create dotplot of data summarized to quantiles
 #' 
 #' @description for each vegetation 
