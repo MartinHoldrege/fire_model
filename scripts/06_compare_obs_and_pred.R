@@ -1,8 +1,10 @@
 # Purpose:
-# Examine model predictions, and calculate 'residuals' (of average fire probabilities)
-# the goal is to understand if these pseudo residuals looks ok for predictions
+# compare observed and predicted fire probability values in multiple ways
+# including making 'quantile' like plots but base them on averages of geographic
+# blocks
+# Also examine 'residuals' (of average fire probabilities)
+# to understand if these pseudo residuals looks ok for predictions
 # along the range of annuals
-
 
 # Martin Holdrege
 
