@@ -639,27 +639,8 @@ Publication quality quantile plot
 g <- decile_dotplot_pq(pred_glm1_deciles$paint)
 
 # obs/pred inset
+g2 <- add_dotplot_inset(g, pred_glm1_deciles$paint)
 
-inset <- dfs_obs_v_pred$paint %>% 
-  filter(variable == 'cwf') %>% 
-  ggplot(aes(predicted*100, observed*100)) +
-  geom_point(shape = 4, alpha = 0.2, size = 0.3) +
-  geom_abline(slope = 1, size = 0.5) +
-  labs(y = "Observed probability (%)",
-       x = "Predicted probability (%)") +
-  geom_text(data = tibble(
-    letter = fig_letters[6],
-    x = -Inf,
-    y = Inf),
-    aes(x = x, y = y, label = letter),
-    hjust = -0.8, vjust = 1) +
-  theme(axis.title = element_text(size = 6),
-        axis.text = element_text(size = 6))
-
-
-g2 <- g +
-  inset_element(inset, left = 0.7, bottom = -0.15,
-                right = 1, top = 0.4)
 g2
 jpeg(paste0("figures/quantile_plots/quantile_plot_v3", s,  ".jpeg"), 
      units = "in", res = 600, width = 5, height = 3.5 )
