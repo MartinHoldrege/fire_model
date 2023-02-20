@@ -307,6 +307,80 @@ group_cell_nums <- function(r, fact = 100) {
   out
 }
 
+#' subsample a dataset by percentile groups of one variable
+#'
+#' @param df dataframe
+#' @param target_var name of variable you want to subsample by
+#' @param n_per_group number of samples (rows) pulled from each grouping
+#' of target_var
+#' @param breaks numeric vector of percentiles to group target_var into
+#' @param replace whether to sample with replacement
+#'
+#' @return dataframe
+#' @examples
+#' subsample_by_var(df = cars, target_var = 'speed',  breaks = seq(0, 1, by = 0.1))
+subsample_by_var <- function(target_var, 
+                             df,
+                             n_per_group = 1,
+                             breaks = seq(0, 1, by = 0.01)) {
+  cdf <- ecdf(df[[target_var]])
+  # compute what percentile each data point falls in
+  percentiles <- cdf(df[[target_var]])
+  # group percentiles
+  df$`.group` <- cut(percentiles, breaks = breaks)
+  
+  # randomly sample observations from each percentile grouping
+  out <- df %>% 
+    group_by(.group) %>% 
+    # avoid problems with small groups
+    slice_sample(n = n_per_group) %>% 
+    ungroup() %>% 
+    select(-.group)
+  
+  out
+}
+
+
+
+#' subsample by even width bins of a variable
+#'
+#' @param target_var name of variable you want to subsample by
+#' @param df dataframe
+#' @param n_per_group number of rows to keep per group
+#' @param n_breaks number of (even width) groups to break the the target_var
+#' into
+#'
+#' @return dataframe
+#'
+#' @examples
+#' x <- subsample_by_var2(target_var = 'dist', df = cars, n_per_group = 1,
+#' n_breaks = 15)
+#' hist(x$dist)
+#' hist(cars$dist)
+subsample_by_var2 <- function(target_var, 
+                             df,
+                             n_per_group = 10,
+                             n_breaks = 100) {
+  
+  breaks <- seq(min(df[[target_var]], na.rm = TRUE),
+                max(df[[target_var]], na.rm = TRUE),
+                length.out = n_breaks)
+  
+  groups <- cut(df[[target_var]], breaks = breaks)
+  
+  dfs <- split(df, groups)
+  
+  out <- map_dfr(dfs, function(df) {
+    n <- min(nrow(df), n_per_group)
+    if(n == 0) {
+      return(df)
+    }
+    slice_sample(df, n = n)
+  })
+  
+  out
+}
+
 # quantile plots ----------------------------------------------------------
 
 #' filter rows by climate variables
