@@ -41,7 +41,7 @@ User defined parameters
 ```{r}
 # set to true if want to run for a limited number of rows (i.e. for code testing)
 test_run <- FALSE
-s <- "_S2-T2_A2-T2_A2-Pr2" # string to paste to file names e.g., that defines the interactions in the model
+s <- "_A-P_S-T_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
 # such as (summer ppt * MAT) and annuals*temperature interactions
 ```
 
@@ -50,7 +50,7 @@ Sourcing the script that creates a dataframe of historical
 fore occurrence, as well as biotic and climate
 predictors for those same grid-cells. 
 
-```{r source_data, warning=FALSE, message=FALSE, cache = TRUE}
+```{r source_data, warning=FALSE, message=FALSE, cache = FALSE}
 source("scripts/04_create_biome-mask_dataframe_byNfire.R")
 ```
 
@@ -81,7 +81,7 @@ if(test_run) {
 ```
 
 
-```{r prep_data, cache=FALSE}
+```{r prep_data, cache = FALSE}
 # only interested in cws data source at the moment (the others are worse
 # and make the code slower)
 
@@ -260,14 +260,14 @@ kable(response_summary$paint,
 
 here using pred dataframe, because smaller and this code is slow. 
 
-```{r pred_v_pred, cache=TRUE, dependson='train'}
+```{r pred_v_pred, cache = TRUE, dependson='train'}
 ggpairs(test_pred %>% select(-matches("_")),
         lower = list(continuous = GGally::wrap("points", alpha = 0.1,    size=0.2)))
 ```
 
 ## boxplots-- # of fires vs predictor variables
 
-```{r n_fires_boxplots, fig.height=9, fig.width=8, cache = TRUE, dependson='prep_data'}
+```{r n_fires_boxplots, fig.height=9, fig.width=8, cache = FALSE, dependson='prep_data'}
 
 # vectors of names of response variables
 vars_nfire <- names(dfs_biome3[[1]]) %>% 
@@ -362,7 +362,7 @@ map(method, function(x) {
 
 ## Plot response variables against each other
 
-```{r response_ggpairs, cache=TRUE, dependson='train'}
+```{r response_ggpairs, cache = TRUE, dependson='train'}
 map(method, function(x) {
   ggpairs(dfs_test[[x]] , title =  paste0('relationships between response variables (',
                            x,  " method used)"),
@@ -387,7 +387,7 @@ that repeated for each variable. So have models with 1 variable transformed,
 see documentation for glms_iterate_transforms, in the modelling_functions.R
 script
 
-```{r iterate_transform, warning = FALSE, dependson='train', cache = TRUE}
+```{r iterate_transform, warning = FALSE, dependson='train', cache = FALSE}
 set.seed(1234)
 
 # adding an interaction term to help deal with over-predicting fire probability
@@ -395,7 +395,7 @@ set.seed(1234)
 # term are included so that glms_iterate_transforms doesn't transform
 # the interaction term. 
 pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
-                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)",
+                     #"afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)",
                      # based on examination of diagnostics plots with 
                      # Daniel, decided to try fitting this interaction
                      # (annuals and temp) as a parabola to help avoid
@@ -403,9 +403,9 @@ pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
                      "afgAGB:MAT" = "(afgAGB:MAT)",
                      "afgAGB2:MAT2" = "I(afgAGB^2):I(MAT^2)",
                      "MAT:prcpPropSum" = "(MAT:prcpPropSum)",
-                     "MAT2:prcpPropSum2" = "I(MAT^2):I(prcpPropSum^2)",
-                     "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)",
-                     "afgAGB2:pfgAGB2" = "I(afgAGB^2):I(pfgAGB^2)"
+                     #"MAT2:prcpPropSum2" = "I(MAT^2):I(prcpPropSum^2)",
+                     "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)"#,
+                     #"afgAGB2:pfgAGB2" = "I(afgAGB^2):I(pfgAGB^2)"
                      )
 
 # pred_vars_inter <- pred_vars
@@ -473,7 +473,7 @@ summary(mod_glm1_flat$paint_cwf)
 
 ## partial dependence & VIP
 
-```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = TRUE, dependson='fit_glm1'}
+```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = FALSE, dependson='fit_glm1'}
 # vip::vip(bin_glm1) # variable importance
 vip_plots1 <- map2(mod_glm1_flat, names(mod_glm1_flat), function(mod, name) {
    out <- vip::vip(mod, num_features = 15) +

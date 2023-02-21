@@ -30,14 +30,13 @@ source("src/fig_params.R")
 library(blockCV) # for creating environmental blocks
 library(sf)
 library(knitr)
-
 ```
 
 params
 
 ```{r}
 test_run <- FALSE # runs code on data subset, for testing
-s <-  "_S2-T2_A2-T2_A2-Pr2"  # string to paste to file names (often named based on added interactions)
+s <- "_A-P_S-T_A2-T2_A-Pr" # string to paste to file names (often named based on added interactions)
 ```
 
 
@@ -280,7 +279,7 @@ letter_df <- tibble(
 
 ```
 
-```{r create_pdp_df, cache=TRUE, eval= !test_run}
+```{r create_pdp_df, cache = FALSE, eval= !test_run}
 df_pdp_by_fold1 <- map_dfr(mods_train2, create_pdp_df, 
                    mod_vars = names(lookup_var),
                    .id = 'fold')
