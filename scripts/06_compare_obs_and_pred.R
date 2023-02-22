@@ -15,8 +15,14 @@
 
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-sv <-  c("", "_S-T_A-T", "_A-T_A-Pr", "_A2-T2_A-Pr", "_S-T_A-T_A-Pr",
-         "_S-T_A2-T2_A-Pr", "_S2-T2_A2-T2_A-Pr", "_S2-T2_A2-T2_A2-Pr2")
+
+sv <-  c("", # original model (model 1)
+         "_A2-T2_A-Pr", # model 4
+         "_A-P_A2-T2_A-Pr", # model 4b
+         "_S-T_A2-T2_A-Pr", # model 6
+         "_A-P_S-T_A2-T2_A-Pr", # model 6b
+         "_S2-T2_A2-T2_A-Pr" # model 7
+)
 
 # whether to create quantile plots based on 10,000 bins (which is slow)
 run_10k <- TRUE 
@@ -160,7 +166,7 @@ plots_bgcn <- map2(dfs_bgcn2, names(dfs_bgcn1), function(df, name) {
   out <- add_dotplot_inset(g, df2, add_smooth = TRUE, method = 'loess')
 })
 
-pdf("figures/spatial_grouping/obs_and_pred_by_group_v1.pdf", 
+pdf("figures/spatial_grouping/obs_and_pred_by_group_v2.pdf", 
     width = 6, height = 4.5)
   plots_bgcn
 dev.off()
@@ -180,7 +186,7 @@ plots_1k <- split(quant1k, quant1k$model) %>%
     out
   })
 
-pdf("figures/quantile_plots/quantile_plot_1k_by_mod_v1.pdf", 
+pdf("figures/quantile_plots/quantile_plot_1k_by_mod_v2.pdf", 
     width = 6, height = 4.5)
 plots_1k 
 dev.off()
@@ -199,7 +205,7 @@ plots_10k <- split(quant10k, quant10k$model) %>%
     out
   })
 
-pdf("figures/quantile_plots/quantile_plot_10k_by_mod_v1.pdf", 
+pdf("figures/quantile_plots/quantile_plot_10k_by_mod_v2.pdf", 
     width = 6, height = 4.5)
 plots_10k
 dev.off()
@@ -227,6 +233,6 @@ quant3 <- split(quant2, quant2$name, drop = TRUE)
 
 plots <- map2(quant3, var2lab(names(quant3)), residual_plot)
 
-pdf("figures/residuals/residuals_v1.pdf")
+pdf("figures/residuals/residuals_v2.pdf")
 plots
 dev.off()

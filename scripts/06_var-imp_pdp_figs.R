@@ -20,8 +20,16 @@ theme_set(theme_classic())
 
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-sv <-  c("", "_S-T_A-T", "_A-T_A-Pr", "_A2-T2_A-Pr", "_S-T_A-T_A-Pr",
-         "_S-T_A2-T2_A-Pr", "_S2-T2_A2-T2_A-Pr")
+
+sv <-  c(#"", # original model (model 1)
+         #"_A2-T2_A-Pr", # model 4
+         "_A-P_A2-T2_A-Pr", # model 4b
+         #"_S-T_A2-T2_A-Pr", # model 6
+         "_A-P_S-T_A2-T2_A-Pr"#, # model 6b
+         #"_S2-T2_A2-T2_A-Pr" # model 7
+         )
+
+limit_axes <- FALSE
 
 # looping through models
 for (s in sv) {
@@ -137,11 +145,16 @@ xlims <- mod$data %>%
               names_from = 'group',
               values_from = "value")
 
-df_pdp3 <- df_pdp2 %>% 
-  left_join(xlims, by = c("variable" = "var")) %>% 
-  filter(x_value <= max & x_value >= min) %>% 
-  select(-max, -min)
-  
+# reduce x axis limits? 
+df_pdp3 <- if(limit_axes) {
+  df_pdp2 %>% 
+    left_join(xlims, by = c("variable" = "var")) %>% 
+    filter(x_value <= max & x_value >= min) %>% 
+    select(-max, -min)
+} else {
+  df_pdp2
+}
+
   
 letter_df_h <- tibble(
   letter = fig_letters[1:length(mod_vars_h)],
@@ -153,24 +166,34 @@ letter_df_h <- tibble(
 letter_df <- letter_df_h %>% 
   filter(xlab!= lookup_var_h['hmod'])
 
-base_pdp <- function() {
-  list(
+base_pdp <- function(limit_x = FALSE) {
+  out <- list(
     facet_wrap(~xlab, scales = 'free', strip.position = "bottom"),
     theme(strip.text = element_markdown(),
           strip.placement = "outside",
           axis.title.x = element_blank(),
           strip.background = element_blank()),
       labs(y = "Annual fire probability (%)"),
-      #scale_y_continuous(expand = c(0.1, 0)) +
-      expand_limits(y = c(0, 3))
-      # ggh4x::facetted_pos_scales(
-      #   x = list(xlab == lookup_var['MAP'] ~ scale_x_continuous(limits = c(0, 1000)),
-      #            xlab == lookup_var['MAT'] ~ scale_x_continuous(limits = c(0, 20)))
-      # )
-  )
+      expand_limits(y = c(0, 3)),
+      "limit_x" = ggh4x::facetted_pos_scales(
+        x = list(xlab == lookup_var['MAP'] ~ scale_x_continuous(limits = c(0, 1000)),
+                 xlab == lookup_var['MAT'] ~ scale_x_continuous(limits = c(0, 20)))
+  ))
+  
+  if(!limit_x) {
+    out[["limit_x"]] <- NULL
+  }
+  out
 }
 
-jpeg(paste0("figures/pdp/pdp_pub-qual_v2", s, ".jpeg"), 
+# for naming
+v <- if(limit_axes) {
+  "v2"
+} else {
+  "v1"
+}
+
+jpeg(paste0("figures/pdp/pdp_pub-qual_", v, s, ".jpeg"), 
      units = "in", res = 600,  width = 6, height = 3.5)
 g <- ggplot(df_pdp3, aes(x_value, yhat*100)) +
   geom_line() +
@@ -178,7 +201,10 @@ g <- ggplot(df_pdp3, aes(x_value, yhat*100)) +
   geom_text(data = letter_df, aes(label = letter),
             hjust = -0.8,
             vjust = 1) +
-  base_pdp()
+  # if limit_axes is true, then dataset was already filtered,
+  # so additional limits should not be set
+  base_pdp(limit_x = !limit_axes) 
+  
 print(g)
 dev.off()
 

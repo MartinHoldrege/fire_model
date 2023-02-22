@@ -24,8 +24,14 @@ library(RColorBrewer)
 bin_string <- "bin20"
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-sv <-  c("", "_S-T_A-T", "_A-T_A-Pr", "_A2-T2_A-Pr", "_S-T_A-T_A-Pr",
-         "_S-T_A2-T2_A-Pr", "_S2-T2_A2-T2_A-Pr")
+sv <-  c("", # original model (model 1)
+  "_A2-T2_A-Pr", # model 4
+  "_A-P_A2-T2_A-Pr", # model 4b
+  "_S-T_A2-T2_A-Pr", # model 6
+  "_A-P_S-T_A2-T2_A-Pr", # model 6b
+  "_S2-T2_A2-T2_A-Pr" # model 7
+)
+
 files_mod <- paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf", 
                 sv, ".RDS")
 sv[sv == ""] <- "original"
@@ -464,7 +470,7 @@ hists_delta2 <- map(hists_delta1, function(g) {
 })
 
 # this code is slow (takes several minutes)
-pdf("figures/histograms/hists_pred_and_delta_by-model_v1.pdf",
+pdf("figures/histograms/hists_pred_and_delta_by-model_v2.pdf",
     width = 8, height = 6)
   hists_pred2
   hists_pred1
@@ -517,7 +523,7 @@ tm_pred_clim1 <- tm_create_prob_map(rasts_alter_pred1[[s_target]],
             panel.label.size = 0.75)+
   tm_facets(ncol =1)
 
-jpeg(paste0("figures/maps_sensitivity/pred_delta-prob_clim-vars_v1", s_target, ".jpeg"), 
+jpeg(paste0("figures/maps_sensitivity/pred_delta-prob_clim-vars_v2", s_target, ".jpeg"), 
      units = 'in', res = 600, height = 12, width = 4)
   tmap_arrange(tm_pred_clim1, tm_delta_clim1, ncol = 2)
 dev.off()

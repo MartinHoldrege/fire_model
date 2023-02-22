@@ -12,8 +12,13 @@ library(tidyverse)
 
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-sv <-  c("", "_S-T_A-T", "_A-T_A-Pr", "_A2-T2_A-Pr", "_S-T_A-T_A-Pr",
-         "_S-T_A2-T2_A-Pr", "_S2-T2_A2-T2_A-Pr")
+sv <-  c(#"", # original model (model 1)
+  #"_A2-T2_A-Pr", # model 4
+  "_A-P_A2-T2_A-Pr", # model 4b
+  #"_S-T_A2-T2_A-Pr", # model 6
+  "_A-P_S-T_A2-T2_A-Pr"#, # model 6b
+  #"_S2-T2_A2-T2_A-Pr" # model 7
+)
 
 
 # loop through models -----------------------------------------------------
