@@ -21,7 +21,8 @@ sv <-  c("", # original model (model 1)
          "_A-P_A2-T2_A-Pr", # model 4b
          "_S-T_A2-T2_A-Pr", # model 6
          "_A-P_S-T_A2-T2_A-Pr", # model 6b
-         "_S2-T2_A2-T2_A-Pr" # model 7
+         "_S2-T2_A2-T2_A-Pr", # model 7
+         "_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
 )
 
 # whether to create quantile plots based on 10,000 bins (which is slow)
@@ -207,7 +208,7 @@ plots_10k <- split(quant10k, quant10k$model) %>%
 
 pdf("figures/quantile_plots/quantile_plot_10k_by_mod_v2.pdf", 
     width = 6, height = 4.5)
-plots_10k
+ map(plots_10k, print)
 dev.off()
 }
 

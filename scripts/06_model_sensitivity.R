@@ -29,7 +29,8 @@ sv <-  c("", # original model (model 1)
   "_A-P_A2-T2_A-Pr", # model 4b
   "_S-T_A2-T2_A-Pr", # model 6
   "_A-P_S-T_A2-T2_A-Pr", # model 6b
-  "_S2-T2_A2-T2_A-Pr" # model 7
+  "_S2-T2_A2-T2_A-Pr", # model 7
+  "_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
 )
 
 files_mod <- paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf", 

@@ -41,7 +41,7 @@ User defined parameters
 ```{r}
 # set to true if want to run for a limited number of rows (i.e. for code testing)
 test_run <- FALSE
-s <- "_A-P_S-T_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
+s <- "_7B_A-P_S2-T2_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
 # such as (summer ppt * MAT) and annuals*temperature interactions
 ```
 
@@ -403,7 +403,7 @@ pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
                      "afgAGB:MAT" = "(afgAGB:MAT)",
                      "afgAGB2:MAT2" = "I(afgAGB^2):I(MAT^2)",
                      "MAT:prcpPropSum" = "(MAT:prcpPropSum)",
-                     #"MAT2:prcpPropSum2" = "I(MAT^2):I(prcpPropSum^2)",
+                     "MAT2:prcpPropSum2" = "I(MAT^2):I(prcpPropSum^2)",
                      "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)"#,
                      #"afgAGB2:pfgAGB2" = "I(afgAGB^2):I(pfgAGB^2)"
                      )
