@@ -26,7 +26,7 @@ bin_string <- "bin20"
 # the model interactions
 sv <-  c("", # original model (model 1)
   "_A2-T2_A-Pr", # model 4
-  "_A-P_A2-T2_A-Pr", # model 4b
+  "_A-P_A2-T2_A-Pr", # model 4b # final 'best' model
   "_S-T_A2-T2_A-Pr", # model 6
   "_A-P_S-T_A2-T2_A-Pr", # model 6b
   "_S2-T2_A2-T2_A-Pr", # model 7
@@ -38,7 +38,7 @@ files_mod <- paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf"
 sv[sv == ""] <- "original"
 names(files_mod) <- sv
 
-s_target <- "original" # which model (based on files_mod names) do you want
+s_target <- "_A-P_A2-T2_A-Pr" # which model (based on files_mod names) do you want
 # to make publication quality figures for? This if files_mod has names
 # of multiple model objects, figures for all those are just packaged 
 # together pdfs for exploration
@@ -94,10 +94,16 @@ cat(formulas2, sep = "\n")
 # "scripts/05_models_biome-mask_fire-prob_byNFire_hmod.Rmd")
 
 glm_mods_hmod <- readRDS(
-  paste0("models/glm_binomial_models_byNFire_hmod_v1_", bin_string, "_cwf.RDS"))
+  paste0("models/glm_binomial_models_byNFire_hmod_v2_", bin_string, "_cwf.RDS"))
 
+# checking that the hmod and regular mod of the 'target' model
+# have the same interactions (i.e. are comparable)
 hmod1 <- glm_mods_hmod$paint_cwf
+x <- glm_mods_hmod$pred_vars_inter
 
+# note that some of the older model objects don't include the pred_vars_inter
+# list element
+stopifnot(x[x!='hmod'] == mods1[[s_target]]$pred_vars_inter)
 # predicted fire probability ----------------------------------------------
 
 

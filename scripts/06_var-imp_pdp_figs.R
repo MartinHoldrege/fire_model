@@ -23,11 +23,11 @@ theme_set(theme_classic())
 
 sv <-  c(#"", # original model (model 1)
          #"_A2-T2_A-Pr", # model 4
-         #"_A-P_A2-T2_A-Pr", # model 4b
+         "_A-P_A2-T2_A-Pr"#, # model 4b
          #"_S-T_A2-T2_A-Pr", # model 6
          #"_A-P_S-T_A2-T2_A-Pr", # model 6b
          #"_S2-T2_A2-T2_A-Pr", # model 7
-         "_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
+         #"_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
          )
 
 limit_axes <- FALSE
@@ -43,20 +43,19 @@ mods <- readRDS(paste0("models/glm_binomial_models_byNFire_v2_bin20_cwf",
 mod <- mods$paint_cwf
 
 # model fit with human modification
-mods_h <- readRDS("models/glm_binomial_models_byNFire_hmod_v1_bin20_cwf.RDS")
+mods_h <- readRDS("models/glm_binomial_models_byNFire_hmod_v2_bin20_cwf.RDS")
 mod_h <- mods_h$paint_cwf
 
 # create vip --------------------------------------------------------------
 
-if(FALSE){
-g <- vip(mod, num_features = 13)
+if(TRUE){
+g <- vip(mod, num_features = 17)
 # g$data$Variable %>% 
 #   paste(collapse = "' = , '")
 
 lookup <- c('sqrt(afgAGB)' = 'sqrt(afgAGB)', 
             'poly(afgAGB, 2, raw = TRUE)1' = 'afgAGB',
             'poly(afgAGB, 2, raw = TRUE)2' = 'afgAGB^2',
-            'afgAGB:MAP' = 'afgAGB:MAP', 
             'poly(MAP, 2, raw = TRUE)1' = 'MAP', 
             'poly(prcpPropSum, 2, raw = TRUE)1' = 'prcpPropSum', 
             'poly(prcpPropSum, 2, raw = TRUE)2' = 'prcpPropSum^2', 
@@ -65,13 +64,18 @@ lookup <- c('sqrt(afgAGB)' = 'sqrt(afgAGB)',
             'poly(pfgAGB, 2, raw = TRUE)2' = 'pfgAGB^2', 
             'poly(MAT, 2, raw = TRUE)2' = 'MAT^2', 
             'poly(MAT, 2, raw = TRUE)1' = 'MAT', 
-            'afgAGB:prcpPropSum' = 'afgAGB:prcpPropSum')
+            'afgAGB:MAP' = 'afgAGB:MAP', 
+            "afgAGB:pfgAGB" = "afgAGB:pfgAGB",
+            'afgAGB:prcpPropSum' = 'afgAGB:prcpPropSum',
+            'afgAGB:MAT' = 'afgAGB:MAT',
+            "I(afgAGB^2):I(MAT^2)" = '(afgAGB:MAT)^2'
+            )
 
 g$data$Variable <- lookup[g$data$Variable]
 
-jpeg('figures/vip_v3_glm_byNFire.jpeg', width = 3, height = 3, units = 'in',
-     res = 600)
-g
+jpeg(paste0('figures/vip_v3_glm_byNFire', s, '.jpeg'), 
+            width = 3, height = 3, units = 'in', res = 600)
+print(g)
 dev.off()
 }
 
@@ -246,25 +250,39 @@ deciles_h <- mod_h$data %>%
   mutate(xlab = lookup_var_h[variable],
          xlab = factor(xlab, levels = unique(xlab)))
 
+# checking that the hmod and regular mod 
+# have the same interactions (i.e. are comparable)
+x <- mods_h$pred_vars_inter
+y <- mods$pred_vars_inter
 
-# temporarily commenting out
-# jpeg("figures/pdp/pdp_pub-qual_hmod_v1.jpeg", units = "in", res = 600,
-#      width = 6, height = 3.5)
-# ggplot(df_pdp2_h, aes(x_value, yhat*100)) +
-#   geom_line(aes(color = 'Model with human modification',
-#                 linetype = 'Model with human modification')) +
-#   geom_rug(data = deciles_h, aes(x = decile, y = NULL), sides = 'b') +
-#   geom_text(data = letter_df_h, aes(label = letter),
-#             hjust = -0.8,
-#             vjust = 1) +
-#   base_pdp() +
-#   geom_line(data = df_pdp2, aes(color = "Original model",
-#                                 linetype = "Original model")) +
-#   theme(legend.title = element_blank(),
-#         legend.position = "top") +
-#   scale_color_manual(values = c("black", "blue"), name = 'name') +
-#   scale_linetype_manual(values = c(1, 2), name = 'name')
-# dev.off()
+
+# note that some of the older model objects don't include the pred_vars_inter
+# list element
+# this if statement is included to help insure that figure is only
+# created for comparable models (ie only difference is presence of hmod term in)
+if(all(x[x!='hmod'] == y)) {
+  g <- ggplot(df_pdp2_h, aes(x_value, yhat*100)) +
+    geom_line(aes(color = 'Model with human modification',
+                  linetype = 'Model with human modification')) +
+    geom_rug(data = deciles_h, aes(x = decile, y = NULL), sides = 'b') +
+    geom_text(data = letter_df_h, aes(label = letter),
+              hjust = -0.8,
+              vjust = 1) +
+    base_pdp(limit_x = TRUE) +
+    geom_line(data = df_pdp2, aes(color = "Original model",
+                                  linetype = "Original model")) +
+    theme(legend.title = element_blank(),
+          legend.position = "top") +
+    scale_color_manual(values = c("black", "blue"), name = 'name') +
+    scale_linetype_manual(values = c(1, 2), name = 'name')
+  
+  jpeg("figures/pdp/pdp_pub-qual_hmod_v2.jpeg", units = "in", res = 600,
+       width = 6, height = 3.5)
+    print(g)
+
+  dev.off()
+}
+
 
 
 # find maxima -------------------------------------------------------------
@@ -291,6 +309,9 @@ coef_df <-  map_dfr(list(HMod = mod_h, main = mod), function(x) {
   },
   .id = "model")
 
-# temporarily commenting out
-# write_csv(coef_df, "models/models_coefs_glm_byNFire_bin20.csv")
+if(all(x[x!='hmod'] == y)) {
+  write_csv(coef_df, "models/models_coefs_glm_byNFire_bin20.csv")
+}
+
+
 }
