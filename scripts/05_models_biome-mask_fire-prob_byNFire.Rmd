@@ -41,7 +41,7 @@ User defined parameters
 ```{r}
 # set to true if want to run for a limited number of rows (i.e. for code testing)
 test_run <- FALSE
-s <- "_7B_A-P_S2-T2_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
+s <- "_A-P_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
 # such as (summer ppt * MAT) and annuals*temperature interactions
 ```
 
@@ -402,8 +402,8 @@ pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
                      # over-predictions in warm high annual places. 
                      "afgAGB:MAT" = "(afgAGB:MAT)",
                      "afgAGB2:MAT2" = "I(afgAGB^2):I(MAT^2)",
-                     "MAT:prcpPropSum" = "(MAT:prcpPropSum)",
-                     "MAT2:prcpPropSum2" = "I(MAT^2):I(prcpPropSum^2)",
+                     #"MAT:prcpPropSum" = "(MAT:prcpPropSum)",
+                     #"MAT2:prcpPropSum2" = "I(MAT^2):I(prcpPropSum^2)",
                      "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)"#,
                      #"afgAGB2:pfgAGB2" = "I(afgAGB^2):I(pfgAGB^2)"
                      )
@@ -733,9 +733,9 @@ inset_l1 <- map(df_l3, create_inset_filt)
 
 # inset locations
 l <- 0.01 # left
-b <- c(0.18, 0.52, 0.85) #bottom
-w <- 0.4 # width
-h <- 0.12 #height
+b <- c(0.18, 0.515, 0.85) + 0.02 #bottom
+w <- 0.36 # width
+h <- 0.11 #height
 
 # letters of insets correspond to the panels they belong in
 A <- inset_element(inset_l1$afgAGB_MAT, l, b[3], l + w, b[3] + h)
@@ -748,12 +748,13 @@ f <- inset_element(inset_l1$pfgAGB_prcpPropSum, l, b[1], l + w, b[1] + h)
 g2 <- pred_glm1_deciles_filt$paint %>% 
   filter(filter_var %in% clim_vars) %>% 
   decile_dotplot_filtered_pq2(insets_left = list(A, C, E),
-                              insets_right = list(B, D, f))
+                              insets_right = list(B, D, f),
+                              ylim = c(0, 3.48))
 g2
 # add insets
 
-jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v1", 
-            s, ".jpeg"), units = "in", res = 600, width = 7, height = 8 )
+jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v1",
+            s, ".jpeg"), units = "in", res = 600, width = 7, height = 8)
 g2
 dev.off()
 

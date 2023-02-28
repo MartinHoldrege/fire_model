@@ -1090,7 +1090,8 @@ generate_all_legends <- function(df) {
 decile_dotplot_filtered_pq2 <- function(df,
                                         size = 0.5,
                                         insets_left = NULL,
-                                        insets_right = NULL
+                                        insets_right = NULL,
+                                        ylim = NULL
 ) {
   
   df2 <- decile_dotplot_filtered_pq(df, return_df = TRUE) %>% 
@@ -1115,6 +1116,10 @@ decile_dotplot_filtered_pq2 <- function(df,
   colors <- c("#f03b20","#feb24c", "#0570b0", "#74a9cf")
   shapes <- c(19, 17, 19, 17)
   
+  if(is.null(ylim)) {
+    ylim <- range(df2$probability)
+  }
+  
   # base for filtered plot
   base_filt <- function() {
     list(
@@ -1137,7 +1142,7 @@ decile_dotplot_filtered_pq2 <- function(df,
       geom_smooth(aes(color = percentile_category),
                   se = FALSE,
                   size = 0.7),
-      coord_cartesian(ylim = range(df2$probability))
+      coord_cartesian(ylim = ylim)
     )
     
     
