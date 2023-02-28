@@ -351,15 +351,7 @@ tms_delta <- map(rasts_delta1, function(r) {
     basemap(legend.text.size = legend.text.size)
 })
 
-# work in progress
 
-
-
-
-jpeg(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v3", s_target, ".jpeg"), 
-            units = 'in', res = 600, height = 8.5, width = 7.5)
-  tms_delta[[s_target]]
-dev.off()
 
 # creating version for all models (for exploration)
 
@@ -370,10 +362,59 @@ tms_delta2 <- map2(tms_delta, names(tms_delta), function(x, name) {
   x2
 })
 
-pdf("figures/maps_sensitivity/delta-prob_clim-vars_by-mod_v1.pdf",
+pdf("figures/maps_sensitivity/delta-prob_clim-vars_by-mod_v2.pdf",
      height = 8.5, width = 7.5)
   tms_delta2
 dev.off()
+
+
+# ** pub qual version  ----------------------------------------------------
+# figure 5 in manuscript
+# work in progress
+r <- rasts_delta1[[s_target]]
+
+# breaks for delta temperature panels
+b1  <- c( 0.1, .3, .6, 1, 2, 100) 
+b1 <- c(-rev(b1), b1)
+
+l1 <- label_creator(b1, convert2percent = FALSE)
+l1[1] <- paste0("< ", b1[2])
+
+# breaks for delta MAP and prcpPropSum maps (which have less range)
+b2  <- c( 0.1, .2, .3, .4, .5, 100) # original breaks
+b2 <- c(-rev(b2), b2)
+
+l2 <- label_creator(b2, convert2percent = FALSE)
+l2[1] <- paste0("< ", b2[2])
+
+
+input_l <- list(names(delta_titles), #layers
+                list(b1, b1, b2, b2, b2, b2), # breaks
+                list(l1, l1, l2, l2, l2, l2) # labels
+)
+tms_target1 <- pmap(input_l, 
+                function(lyr, breaks, labels) {
+  title <- delta_titles[lyr]
+  r <-  rasts_delta1[[s_target]][[lyr]]*100
+  
+  tm_shape(r, bbox = bbox2) +
+    tm_raster(breaks = breaks,
+              labels = labels,
+              palette = cols_delta,
+              midpoint = 0,
+              title = lab_delta,
+              legend.hist = TRUE) +
+    basemap_hist() +
+    tm_layout(main.title = title)
+
+})
+
+
+jpeg(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v4", s_target, ".jpeg"), 
+     units = 'in', res = 600, height = 8.5, width = 7.5)
+tmap_arrange(tms_target1, ncol = 2)
+dev.off()
+
 
 # * histograms --------------------------------------------------------------
 
@@ -555,10 +596,10 @@ tm_hmod <- tm_create_prob_map(rast_pred_hmod1,
                    main.title.size = 0.8,
                    legend.title.size = 0.6)
 
-tm_hmod_delta <- tm_shape(hmod_delta, bbox = bbox) +
+tm_hmod_delta <- tm_shape(hmod_delta*100, bbox = bbox) +
   tm_raster(title = lab_delta,
-            breaks = breaks_delta,
-            labels = labels_delta,
+            breaks = b2,
+            labels = l2,
             palette = cols_delta,
             midpoint = 0) +
   basemap(legend.text.size = legend.text.size,
@@ -570,7 +611,7 @@ tm_hmod_delta <- tm_shape(hmod_delta, bbox = bbox) +
 
 
 
-jpeg("figures/maps_fire_prob/cwf_hmod_predicted_v1.jpeg", units = 'in', res = 600,
+jpeg("figures/maps_fire_prob/cwf_hmod_predicted_v2.jpeg", units = 'in', res = 600,
      height = 2.8, width = 7)
 tmap_arrange(tm_hmod, tm_hmod_delta, nrow = 1)
 dev.off()

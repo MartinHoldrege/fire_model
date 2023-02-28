@@ -26,19 +26,7 @@ r_prcpPropSum <- rasts_clim1$Summer$prcpProp
 # base map ----------------------------------------------------------------
 tmap_mode("plot")
 
-
-bbox2 <- bbox
-bbox2['xmin'] <- -130
-
-
-poly <- tibble(
-  lon = c(-127, -116),
-  lat = c(33, 35.5)
-  ) %>% 
-  st_as_sf(coords = c("lon", "lat"), 
-           crs = 4326) %>% 
-  st_bbox() %>% 
-  st_as_sfc()
+base <- basemap_hist()
 
 # Maps --------------------------------------------------------------------
 
@@ -46,26 +34,6 @@ poly <- tibble(
 
 # * RAP -------------------------------------------------------------------
 
-
-base <- tmap_options( # increase number of pixels plotted
-  max.raster = c(plot = 1e10, view = 1e6) 
-)+
-  tm_shape(spData::us_states) +
-  tm_borders() +
-  tm_layout(
-    legend.outside = FALSE,
-    legend.text.size = 0.6,
-    legend.title.size = 0.8,
-    main.title.size = 0.8,
-    title.position = c("left", "top"),
-    legend.height = 1,
-    legend.width = 1,
-    legend.hist.width = 0.5,
-    frame = FALSE,
-    legend.position = c('LEFT', 'bottom'),
-    inner.margins=c(.04,.08, .08, .01)) +
-  tm_shape(poly) +
-    tm_fill('white') # white background behind legend
 
 tm_afgAGB <- tm_shape(rast_rap1[["afgAGB"]], bbox = bbox2) +
   tm_raster(breaks = breaks_bio2,
