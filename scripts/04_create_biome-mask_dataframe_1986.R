@@ -94,7 +94,8 @@ df_biome0 <- tibble(
   # proportion ppt falling in summer
   prcpPropSum = as.vector(values(rasts_clim1$Summer$prcpProp)),
   hmod = as.vector(values(rast_hmod))
-)
+) %>% 
+  mutate(cell_num = 1:nrow(.))
 
 # seperate data frames for the two polygon to raster methods
 dfs_biome0 <- map(rasts_fPerPixel, function(r) {
