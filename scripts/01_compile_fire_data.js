@@ -52,7 +52,7 @@ var run = false;
 
 var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
 
-var path = 'projects/gee-guest/assets/cheatgrass_fire/';
+var path = 'projects/usgs-gee-drylandecohydrology/assets/cheatgrass_fire/';
 // read in annual grass data
 
 // Mask for the extent of the sagebrush biome

@@ -34,7 +34,7 @@ var coverVis = {min: 0, max: 100, palette: ['white', 'green']};
 
 // read in data -------------------------------------------------
 
-var path = 'projects/gee-guest/assets/cheatgrass_fire/';
+var path = 'projects/usgs-gee-drylandecohydrology/assets/cheatgrass_fire/';
 // read in annual grass data
 
 // fire probability

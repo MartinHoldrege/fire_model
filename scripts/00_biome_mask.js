@@ -15,7 +15,7 @@
 */ 
 
 // outline of sagebrush biome
-var biome = ee.FeatureCollection("projects/gee-guest/assets/SEI/US_Sagebrush_Biome_2019"); // provided by DT
+var biome = ee.FeatureCollection("projects/usgs-gee-drylandecohydrology/assets/SEI/US_Sagebrush_Biome_2019"); // provided by DT
 var region = biome.geometry();
 
 /// from USGS GAP land cover	

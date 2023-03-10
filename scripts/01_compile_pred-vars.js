@@ -35,7 +35,7 @@ var coverVis = {min: 0, max: 100, palette: ['white', 'green']};
 
 // read in data -------------------------------------------------
 
-var path = 'projects/gee-guest/assets/cheatgrass_fire/';
+var path = 'projects/usgs-gee-drylandecohydrology/assets/cheatgrass_fire/';
 // read in annual grass data
 
 // functions
@@ -74,7 +74,7 @@ var rap1 = ee.ImageCollection('projects/rangeland-analysis-platform/vegetation-c
  
 // reading upscaled stepwat upscaled data to get extent, resolution, and projection
 // note--the specific image doesn't matter, they should have all the same attributes
-var sw2Image = ee.Image('projects/gee-guest/assets/SEI/stepwat_change_rasters/ClimateOnly_Sagebrush_ChangePropHistoricalMax_RCP85_2070-2100_inmcm4');
+var sw2Image = ee.Image('projects/usgs-gee-drylandecohydrology/assets/SEI/stepwat_change_rasters/ClimateOnly_Sagebrush_ChangePropHistoricalMax_RCP85_2070-2100_inmcm4');
 
 var sw2Projection = sw2Image.projection().crs().getInfo();
 var sw2Resolution = sw2Image.projection().nominalScale().getInfo();  
