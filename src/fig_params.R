@@ -13,7 +13,7 @@ library(RColorBrewer)
 # panel pub quality figs)
 fig_letters <- paste(letters, ")", sep = "")
 
-# axis labels -------------------------------------------------------------
+# axis etc labels -------------------------------------------------------------
 
 lab_fireProb <- c("fireProb" = "Long term fire probability (0-1)", 
                   "fireProbYr" = "Probability of fire in a given year (0-1)",
@@ -28,7 +28,7 @@ lab_bio0 <- expression("Biomass ("*gm^-2*")")
 
 lab_delta <- expression(Delta~Probability~"(%)")
 
-
+lab_fri <- 'FRI (years)'
 
 # colors ------------------------------------------------------------------
 
@@ -55,3 +55,31 @@ breaks_bio1 <- c(0, 10, 20, 50, 100, 200, 300) # pfg
 palette_bio1 <- brewer.pal(length(breaks_bio1), 'YlGn')
 breaks_bio2 <- c(0, 5, 10, 20, 30, 50, 100, 200) #afg
 palette_bio2 <- brewer.pal(length(breaks_bio1), 'YlGn')
+
+
+# functions ---------------------------------------------------------------
+
+
+# * second FRI axis -------------------------------------------------------
+
+# create fire return interval labels from fire probability values
+labels_prob2fri <- function(x) {
+  fri <- as.character(round(100/x, 0))
+  fri
+}
+
+# create breaks for fire return interval based on FR
+breaks_prob2fri <- function(x) {
+  rng <- range(x)
+  # using defualt breaks function that is used inside ggplot
+  breaks <- labeling::extended(rng[1], rng[2], 5)
+  breaks <- breaks[breaks!=0] # removing break at zero (where fri undefined)
+  breaks
+}
+
+
+sec_axis_fri <- function() {
+  scale_y_continuous(sec.axis = dup_axis(labels = labels_prob2fri,
+                                         breaks = breaks_prob2fri,
+                                         name = lab_fri))
+}

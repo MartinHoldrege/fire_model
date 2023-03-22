@@ -179,6 +179,7 @@ base_pdp <- function(limit_x = FALSE) {
           axis.title.x = element_blank(),
           strip.background = element_blank()),
       labs(y = "Annual fire probability (%)"),
+      sec_axis_fri(), # adding second axis (fire return interval)
       expand_limits(y = c(0, 3)),
       "limit_x" = ggh4x::facetted_pos_scales(
         x = list(xlab == lookup_var['MAP'] ~ scale_x_continuous(limits = c(0, 1000)),
@@ -195,11 +196,12 @@ base_pdp <- function(limit_x = FALSE) {
 v <- if(limit_axes) {
   "v2"
 } else {
-  "v1"
+  "v3"
 }
 
-jpeg(paste0("figures/pdp/pdp_pub-qual_", v, s, ".jpeg"), 
-     units = "in", res = 600,  width = 6, height = 3.5)
+
+png(paste0("figures/pdp/pdp_pub-qual_", v, s, ".png"), 
+     units = "in", res = 600,  width = 7, height = 3.5)
 g <- ggplot(df_pdp3, aes(x_value, yhat*100)) +
   geom_line() +
   geom_rug(data = deciles, aes(x = decile, y = NULL), sides = 'b') +
@@ -276,7 +278,7 @@ if(all(x[x!='hmod'] == y)) {
     scale_color_manual(values = c("black", "blue"), name = 'name') +
     scale_linetype_manual(values = c(1, 2), name = 'name')
   
-  jpeg("figures/pdp/pdp_pub-qual_hmod_v2.jpeg", units = "in", res = 600,
+  png("figures/pdp/pdp_pub-qual_hmod_v3.png", units = "in", res = 600,
        width = 6, height = 3.5)
     print(g)
 
