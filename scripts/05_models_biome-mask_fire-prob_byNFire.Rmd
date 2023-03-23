@@ -753,8 +753,8 @@ g2 <- pred_glm1_deciles_filt$paint %>%
 g2
 # add insets
 
-jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v1",
-            s, ".jpeg"), units = "in", res = 600, width = 7, height = 8)
+png(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v2",
+            s, ".png"), units = "in", res = 600, width = 8, height = 8)
 g2
 dev.off()
 

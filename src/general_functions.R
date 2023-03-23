@@ -1054,7 +1054,8 @@ legend_generator <- function(df, percentile_name, variable_name) {
     guides(color = guide_legend(title.position = "left"),
            shape = guide_legend(title.position = "left")) +
     theme(legend.title = element_text(size = 8),
-          legend.text = element_text(size = 6))
+          legend.text = element_text(size = 6),
+          legend.margin= margin())
   
   cowplot::get_legend(g1)
 }
@@ -1135,6 +1136,7 @@ decile_dotplot_filtered_pq2 <- function(df,
       # isn't being maintained anymore
       annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7),
       annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7),
+      annotate("segment", x=Inf, xend=Inf, y=-Inf, yend=Inf, size = 0.7),
       theme(legend.position = 'none',
             strip.background = element_blank(),
             strip.text = element_blank(),
@@ -1158,11 +1160,13 @@ decile_dotplot_filtered_pq2 <- function(df,
     geom_text(data = filter(letter_df, name == "pfgAGB") , aes(x = x, y = y, label = letter),
               hjust = -0.8,
               vjust = 1) +
-    theme(axis.text.y = element_blank(),
+    theme(#axis.text.y = element_blank(),
           #axis.ticks.y = element_blank(),
           axis.title.x = ggtext::element_markdown()) +
     labs(y = NULL,
-         x = var2lab('pfgAGB', TRUE))
+         x = var2lab('pfgAGB', TRUE)) +
+    # second FRI axis for the right set of figures
+    sec_axis_fri(labels = NULL) # no labels on the left axis
   
   g_afg <- df2 %>% 
     filter(name == "afgAGB") %>% 
@@ -1173,7 +1177,10 @@ decile_dotplot_filtered_pq2 <- function(df,
               vjust = 1) +
     theme(axis.title.x = ggtext::element_markdown()) +
     labs(y = lab_fireProbPerc,
-         x = var2lab('afgAGB', TRUE))
+         x = var2lab('afgAGB', TRUE)) +
+    scale_y_continuous(sec.axis = dup_axis(labels = NULL,
+                                           breaks = breaks_prob2fri,
+                                           name = NULL))
   
   # create seperate legends to be added onto the figure
   legends <- generate_all_legends(df2)
@@ -1183,8 +1190,8 @@ decile_dotplot_filtered_pq2 <- function(df,
   # grid layout
   m <- 2 # middle (left to right
   b <- 9 # bottom
-  ll <- 4 # left of legend
-  lr <- 5 # right of legend
+  ll <- 5 # left of legend
+  lr <- 5.8 # right of legend
   layout <- c(
     # terra also has area function
     patchwork::area(1, 1, b, m),

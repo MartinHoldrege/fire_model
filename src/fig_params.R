@@ -78,8 +78,10 @@ breaks_prob2fri <- function(x) {
 }
 
 
-sec_axis_fri <- function() {
+sec_axis_fri <- function(name = lab_fri, ...) {
   scale_y_continuous(sec.axis = dup_axis(labels = labels_prob2fri,
                                          breaks = breaks_prob2fri,
-                                         name = lab_fri))
+                                         name = name),
+                     # other arguments passed to function
+                     ...)
 }
