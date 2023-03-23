@@ -791,8 +791,8 @@ decile_dotplot_pq <- function(df, size = 0.5) {
   g <- ggplot(df2, aes(x = mean_value, y = cwf_prop)) +
     geom_point(aes(color = "Observed", shape = "Observed"),
                size = size, alpha = 0.6) +
-    geom_point(aes(y = cwf_prop_pred, color = 'Predicted', alpha = 0.5,
-               shape = 'Predicted'), size = size, alpha = 0.6) +
+    geom_point(aes(y = cwf_prop_pred, color = 'Predicted',
+               shape = 'Predicted'), size = size, alpha = 0.75) +
     geom_text(data = letter_df, aes(x = x, y = y, label = letter),
               hjust = -0.8,
               vjust = 1) +
@@ -800,17 +800,20 @@ decile_dotplot_pq <- function(df, size = 0.5) {
     # using annotate to add in line segements because lemon package (facet_rep_wrap)
     # isn't being maintained anymore
     annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 1) +
+    # adding line segment on the right, for secondary axis
+    annotate("segment", x=Inf, xend=Inf, y=-Inf, yend=Inf, size = 1) +
     labs(y = lab_fireProbPerc) +
     theme(legend.position = 'top',
           legend.title = element_blank(),
           #strip.text = element_text(),
           strip.background = element_blank(),
-          strip.text = ggtext::element_markdown(),
+          strip.text = ggtext::element_markdown(margin = margin()),
           strip.placement = "outside",
           axis.title.x = element_blank(),
           axis.line.y = element_blank())+
-    scale_color_manual(name = 'legend', values = c("Observed" = "black", "Predicted" = "blue")) +
-    scale_shape_manual(name = 'legend', values =  c("Observed" = 19, "Predicted" = 17))
+    scale_color_manual(name = 'legend', values = c("Observed" = "black", "Predicted" = "#2b8cbe")) +
+    scale_shape_manual(name = 'legend', values =  c("Observed" = 19, "Predicted" = 17)) +
+    sec_axis_fri() # adding second fire return interval axis
   
   g
 }
@@ -835,7 +838,8 @@ add_dotplot_inset <- function(g, df, add_smooth = FALSE, ...) {
       aes(x = x, y = y, label = letter),
       hjust = -0.8, vjust = 1) +
     theme(axis.title = element_text(size = 6),
-          axis.text = element_text(size = 6))+
+          axis.text = element_text(size = 6),
+          plot.margin = margin())+
     coord_cartesian(xlim = c(0, max),
                     ylim = c(0, max))
   
@@ -846,7 +850,7 @@ add_dotplot_inset <- function(g, df, add_smooth = FALSE, ...) {
   
   
   g2 <- g +
-    inset_element(inset, left = 0.7, bottom = -0.15,
+    inset_element(inset, left = 0.73, bottom = -0.13,
                   right = 1, top = 0.4)
   g2
 }
@@ -1127,7 +1131,7 @@ decile_dotplot_filtered_pq2 <- function(df,
                      shape = percentile_category),
                  size = size),
       facet_grid(filter_var~name),
-      # using annotate to add in line segements because lemon package (facet_rep_wrap)
+      # using annotate to add in line segments because lemon package (facet_rep_wrap)
       # isn't being maintained anymore
       annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7),
       annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7),
