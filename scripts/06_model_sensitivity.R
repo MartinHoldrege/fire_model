@@ -16,6 +16,7 @@ source("src/basemaps.R")
 source("src/fig_params.R")
 source("src/general_functions.R")
 library(RColorBrewer)
+library(stars)
 
 
 # params ------------------------------------------------------------------
@@ -369,50 +370,83 @@ dev.off()
 
 
 # ** pub qual version  ----------------------------------------------------
+# change in the number of fires per 100 years in response to change in climate
 # figure 5 in manuscript
-# work in progress
-r <- rasts_delta1[[s_target]]
 
-# breaks for delta temperature panels
-b1  <- c( 0.1, .3, .6, 1, 2, 100) 
-b1 <- c(-rev(b1), b1)
+# breaks 
+b1  <- breaks_delta*100
 
-l1 <- label_creator(b1, convert2percent = FALSE)
-l1[1] <- paste0("< ", b1[2])
-
-# breaks for delta MAP and prcpPropSum maps (which have less range)
-b2  <- c( 0.1, .2, .3, .4, .5, 100) # original breaks
-b2 <- c(-rev(b2), b2)
-
-l2 <- label_creator(b2, convert2percent = FALSE)
-l2[1] <- paste0("< ", b2[2])
+# labels (for legend)
+l1 <- labels_delta
 
 
-input_l <- list(names(delta_titles), #layers
-                list(b1, b1, b2, b2, b2, b2), # breaks
-                list(l1, l1, l2, l2, l2, l2) # labels
-)
-tms_target1 <- pmap(input_l, 
-                function(lyr, breaks, labels) {
-  title <- delta_titles[lyr]
+delta_names <- names(delta_titles) %>% 
+  self_name()
+
+# histograms (for insets)
+hist_l1 <- map(delta_names, function(lyr) {
+  r <-  rasts_delta1[[s_target]][[lyr]]*100
+  out <- hist_colored(r, palette = cols_delta, palette_breaks = b1,
+               binwidth = 0.1)
+  out
+})
+
+hist_l2 <- hist_l1
+# restricting axes, so meat of distribution is more visible
+hist_l2[1:2] <- map(hist_l2[1:2], function(g) {
+  g + coord_cartesian(xlim = c(-2, 5))
+})
+
+hist_l2[3:6] <- map(hist_l2[3:6], function(g) {
+  g + coord_cartesian(xlim = c(-0.7, 0.7))
+})
+
+maps_delta1 <-  map(delta_names, function(lyr) {
   r <-  rasts_delta1[[s_target]][[lyr]]*100
   
-  tm_shape(r, bbox = bbox2) +
-    tm_raster(breaks = breaks,
-              labels = labels,
-              palette = cols_delta,
-              midpoint = 0,
-              title = lab_delta,
-              legend.hist = TRUE) +
-    basemap_hist() +
-    tm_layout(main.title = title)
-
+  r_star <- st_as_stars(r)
+  # naming colors and labels so that they appropriately
+  # match the cut raster values
+  colors <- cols_delta
+  labels <- l1
+  levels <- levels(cut(-100:100, b1))
+  names(colors) <- levels
+  names(labels) <- levels
+  
+  g <- ggplot() +
+    geom_stars(data = r_star, 
+               # values is theattribute that corresponds
+               # to the values in the grid-cells
+               aes(x = x, y = y, fill = cut(values, b1))) +
+    basemap_g(bbox = bbox3) +
+    theme(plot.margin = margin(5.5, 0, 0, 0),
+          legend.position = 'left')+
+    scale_fill_manual(na.value = NA,
+                      name = lab_delta,
+                      values = colors,
+                      #breaks = b1,
+                      labels = labels,
+                      # keeping all levels in the legend
+                      drop = FALSE) +
+    labs(subtitle = delta_titles[lyr])
+  g
 })
 
 
-jpeg(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v4", s_target, ".jpeg"), 
-     units = 'in', res = 600, height = 8.5, width = 7.5)
-tmap_arrange(tms_target1, ncol = 2)
+# add histograms on top
+maps_delta2 <- map2(maps_delta1, hist_l2, function(g, h) {
+  out <- g +
+    inset_element(h, 0, 0, 0.32, 0.4, align_to = 'plot') 
+  out
+})
+
+#maps_delta2[[1]]
+
+png(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v5", s_target, ".png"), 
+     units = 'in', res = 600, height = 8.5, width = 8)
+wrap_plots(maps_delta2, ncol = 2) +
+  plot_layout(guides = 'collect') 
+
 dev.off()
 
 

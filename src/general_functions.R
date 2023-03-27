@@ -1253,3 +1253,55 @@ create_inset_filt <- function(df) {
          x = "Predicted") +
     scale_color_manual(values = colors)
 }
+
+
+# mapping -----------------------------------------------------------------
+
+#' create a colored histogram 
+#' 
+#' @description Useful for map insets
+#'
+#' @param x a spatraster or vector (to create histogram of)
+#' @param palette character vector, colors to use for sections of the histogram
+#' @param palette_breaks numeric vector where on the histogram to have the breaks
+#' for the colors
+#' @param xlab label for x axis
+#' @param binwidth width of bins in histogram
+#'
+#' @return
+#' ggplot object
+#' 
+#' @examples
+#' x <- runif(1000)
+#' hist_colored(x, palette = c("black", "red", "blue"), palette_breaks = c(-1, 0.1, 0.4, 1.5))
+hist_colored <- function(x, palette, palette_breaks, xlab = NULL,
+                         binwidth = 0.05) {
+  
+  if('SpatRaster' %in% class(x)) {
+    df <- data.frame(value = values_nona(x))
+  } else if (is.numeric(x)) {
+    df <- data.frame(value = x)
+  } else {
+    stop('x must a spatraster or a vector')
+  }
+  
+  df$breaks <- cut(df$value, palette_breaks)
+  names(palette) <- levels(df$breaks)
+  ggplot(df, aes(x = value, fill = breaks)) +
+    geom_histogram(boundary = 0, binwidth = binwidth) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = 'none',
+          plot.margin = margin()
+          # panel.background = element_rect(fill='transparent'), #transparent panel bg
+          # plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+          # panel.border = element_rect(colour = "black", fill = NA, 
+          #                             linewidth = 0.7)
+          ) +
+    labs(y = NULL,
+         x = xlab) +
+    scale_fill_manual(values = palette) 
+}
+
+
+
