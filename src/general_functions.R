@@ -1275,7 +1275,7 @@ create_inset_filt <- function(df) {
 #' x <- runif(1000)
 #' hist_colored(x, palette = c("black", "red", "blue"), palette_breaks = c(-1, 0.1, 0.4, 1.5))
 hist_colored <- function(x, palette, palette_breaks, xlab = NULL,
-                         binwidth = 0.05) {
+                         binwidth = 0.05, transparent = FALSE) {
   
   if('SpatRaster' %in% class(x)) {
     df <- data.frame(value = values_nona(x))
@@ -1287,21 +1287,37 @@ hist_colored <- function(x, palette, palette_breaks, xlab = NULL,
   
   df$breaks <- cut(df$value, palette_breaks)
   names(palette) <- levels(df$breaks)
-  ggplot(df, aes(x = value, fill = breaks)) +
+  
+  g <- ggplot(df, aes(x = value, fill = breaks)) +
     geom_histogram(boundary = 0, binwidth = binwidth) +
     theme(axis.text.y = element_blank(),
           axis.ticks.y = element_blank(),
           legend.position = 'none',
           plot.margin = margin()
-          # panel.background = element_rect(fill='transparent'), #transparent panel bg
-          # plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
-          # panel.border = element_rect(colour = "black", fill = NA, 
-          #                             linewidth = 0.7)
+
           ) +
     labs(y = NULL,
          x = xlab) +
     scale_fill_manual(values = palette) 
+  
+  # make background of figure transparent, instead of white
+  if(transparent) {
+    g <- g+
+      theme(
+        panel.background = element_rect(fill='transparent'), #transparent panel bg
+        plot.background = element_rect(fill='transparent', color=NA) #transparent plot bg
+    )
+  }
+  g
 }
 
-
-
+# makes the legend smaller
+make_legend_small <- function(pointSize = 1, textSize = 6, spaceLegend = 1) {
+  
+  list(guides(shape = guide_legend(override.aes = list(size = pointSize)),
+              color = guide_legend(override.aes = list(size = pointSize))),
+       theme(legend.title = element_text(size = textSize), 
+             legend.text  = element_text(size = textSize),
+             legend.key.size = unit(spaceLegend, "lines")))
+  
+}

@@ -163,32 +163,114 @@ tm_create_prob_map <- function(r, legend.text.size = 0.55,
 
 # * Observed fire occurrence --------------------------------------------------
 
+# prepare breaks, colors, labels
 breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 37)
-labels <-  c(0, 1, 2, 3, 4, 5, '>5')
-prop_change <- c(round(0:5/36, 3)*100, ">13.9")
+labels <-  c(0, 1, 2, 3, 4, 5, NA)
+f_max <- max(rast_fPerPixel)@ptr$range_max
+labels[length(labels)] <- paste0('6-', f_max)
+prop_change <- c(round(0:5/36, 3)*100, NA)
+prop_change[length(prop_change)] <- paste0(c(round(6/36, 3), round(f_max/36, 3))*100,
+                                           collapse = "-")
 labels <- paste0(labels, " (", prop_change, ")")
 palette <- c('grey', RColorBrewer::brewer.pal(7, "YlOrRd")[-1])
 
+stars_fPerPixel <- st_as_stars(rast_fPerPixel)
+names(stars_fPerPixel) <- 'fPerPixel'
+levels <- levels(cut(0:10, breaks))
+names(palette) <- levels
 
-tm_obs <- tm_shape(rast_fPerPixel, bbox = bbox) +
-  tm_raster(title = "N fires (probability [%])",
-            breaks = breaks,
-            labels = labels,
-            palette = palette) +
-  basemap(legend.text.size = 0.55,
-          legend.title.size = 0.75) +
-  tm_layout(main.title = paste(fig_letters[1], "Number of observed fires (1987-2019)"))
-
+# create map
+g_obs <- ggplot() +
+  geom_stars(data = stars_fPerPixel, 
+             # values is theattribute that corresponds
+             # to the values in the grid-cells
+             aes(x = x, y = y, fill = cut(fPerPixel, breaks))) +
+  basemap_g(bbox = bbox3)+
+  theme(plot.margin = margin(0, 0, 0, 20),
+        legend.position = c(0.05, 0.5)) +
+  scale_fill_manual(na.value = NA,
+                    name = "N fires (probability [%])",
+                    values = palette,
+                    #breaks = breaks,
+                    labels = labels,
+                    # keeping all levels in the legend
+                    drop = TRUE) +
+  labs(subtitle = paste(fig_letters[1], "Number of observed fires (1987-2019)")) +
+  make_legend_small()
+g_obs
 
 # * predicted ------------------------------------------------------------
 
+pal_prob <- RColorBrewer::brewer.pal(11, "RdYlBu")[9:2]
+labels_prob <- label_creator(breaks_prob, convert2percent = TRUE)
+breaks_perc <- breaks_prob*100 # proportion to %
+r <- rasts_pred1[[s_target]]*100
+
+# histogram for inset
+h <- hist_colored(r, 
+                  palette = pal_prob, 
+                  palette_breaks = breaks_perc,
+                  binwidth = 0.1) +
+  coord_cartesian(xlim = c(0, 4)) +
+  labs(x = "Probability (%)") +
+  theme(axis.title = element_text(size = 6))
+
+
+stars_pred <- st_as_stars(r)
+names(stars_pred) <- 'values'
+
+# changing labels so they reflect that actual maximum in the dataset
+p_max <- round(max(values_nona(r)), 1)
+labels_prob[length(labels_prob)] <- paste(breaks_perc[length(breaks_perc) -1],
+                                           "to", p_max)
+
+f1 <- labels_prob2fri(breaks_perc[-1])
+labels_fri <- character(length(labels_prob))
+labels_fri[1] <- paste(">", f1[1])
+labels_fri[2:length(labels_fri)] <- paste(f1[-length(f1)], "to", f1[-1])
+
+# want labels to have both fire probability and fire return interval
+labels_probfri <- paste0(labels_prob, " [", labels_fri, "]")
+
+names(pal_prob)  <- levels(cut(values_nona(r), breaks_perc)) # so NA doesn't show in legend
+
+
+g_pred1 <- ggplot() +
+  geom_stars(data = stars_pred, 
+           aes(x = x, y = y, fill = cut(values, breaks_perc))) +
+  basemap_g(bbox = bbox3)+
+  theme(plot.margin = margin(0, 0, 0, 0),
+        legend.position = 'right') +
+  scale_fill_manual(na.value = NA,
+                    name = "Probability, % [FRI, years]",
+                    values = pal_prob,
+                    #breaks = breaks,
+                    labels = labels_probfri,
+                    # keeping all levels in the legend
+                    drop = TRUE) +
+  labs(subtitle = paste(fig_letters[2], "Modelled annual fire probability")) +
+  make_legend_small()
+
+# add histogram inset
+g_pred2 <- g_pred1 +
+  inset_element(h, 0, 0, 0.32, 0.4, align_to = 'plot') 
+g_pred2
+
+# combine into two paneled map
+png(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v4", s_target, 
+            ".png"), units = 'in', res = 600, height = 2.6, width = 8)
+  g_obs + g_pred2
+dev.off()
+
+# predicted fire probability maps, for each model (for exploration) 
+
+# keeping this here--b/ it is used for non-publication quality figures below
 tms_pred1 <-  map(rasts_pred1, function(r) {
   tm_shape(r*100, bbox = bbox) +
     tm_raster(title = "Probability (%)",
-              breaks = breaks_prob*100,
-              labels = label_creator(breaks_prob, convert2percent = TRUE),
+              breaks = labels_prob,
               legend.hist = TRUE,
-              palette = RColorBrewer::brewer.pal(11, "RdYlBu")[9:2]) +
+              palette = pal_prob) +
     basemap(legend.text.size = 0.4, 
             legend.title.size = 0.75,
             main.title.size = 0.8) +
@@ -199,14 +281,6 @@ tms_pred1 <-  map(rasts_pred1, function(r) {
               legend.height = 0.9,
               legend.width = 1)
 })
-
-
-jpeg(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v3", s_target, 
-            ".jpeg"), units = 'in', res = 600, height = 2.6, width = 7)
-  tmap_arrange(tm_obs, tms_pred1[[s_target]],  ncol = 2)
-dev.off()
-
-# predicted fire probability maps, for each model (for exploration) 
 
 # dimensions for figure flexible depending on the number of maps
 n <- length(tms_pred1)
