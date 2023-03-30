@@ -1312,7 +1312,7 @@ hist_colored <- function(x, palette, palette_breaks, xlab = NULL,
 }
 
 # makes the legend smaller
-make_legend_small <- function(pointSize = 1, textSize = 6, spaceLegend = 1) {
+make_legend_small <- function(pointSize = 1, textSize = 7, spaceLegend = 1) {
   
   list(guides(shape = guide_legend(override.aes = list(size = pointSize)),
               color = guide_legend(override.aes = list(size = pointSize))),

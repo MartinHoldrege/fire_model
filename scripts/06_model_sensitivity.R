@@ -167,11 +167,16 @@ tm_create_prob_map <- function(r, legend.text.size = 0.55,
 breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 37)
 labels <-  c(0, 1, 2, 3, 4, 5, NA)
 f_max <- max(rast_fPerPixel)@ptr$range_max
+
+# labels for n fire
 labels[length(labels)] <- paste0('6-', f_max)
-prop_change <- c(round(0:5/36, 3)*100, NA)
-prop_change[length(prop_change)] <- paste0(c(round(6/36, 3), round(f_max/36, 3))*100,
+
+# labels fire fire probability
+label_prob <- c(round(0:5/36, 3)*100, NA)
+label_prob[length(label_prob)] <- paste0(c(round(6/36, 3), round(f_max/36, 3))*100,
                                            collapse = "-")
-labels <- paste0(labels, " (", prop_change, ")")
+
+
 palette <- c('grey', RColorBrewer::brewer.pal(7, "YlOrRd")[-1])
 
 stars_fPerPixel <- st_as_stars(rast_fPerPixel)
@@ -185,18 +190,31 @@ g_obs <- ggplot() +
              # values is theattribute that corresponds
              # to the values in the grid-cells
              aes(x = x, y = y, fill = cut(fPerPixel, breaks))) +
+  # 
+  geom_point(data = tibble(x = 1:10, y = 1:10, values = 0:9), 
+             alpha = 0,
+             aes(x = x, y = y, shape = cut(values, breaks))) +
   basemap_g(bbox = bbox3)+
-  theme(plot.margin = margin(0, 0, 0, 20),
-        legend.position = c(0.05, 0.5)) +
+  theme(plot.margin = margin(0, 0, 0, 45),
+        legend.position = c(-0.05, 0.5),
+        legend.box = 'horizontal',
+        legend.margin = margin()) +
   scale_fill_manual(na.value = NA,
-                    name = "N fires (probability [%])",
+                    name = "        Probability (%)",
                     values = palette,
                     #breaks = breaks,
-                    labels = labels,
+                    labels = label_prob,
                     # keeping all levels in the legend
                     drop = TRUE) +
+  scale_shape_manual(labels = labels,
+                     name = "N fires",
+                     values = 1:length(labels),
+                     drop = FALSE) +
   labs(subtitle = paste(fig_letters[1], "Number of observed fires (1987-2019)")) +
-  make_legend_small()
+  make_legend_small() +
+  guides(fill = guide_legend(order = 2),
+         shape = guide_legend(order = 1, label.hjust = 1,
+                              title.hjust = 1))
 g_obs
 
 # * predicted ------------------------------------------------------------
@@ -213,7 +231,7 @@ h <- hist_colored(r,
                   binwidth = 0.1) +
   coord_cartesian(xlim = c(0, 4)) +
   labs(x = "Probability (%)") +
-  theme(axis.title = element_text(size = 6))
+  theme(axis.title = element_text(size = 7))
 
 
 stars_pred <- st_as_stars(r)
@@ -227,29 +245,39 @@ labels_prob[length(labels_prob)] <- paste(breaks_perc[length(breaks_perc) -1],
 f1 <- labels_prob2fri(breaks_perc[-1])
 labels_fri <- character(length(labels_prob))
 labels_fri[1] <- paste(">", f1[1])
-labels_fri[2:length(labels_fri)] <- paste(f1[-length(f1)], "to", f1[-1])
+labels_fri[2:length(labels_fri)] <- paste(f1[-1], "to",f1[-length(f1)] )
 
-# want labels to have both fire probability and fire return interval
-labels_probfri <- paste0(labels_prob, " [", labels_fri, "]")
-
-names(pal_prob)  <- levels(cut(values_nona(r), breaks_perc)) # so NA doesn't show in legend
-
+shapes <- 1:length(pal_prob) # arbitrary values (not actually showing shapes)
+names(shapes)  <- levels(cut(values_nona(r), breaks_perc)) # so NA doesn't show in legend
+names(pal_prob) <- names(shapes)
 
 g_pred1 <- ggplot() +
   geom_stars(data = stars_pred, 
            aes(x = x, y = y, fill = cut(values, breaks_perc))) +
+  # to create second legend
+  geom_point(data = tibble(x = 1:10, y = 1:10, values = 0:9), 
+             alpha = 0,
+             aes(x = x, y = y, shape = cut(values, breaks_perc))) +
   basemap_g(bbox = bbox3)+
   theme(plot.margin = margin(0, 0, 0, 0),
-        legend.position = 'right') +
+        legend.position = 'right',
+        legend.box = 'horizontal') +
   scale_fill_manual(na.value = NA,
-                    name = "Probability, % [FRI, years]",
+                    # leading spaces so title name over the labels
+                    name = "        FRI (years)", 
                     values = pal_prob,
-                    #breaks = breaks,
-                    labels = labels_probfri,
-                    # keeping all levels in the legend
-                    drop = TRUE) +
-  labs(subtitle = paste(fig_letters[2], "Modelled annual fire probability")) +
-  make_legend_small()
+                    labels = labels_fri,
+                    drop = FALSE) +
+  scale_shape_manual(labels = labels_prob,
+                     name = "Probability (%)",
+                     values = shapes,
+                     drop = FALSE) +
+  labs(subtitle = paste("   ", fig_letters[2], "Modelled annual fire probability")) +
+  make_legend_small() +
+  guides(fill = guide_legend(order = 2, legend.title.align = 1),
+         shape = guide_legend(order = 1, label.hjust = 1,
+                              title.hjust = 1))
+g_pred1
 
 # add histogram inset
 g_pred2 <- g_pred1 +
