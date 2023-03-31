@@ -217,7 +217,7 @@ var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
   lookup_md <- c(
     "MAT" = "MAT (\u00b0C)",
     "MAP" = "MAP (mm)",
-    "prcpPropSum" = "Proportion summer ppt",
+    "prcpPropSum" = "PSP (proportion)",
     "afgAGB" = "Annual biomass (g/m<sup>2</sup>)",
     "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)"
   )
@@ -225,7 +225,7 @@ var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
   lookup_name_only <- c(
     "MAT" = "MAT",
     "MAP" = "MAP",
-    "prcpPropSum" = "Proportion summer ppt",
+    "prcpPropSum" = "PSP",
     "afgAGB" = "Annual biomass",
     "pfgAGB" = "Perennial biomass"
   )
@@ -1062,7 +1062,7 @@ legend_generator <- function(df, percentile_name, variable_name) {
 
 # generate a list of legends (to be used decile_dotplot_filter_pq2)
 generate_all_legends <- function(df) {
-  var_names <- c("MAT", "MAP", "prop. sum. ppt.")
+  var_names <- var2lab(c("MAT", "MAP", "prcpPropSum"))
   percentile_names <- c("Low", "High")
   df_names <- expand_grid(var_names, percentile_names)
   
