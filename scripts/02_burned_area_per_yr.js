@@ -1,7 +1,17 @@
+/**
+ * Purpose: Calculate the total area burned per year within the sagebrush
+ * biome based on the usgs combined wildland fire dataset
+ * 
+ * Author: Martin Holdrege
+ * 
+ * Date started: April 7, 2023
+*/
+
+
 
 // parameters -------------------------------------------------------------------
 
-var resolution = 10000
+var resolution = 30
 
 // dependencies -----------------------------------------------------------------
 var fire = require("users/mholdrege/cheatgrass_fire:scripts/01_compile_fire_data.js");
@@ -16,21 +26,38 @@ print(cwfImageByYearM)
 
 
 // calculate area burned ------------------------------------------------------------
+
 var areaImage = m.mask.multiply(ee.Image.pixelArea());
 
-print()
-var areaBurnedByYear = cwfImageByYearM.map(function(image) {
+var areaBurnedByYear = ee.FeatureCollection(cwfImageByYearM).map(function(image) {
   var areaBurnedImage = areaImage.multiply(ee.Image(image));
   
-  var area = // ee.Number(
-    ee.Image(areaBurnedImage).reduceRegion({
+  // Extract the year from the time_start property
+  var year = ee.Date(image.get('system:time_start')).get('year');
+  
+  // not worrying about the crs here--b/ using the area image (based on area of each pixel)
+  // so should be accurate 
+  var area = ee.Image(areaBurnedImage).reduceRegion({
       reducer: ee.Reducer.sum(),
       geometry: region,
       maxPixels: 1e12,
       scale: resolution
-    })
-//   );
-  return area;
-})
+    }).get('b1');
+    
+  // Return a feature with both the year and area values
+  return ee.Feature(null, 
+  {'year': year, 
+  // convert m2 to ha
+  'area_ha': ee.Number(area).divide(10000)
+  });
 
-print(areaBurnedByYear);
+});
+
+// output assets ----------------------------------------------------------------------
+
+Export.table.toDrive({
+  collection: areaBurnedByYear,
+  description: 'area_burned_by_yr_cwf_' + resolution + 'm',
+  folder: 'cheatgrass_fire',
+  fileFormat: 'CSV'
+});
