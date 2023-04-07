@@ -22,7 +22,7 @@ var region = m.region;
 // list of whether or not a fire occured in a given pixel, each year, masked to the biome
 // USGS combined wildland fire dataset
 var cwfImageByYearM = fire.cwfImageByYearM;
-print(cwfImageByYearM)
+//print(cwfImageByYearM);
 
 
 // calculate area burned ------------------------------------------------------------
