@@ -167,10 +167,6 @@ tm_create_prob_map <- function(r, legend.text.size = 0.55,
 
 
 
-# observed & predicted map ------------------------------------------------
-
-# simple two panel map showing observed and predicted, for the results
-# section
 
 
 # * Observed fire occurrence --------------------------------------------------
@@ -408,23 +404,100 @@ rasts_alter1 <- map2(mods1, rasts_pred1, function(mod, r) {
   })
 })
 
+# * burned area -----------------------------------------------------------
 
-# * 6 panel map -----------------------------------------------------------
-# delta fire probabilities for each of 6 climate scenarios
+plot(area_ha ~ year, data = ba1, type = 'l')
+# observed mean burned area
+ba_obs <- ba1 %>% 
+  filter(year >=1987) %>% 
+  summarise(area_ha = mean(area_ha))
+ba_obs
+# 483482.
 
-legend.text.size <- 0.55
+# expected (long term) mean annual burned area (ha) based on the model
+ba_exp <- calc_exp_ba(rasts_pred1[[s_target]])
+# 433890.9
+
+# change in burned area with climate perturbations
+
+ba_delta1 <- map_dbl(rasts_alter1[[s_target]], function(x) {
+  calc_exp_ba(x$delta)
+})
+ba_delta1
+
+# observed & predicted figs ------------------------------------------------
 
 delta_titles0 <- c(
   "mat_warm" = paste0("+", warm, "°C MAT"),
   "mat_hot" = paste0("+", hot, "°C MAT"),
   "map_minus" = paste0("-",map_change*100, "% MAP"),
   "map_plus" = paste0("+",map_change*100, "% MAP"),
-  "prop_minus" = paste0("-",prop_change*100, "% Proportion summer ppt"),
-  "prop_plus" = paste0("+",prop_change*100, "% Proportion summer ppt")
+  "prop_minus" = paste0("-",prop_change*100, "% PSP"),
+  "prop_plus" = paste0("+",prop_change*100, "% PSP")
 )
 
 delta_titles <- paste(fig_letters[1:length(delta_titles0)], delta_titles0)
 names(delta_titles) <- names(delta_titles0)
+
+# * delta probability histograms ---------------------------------------------
+
+df_delta1 <- map2_dfr(names(rasts_alter1[[s_target]]), rasts_alter1[[s_target]], 
+         function(lyr, x) {
+           out <- get_values(1, x$delta)
+           out$lyr <- lyr
+           out
+         }) %>% 
+  # convert to %
+  mutate(delta_fire_prob = value*100,
+         title = factor(delta_titles[lyr], levels = delta_titles)) %>% 
+  select(-value)
+
+delta_range <- df_delta1 %>% 
+  group_by(title, lyr) %>% 
+  summarise(min = min(delta_fire_prob),
+            max = max(delta_fire_prob))
+
+limits <- list(title == lookup_var['MAT'] ~ scale_x_continuous(
+  limits = c(with(delta_range, min[lyr == 'mat_hot']),
+             with(delta_range, max[lyr == 'mat_hot'])))
+)
+
+# limits for MAT panels
+mat_limits <- c(with(delta_range, min[lyr == 'mat_hot']),
+                with(delta_range, max[lyr == 'mat_hot']))
+
+map_limits <- c(with(delta_range, min(min[!str_detect(lyr, 'mat')])),
+                with(delta_range, max(max[!str_detect(lyr, 'mat')])))
+
+# limits for other panels
+ggplot(df_delta1, aes(x = delta_fire_prob)) +
+  geom_histogram(bins = 100) +
+  geom_vline(data = delta_range, aes(xintercept = min, linetype = "min")) +
+  geom_vline(data = delta_range, aes(xintercept = max, linetype = "max")) +
+  facet_wrap(~title, scales = 'free_x', ncol = 2) +
+  expand_limits(x = c(-1, 1)) +
+
+  ggh4x::facetted_pos_scales(
+    x = list(str_detect(title, "MAT") ~
+               scale_x_continuous(limits = mat_limits),
+             !str_detect(title, "MAT") ~
+               scale_x_continuous(limits = map_limits))
+  ) +
+  scale_linetype_manual(values = c('max' = 3, "min" = 2)) +
+  labs(x = lab_delta) +
+  theme(legend.title = element_blank(),
+        strip.placement = "outside",
+        strip.text = element_text(hjust = 0),
+        strip.background = element_blank(),
+        panel.background = element_rect(colour = 'black'))
+
+
+# * 6 panel map -----------------------------------------------------------
+# delta fire probabilities for each of 6 climate scenarios
+
+legend.text.size <- 0.55
+
+
 rasts_alter2 <- rasts_alter1
 
 # make sure elements refer to the same alteration
@@ -481,7 +554,6 @@ pdf("figures/maps_sensitivity/delta-prob_clim-vars_by-mod_v2.pdf",
      height = 8.5, width = 7.5)
   tms_delta2
 dev.off()
-
 
 # ** pub qual version  ----------------------------------------------------
 # change in the number of fires per 100 years in response to change in climate

@@ -381,6 +381,17 @@ subsample_by_var2 <- function(target_var,
   out
 }
 
+#' calculate expected burned area
+#'
+#' @param r raster containing fire probability values (per pixel)
+#'
+#' @return expected (long term) area burned (in ha), properly weighted
+#' by the area of the pixels
+calc_exp_ba <- function(r) {
+  r_ba_exp <- terra::cellSize(r)*r
+  out <- sum(values_nona(r_ba_exp))/10000 # total area convet to ha
+  out
+}
 # quantile plots ----------------------------------------------------------
 
 #' filter rows by climate variables
