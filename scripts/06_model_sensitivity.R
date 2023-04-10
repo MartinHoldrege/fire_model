@@ -44,6 +44,18 @@ s_target <- "_A-P_A2-T2_A-Pr" # which model (based on files_mod names) do you wa
 # of multiple model objects, figures for all those are just packaged 
 # together pdfs for exploration
 
+
+# read in data ------------------------------------------------------------
+
+# * burned area ----------------------------------------------------------
+
+# area burned each year, for all sagebrush biome pixels. based on the USGS
+# combined wildland fire dataset
+# file created by the 02_burned_area_per_yr.js script
+ba1 <- read_csv("data_processed/area_burned_by_yr_cwf_30m.csv",
+                show_col_types = FALSE) %>% 
+  select(area_ha, year)
+
 # * fire data -------------------------------------------------------------
 
 # number of observed fires per pixel, cwf (combined wildand fire dataset) 
@@ -296,7 +308,7 @@ dev.off()
 tms_pred1 <-  map(rasts_pred1, function(r) {
   tm_shape(r*100, bbox = bbox) +
     tm_raster(title = "Probability (%)",
-              breaks = labels_prob,
+              breaks = breaks_perc,
               legend.hist = TRUE,
               palette = pal_prob) +
     basemap(legend.text.size = 0.4, 
@@ -473,7 +485,7 @@ dev.off()
 
 # ** pub qual version  ----------------------------------------------------
 # change in the number of fires per 100 years in response to change in climate
-# figure 5 in manuscript
+# figure 6 in manuscript
 
 # breaks 
 b1  <- breaks_delta*100
@@ -507,6 +519,7 @@ maps_delta1 <-  map(delta_names, function(lyr) {
   r <-  rasts_delta1[[s_target]][[lyr]]*100
   
   r_star <- st_as_stars(r)
+ 
   # naming colors and labels so that they appropriately
   # match the cut raster values
   colors <- cols_delta
@@ -515,6 +528,8 @@ maps_delta1 <-  map(delta_names, function(lyr) {
   names(colors) <- levels
   names(labels) <- levels
   
+  # hack, so cut in the aes() below, works (ie. lyr always has same name
+  names(r_star) <- 'values' 
   g <- ggplot() +
     geom_stars(data = r_star, 
                # values is theattribute that corresponds
@@ -550,7 +565,6 @@ wrap_plots(maps_delta2, ncol = 2) +
   plot_layout(guides = 'collect') 
 
 dev.off()
-
 
 # * histograms --------------------------------------------------------------
 
@@ -734,8 +748,8 @@ tm_hmod <- tm_create_prob_map(rast_pred_hmod1,
 
 tm_hmod_delta <- tm_shape(hmod_delta*100, bbox = bbox) +
   tm_raster(title = lab_delta,
-            breaks = b2,
-            labels = l2,
+            breaks = b1,
+            labels = l1,
             palette = cols_delta,
             midpoint = 0) +
   basemap(legend.text.size = legend.text.size,
