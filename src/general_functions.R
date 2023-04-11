@@ -384,12 +384,14 @@ subsample_by_var2 <- function(target_var,
 #' calculate expected burned area
 #'
 #' @param r raster containing fire probability values (per pixel)
+#' @param unit passed to cellSize function, unit for output area
 #'
-#' @return expected (long term) area burned (in ha), properly weighted
+#' @return expected (long term) area burned (in km^2, 
 #' by the area of the pixels
-calc_exp_ba <- function(r) {
-  r_ba_exp <- terra::cellSize(r)*r
-  out <- sum(values_nona(r_ba_exp))/10000 # total area convet to ha
+calc_exp_ba <- function(r, unit = 'km') {
+  r_ba_exp <- terra::cellSize(r, unit = unit)*r
+  out <- sum(values_nona(r_ba_exp))
+  
   out
 }
 # quantile plots ----------------------------------------------------------

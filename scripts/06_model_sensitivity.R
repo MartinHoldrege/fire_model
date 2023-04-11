@@ -410,7 +410,7 @@ plot(area_ha ~ year, data = ba1, type = 'l')
 # observed mean burned area
 ba_obs <- ba1 %>% 
   filter(year >=1987) %>% 
-  summarise(area_ha = mean(area_ha))
+  summarise(area_km2 = mean(area_ha)/100)
 ba_obs
 # 483482.
 
@@ -426,6 +426,7 @@ ba_delta1 <- map_dfr(rasts_alter1[[s_target]], function(x) {
 ba_delta1
 
 ba_delta1
+
 
 # observed & predicted figs ------------------------------------------------
 
@@ -446,9 +447,14 @@ names(delta_titles) <- names(delta_titles0)
 # for adding to histograms
 ba_delta2 <- ba_delta1%>% 
   pivot_longer(everything()) %>% 
-  mutate(title = delta_titles[name],
-         label = paste0(round(value/10^3), "x10\U00B3 ha"),
+  mutate(percent = round(value/ba_exp*100), # % change relative to modelled under ambient conditions
+         percent = paste0("(", percent, "%)"),
+         # adding leading "+"
+         percent = str_replace(percent, "\\((?!\\-)", "\\(\\+"),
+          title = delta_titles[name],
+         label = paste0(round(value), "km\U00B2"),
          label = str_replace(label, '^(?!\\-)', '+'), # addin + infront of non-negatives
+         label = paste(label, percent, sep = "\n"),
          x = Inf, y = Inf)
 
 df_delta1 <- map2_dfr(names(rasts_alter1[[s_target]]), rasts_alter1[[s_target]], 
@@ -505,12 +511,12 @@ h <- ggplot(df_delta1, aes(x = delta_fire_prob)) +
   theme(legend.title = element_blank(),
         strip.placement = "outside",
         strip.text = element_text(hjust = 0),
-        strip.background = element_blank()) +
+        strip.background = element_blank()) 
   # want to avoid e style scientific notation
-  scale_y_continuous(labels = scales::label_number(scale = 10^(-5), 
-                                            # x10^5 
-                                           suffix = "x10\U2075"))
-
+  # scale_y_continuous(labels = scales::label_number(scale = 10^(-5), 
+  #                                           # x10^5 
+  #                                          suffix = "x10\U2075"))
+h
 png("figures/histograms/sensitivity_delta_fire-prob_v1.png",
     height = 5, width = 4, units = 'in', res = 600)
 h
