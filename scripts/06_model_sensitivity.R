@@ -420,9 +420,11 @@ ba_exp <- calc_exp_ba(rasts_pred1[[s_target]])
 
 # change in burned area with climate perturbations
 
-ba_delta1 <- map_dbl(rasts_alter1[[s_target]], function(x) {
+ba_delta1 <- map_dfr(rasts_alter1[[s_target]], function(x) {
   calc_exp_ba(x$delta)
 })
+ba_delta1
+
 ba_delta1
 
 # observed & predicted figs ------------------------------------------------
@@ -440,6 +442,14 @@ delta_titles <- paste(fig_letters[1:length(delta_titles0)], delta_titles0)
 names(delta_titles) <- names(delta_titles0)
 
 # * delta probability histograms ---------------------------------------------
+
+# for adding to histograms
+ba_delta2 <- ba_delta1%>% 
+  pivot_longer(everything()) %>% 
+  mutate(title = delta_titles[name],
+         label = paste0(round(value/10^3), "x10\U00B3 ha"),
+         label = str_replace(label, '^(?!\\-)', '+'), # addin + infront of non-negatives
+         x = Inf, y = Inf)
 
 df_delta1 <- map2_dfr(names(rasts_alter1[[s_target]]), rasts_alter1[[s_target]], 
          function(lyr, x) {
@@ -470,26 +480,42 @@ map_limits <- c(with(delta_range, min(min[!str_detect(lyr, 'mat')])),
                 with(delta_range, max(max[!str_detect(lyr, 'mat')])))
 
 # limits for other panels
-ggplot(df_delta1, aes(x = delta_fire_prob)) +
+h <- ggplot(df_delta1, aes(x = delta_fire_prob)) +
   geom_histogram(bins = 100) +
   geom_vline(data = delta_range, aes(xintercept = min, linetype = "min")) +
   geom_vline(data = delta_range, aes(xintercept = max, linetype = "max")) +
   facet_wrap(~title, scales = 'free_x', ncol = 2) +
   expand_limits(x = c(-1, 1)) +
-
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
+  geom_label(data = ba_delta2, aes(x = x, y = y, label = label),
+            hjust = 1.0,
+            vjust = 1.2,
+            size = 2.5,
+            label.size = NA # remove border around label
+            )+
   ggh4x::facetted_pos_scales(
     x = list(str_detect(title, "MAT") ~
                scale_x_continuous(limits = mat_limits),
              !str_detect(title, "MAT") ~
                scale_x_continuous(limits = map_limits))
   ) +
-  scale_linetype_manual(values = c('max' = 3, "min" = 2)) +
-  labs(x = lab_delta) +
+  scale_linetype_manual(values = c('max' = 3, "min" = 4)) +
+  labs(x = lab_delta,
+       y = 'Count') +
   theme(legend.title = element_blank(),
         strip.placement = "outside",
         strip.text = element_text(hjust = 0),
-        strip.background = element_blank(),
-        panel.background = element_rect(colour = 'black'))
+        strip.background = element_blank()) +
+  # want to avoid e style scientific notation
+  scale_y_continuous(labels = scales::label_number(scale = 10^(-5), 
+                                            # x10^5 
+                                           suffix = "x10\U2075"))
+
+png("figures/histograms/sensitivity_delta_fire-prob_v1.png",
+    height = 5, width = 4, units = 'in', res = 600)
+h
+dev.off()
+
 
 
 # * 6 panel map -----------------------------------------------------------
