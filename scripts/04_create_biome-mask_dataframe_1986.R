@@ -46,7 +46,12 @@ rasts_clim1 <- map(clim_paths, terra::rast) # list of rasters
 rast_rap1 <- rast(
   paste0("data_processed/RAP/RAP_afgAGB-pfgAGB_1986-2019_mean_1000m", 
          maskString, "v1.tif"))
-
+# * cell size --------------------------------------------------------------
+# used as a weight when calculating later averages?
+r_size <- cellSize(rast_rap1[[1]], unit = 'km')
+size_df1 <- get_values(1, r_size) %>% 
+  rename(cell_size = value) %>% 
+  select(-lyr)
 
 # * fire occurrence -------------------------------------------------------
 
@@ -95,7 +100,10 @@ df_biome0 <- tibble(
   prcpPropSum = as.vector(values(rasts_clim1$Summer$prcpProp)),
   hmod = as.vector(values(rast_hmod))
 ) %>% 
-  mutate(cell_num = 1:nrow(.))
+  mutate(cell_num = 1:nrow(.)) %>% 
+  left_join(size_df1, by = "cell_num") %>% 
+  mutate(weight = cell_size) %>% 
+  select(-cell_size)
 
 # seperate data frames for the two polygon to raster methods
 dfs_biome0 <- map(rasts_fPerPixel, function(r) {

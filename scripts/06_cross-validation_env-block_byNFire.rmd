@@ -36,7 +36,7 @@ params
 
 ```{r}
 test_run <- FALSE # runs code on data subset, for testing
-s <- "_7B_A-P_S2-T2_A2-T2_A-Pr" # string to paste to file names (often named based on added interactions)
+s <- "_A-P_A2-T2_A-Pr" # string to paste to file names (often named based on added interactions)
 ```
 
 
@@ -79,7 +79,9 @@ summarize_pred_response <- function(df) {
                         .fns = function(x) x*100)) %>% 
     summarise(across(c(MAT, MAP, prcpPropSum, afgAGB, pfgAGB, matches("cwf_prop")),
                   .fns = weighted.mean,
-                  w = numYrs))
+                  # note--older dataframes didn't have a weight column,
+                  # and those cases numYrs should be used. 
+                  w = weight))
   out
 }
 ```

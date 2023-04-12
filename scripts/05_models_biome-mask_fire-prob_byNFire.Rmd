@@ -642,7 +642,7 @@ g <- decile_dotplot_pq(pred_glm1_deciles$paint)
 g2 <- add_dotplot_inset(g, pred_glm1_deciles$paint)
 
 g2
-png(paste0("figures/quantile_plots/quantile_plot_v4", s,  ".png"), 
+png(paste0("figures/quantile_plots/quantile_plot_v5", s,  ".png"), 
      units = "in", res = 600, width = 5.5, height = 3.5 )
 g2
 dev.off()
@@ -753,7 +753,7 @@ g2 <- pred_glm1_deciles_filt$paint %>%
 g2
 # add insets
 
-png(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v2",
+png(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v3",
             s, ".png"), units = "in", res = 600, width = 8, height = 8)
 g2
 dev.off()
