@@ -21,6 +21,14 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE,
 
 # Dependencies
 
+Note, I'm using blockCV version 2.1.4. The newest version doesn't 
+exactly reproduce the same results (b/ of random number generator difference?)
+which makes the blocks numbered differently (actual differences in results
+are trivial). So running this code
+`devtools::install_version("blockCV", version = "2.1.4", repos = "http://cran.us.r-project.org")`
+will install the same version as I've been using. 
+
+
 ```{r, message = FALSE, warning = FALSE}
 source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/resample_functions.R")
