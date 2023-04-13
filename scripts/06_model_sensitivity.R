@@ -417,12 +417,12 @@ mods1[[s_target]]$data %>%
   mutate(ba = cell_size*nfire_cwf) %>% 
   # mean annual burned area
   summarize(area_km2 = sum(ba)/(2019-1986)) 
-
+# 5311.
 
 # expected (long term) mean annual burned area (ha) based on the model
 ba_exp <- calc_exp_ba(rasts_pred1[[s_target]])
 ba_exp
-# 4347.9
+# 4338.9
 
 # change in burned area with climate perturbations
 

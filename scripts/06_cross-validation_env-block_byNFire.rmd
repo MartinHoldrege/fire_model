@@ -30,6 +30,8 @@ will install the same version as I've been using.
 
 
 ```{r, message = FALSE, warning = FALSE}
+# set option so resampled datasets created here reproduces earlier runs of this code with dplyr 1.0.10
+options(dplyr.legacy_locale = TRUE) 
 source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/resample_functions.R")
 source("src/modeling_functions.R")

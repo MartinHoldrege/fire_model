@@ -18,6 +18,7 @@
 
 # dependencies ------------------------------------------------------------
 
+source("src/general_functions.R")
 library(terra)
 library(tidyverse)
 theme_set(theme_classic())
