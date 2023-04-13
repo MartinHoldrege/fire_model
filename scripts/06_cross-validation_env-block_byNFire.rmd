@@ -426,7 +426,8 @@ pred_test_deciles1 <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
 map2(pred_test_deciles1, names(pred_test_deciles1), function(df, fold) {
   decile_dotplot_pq(df = df) +
     labs(subtitle = paste0("Predictions on ", fold, 
-                           " (model fit to other folds)"))
+                           " (model fit to other folds)")) +
+    coord_cartesian(ylim = c(0, 3.5))
 })
 ```
 

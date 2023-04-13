@@ -166,9 +166,6 @@ tm_create_prob_map <- function(r, legend.text.size = 0.55,
 }
 
 
-
-
-
 # * Observed fire occurrence --------------------------------------------------
 
 # prepare breaks, colors, labels
@@ -407,16 +404,25 @@ rasts_alter1 <- map2(mods1, rasts_pred1, function(mod, r) {
 # * burned area -----------------------------------------------------------
 
 plot(area_ha ~ year, data = ba1, type = 'l')
-# observed mean burned area
+# observed mean burned area (accurately calculated based on rasterizing polygons
+# to ~30 m pixels)
 ba_obs <- ba1 %>% 
   filter(year >=1987) %>% 
   summarise(area_km2 = mean(area_ha)/100)
 ba_obs
-# 483482.
+# 4835.
+
+# observed burned area (based on the coarse ~1x1 km data)
+mods1[[s_target]]$data %>% 
+  mutate(ba = cell_size*nfire_cwf) %>% 
+  # mean annual burned area
+  summarize(area_km2 = sum(ba)/(2019-1986)) 
+
 
 # expected (long term) mean annual burned area (ha) based on the model
 ba_exp <- calc_exp_ba(rasts_pred1[[s_target]])
-# 433890.9
+ba_exp
+# 4347.9
 
 # change in burned area with climate perturbations
 
