@@ -163,6 +163,13 @@ if (FALSE) {
   dev.off()
 }
 
+# * cell size --------------------------------------------------------------
+# used as a weight when calculating later averages?
+r_size <- cellSize(rast_rap1[[1]], unit = 'km')
+size_df1 <- get_values(1, r_size) %>% 
+  rename(cell_size = value) %>% 
+  select(-lyr)
+
 
 # * fire occurrence --------------------------------------------------------
 
@@ -247,7 +254,8 @@ sum(!rap_df3$cell_num %in% hmod_df1$cell_num)
 df_byNFire1 <- numYrs_df4 %>% 
   left_join(rap_df3, by = c("cell_num" = "cell_num", 
                             "c_fire_num_orig" = "c_fire_num")) %>% 
-  left_join(df_daymet1, by = "cell_num")
+  left_join(df_daymet1, by = "cell_num") %>% 
+  left_join(size_df1, by = 'cell_num')
 
 # there shouldn't be any missing values in this
 # final dataframe
@@ -266,7 +274,8 @@ df_byNFire2 <- df_byNFire1 %>%
   mutate(cwf_prop = nfire_cwf/numYrs,
          herbAGB = afgAGB + pfgAGB,
          # including for legacy code reasons
-         occur_cwf = factor(nfire_cwf > 0, c("TRUE", "FALSE")))
+         occur_cwf = factor(nfire_cwf > 0, c("TRUE", "FALSE")),
+         weight = numYrs*cell_size)
 
 # creating this as a separate df to avoid downstream problems because
 # there are are some rows (~700) where hmod is NA

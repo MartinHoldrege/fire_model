@@ -507,12 +507,17 @@ predvars2long <- function(df, response_vars,
   }
   
   # for weighted means (if relevant)
-  if('numYrs' %in% names(df)){
-    select_cols <- c(select_cols, 'numYrs')
+
+  if('weight' %in% names(df)){
+    select_cols <- c(select_cols, 'weight')
+  } else if('numYrs' %in% names(df)){
+      select_cols <- c(select_cols, 'numYrs')
   }
+
   
   out <- df[, select_cols] %>% 
-    pivot_longer(cols = all_of(new_pred_vars))
+    # unname used here b/ https://github.com/tidyverse/tidyr/issues/1481
+    pivot_longer(cols = all_of(unname(new_pred_vars)))
   
   # turn into an ordered factor
   ordered <- c("afgAGB", "pfgAGB", "herbAGB", "MAT", "MAP", 
@@ -541,7 +546,7 @@ predvars2long <- function(df, response_vars,
 #' filter_var and percentile_category columns that should be kept
 #' @param weighted_mean logical, whether to take the weighted mean
 #' of the observed fire probability (currently requires presence of
-#' numYrs column).
+#' weight column).
 #' @param return_mean logical. if false return the dataframe before
 #' means have been calculated for each quantile
 #' 
@@ -552,8 +557,17 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
                            return_means = TRUE,
                            cut_points = seq(0, 1, 0.01)) {
   
-  if(weighted_mean & !'numYrs' %in% names(df)) {
-    stop('numYrs column not present (needed for weighted mean)')
+  # computed weighted mean based on the weight column
+  # numYrs column also allowed for legacy reasons
+  if(weighted_mean) {
+    if('weight' %in% names(df)) {
+      weight_var <- "weight"
+      # commenting out for now--b/ easier to miss mistakes when numYrs allowed
+    # } else if ('numYrs' %in% names(df)) {
+    #   weight_var <- "numYrs"
+    } else {
+      stop('weight column not present (needed for weighted mean)')
+    }
   }
 
   stopifnot(c("name", "value", response_vars) %in% names(df))
@@ -574,7 +588,7 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
     select(all_of(group_vars), value, unname(response_vars), 
            # using matches here b/ if column not present
            # this will still work
-           matches('numYrs')) %>% 
+           matches('numYrs'), matches('weight')) %>% 
     group_by(across(all_of(group_vars))) %>% 
     nest() %>% 
     # empirical cdf
@@ -596,8 +610,9 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
   
   if(weighted_mean) {
     out <- out0 %>% 
-      summarize(across(unname(response_vars), weighted.mean, w = numYrs),
-                mean_value = mean(value), # mean of predictor for that decile
+      summarize(across(unname(response_vars), weighted.mean, w = .data[[weight_var]]),
+                mean_value = weighted.mean(value, w = .data[[weight_var]]), 
+                # mean of predictor for that decile
                 .groups = 'drop')
     
   } else {

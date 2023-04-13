@@ -21,7 +21,17 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE,
 
 # Dependencies
 
+Note, I'm using blockCV version 2.1.4. The newest version doesn't 
+exactly reproduce the same results (b/ of random number generator difference?)
+which makes the blocks numbered differently (actual differences in results
+are trivial). So running this code
+`devtools::install_version("blockCV", version = "2.1.4", repos = "http://cran.us.r-project.org")`
+will install the same version as I've been using. 
+
+
 ```{r, message = FALSE, warning = FALSE}
+# set option so resampled datasets created here reproduces earlier runs of this code with dplyr 1.0.10
+options(dplyr.legacy_locale = TRUE) 
 source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/resample_functions.R")
 source("src/modeling_functions.R")
@@ -36,7 +46,7 @@ params
 
 ```{r}
 test_run <- FALSE # runs code on data subset, for testing
-s <- "_7B_A-P_S2-T2_A2-T2_A-Pr" # string to paste to file names (often named based on added interactions)
+s <- "_A-P_A2-T2_A-Pr" # string to paste to file names (often named based on added interactions)
 ```
 
 
@@ -79,7 +89,9 @@ summarize_pred_response <- function(df) {
                         .fns = function(x) x*100)) %>% 
     summarise(across(c(MAT, MAP, prcpPropSum, afgAGB, pfgAGB, matches("cwf_prop")),
                   .fns = weighted.mean,
-                  w = numYrs))
+                  # note--older dataframes didn't have a weight column,
+                  # and those cases numYrs should be used. 
+                  w = weight))
   out
 }
 ```
@@ -416,7 +428,8 @@ pred_test_deciles1 <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
 map2(pred_test_deciles1, names(pred_test_deciles1), function(df, fold) {
   decile_dotplot_pq(df = df) +
     labs(subtitle = paste0("Predictions on ", fold, 
-                           " (model fit to other folds)"))
+                           " (model fit to other folds)")) +
+    coord_cartesian(ylim = c(0, 3.5))
 })
 ```
 
