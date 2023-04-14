@@ -394,6 +394,60 @@ calc_exp_ba <- function(r, unit = 'km') {
   
   out
 }
+
+#' average model predictions to each cell number
+#'
+#' @param x vector of model predictions, made on the data frame df
+#' @param df dataframe predictions made on , that includes cell_num and numYrs
+#' columns
+#'
+#' @return dataframe with pred (mean prediction) and cell number cols
+avg2cell <- function(x, df) {
+  stopifnot(is.numeric(x),
+            nrow(df) == length(x),
+            c("cell_num", "numYrs") %in% names(df))
+  
+  df2 <- df[, c("cell_num", "numYrs")]
+  df2$pred <- x
+  
+  out <- df2 %>% 
+    group_by(cell_num) %>% 
+    summarise(pred = weighted.mean(pred, w = numYrs))
+  out
+}
+
+#' create model predictions and average them to the cell number, useful when
+#' data has multiple observations per cell number
+#'
+#' @param object model object
+#' @param newdata dataframe to predict on, with cell_num and numYrs columns
+#' @param ... args passed to predict
+#'
+#' @return dataframe with cell_num and pred columns
+#' @export
+#'
+#' @examples 
+predict_cell_avg <- function(object, newdata, ...) {
+  x <- predict(object, newdata = newdata, ...)
+  out <- avg2cell(x = x, df = newdata)
+  out
+}
+
+#' Fill empty raster with contents of dataframe
+#'
+#' @param df dataframe with pred and cell_num columns
+#' @param empty empty spatRaster
+#'
+#' @return raster with pred values filled in the correct cell numbers
+df2rast <- function(df, empty) {
+  stopifnot(c("pred", "cell_num") %in% names(df),
+            'SpatRaster' %in% class(empty))
+  out <- empty
+  out[] <- NA # make sure contents of raster are actually 'empty'
+  out[df$cell_num] <- df$pred
+  out
+}
+
 # quantile plots ----------------------------------------------------------
 
 #' filter rows by climate variables

@@ -11,7 +11,8 @@
 # this script is useful because it reads in the rasters used below
 # and dataframes to predict on (note this is not the 
 # data used to fit the byNfire model)
-source('scripts/04_create_biome-mask_dataframe_1986.R')
+source('scripts/04_create_biome-mask_dataframe_1986.R') # only for rast_fPerPixel object
+source('scripts/04_create_biome-mask_dataframe_byNFire.R')
 source("src/basemaps.R")
 source("src/fig_params.R")
 source("src/general_functions.R")
@@ -74,11 +75,7 @@ rasts_clim1
 
 # * dataframe -------------------------------------------------------------
 
-df1 <- dfs_biome0$paint
-dfnona <- dfs_biome2$paint
-
-# so all values are positive (for log link)
-dfnona$afgAGB <- dfnona$afgAGB + 0.001
+df1 <- dfs_byNFire3_hmod$paint 
 
 # * model objects ---------------------------------------------------------
 
@@ -117,30 +114,25 @@ x <- glm_mods_hmod$pred_vars_inter
 # note that some of the older model objects don't include the pred_vars_inter
 # list element
 stopifnot(x[x!='hmod'] == mods1[[s_target]]$pred_vars_inter)
-# predicted fire probability ----------------------------------------------
 
+# predicted fire probability ----------------------------------------------
 
 # model predictions 
 # predicting on the 'old' data where there is just 1 row per pixel
 # regardless of whether there was a fire--otherwise you have multiple
 # predictions per pixel which is a bit harder to deal with
-mods_pred1 <- map(mods1, predict, newdata = df1, type = "response")
+mods_pred1 <- map(mods1, predict_cell_avg, newdata = df1, type = "response")
 
-hmod_pred1 <- predict(hmod1, newdata = df1,
-                     type = "response")
+hmod_pred1 <- predict_cell_avg(hmod1, newdata = df1, type = "response")
 
 empty <- rast_rap1[[1]]
 empty[] <- NA
 
 # filling empty raster w/ predicted values
-rasts_pred1 <- map(mods_pred1, function(x) {
-  out <- empty
-  out[] <- x
-  out
-})
+rasts_pred1 <- map(mods_pred1, df2rast, empty = empty)
 
-rast_pred_hmod1 <- empty
-rast_pred_hmod1[] <- hmod_pred1
+rast_pred_hmod1 <- df2rast(hmod_pred1, empty)
+
 
 # functions ---------------------------------------------------------------
 # functions used here that likel rely on objects in the global environment 
@@ -234,10 +226,11 @@ h <- hist_colored(r,
                   palette = pal_prob, 
                   palette_breaks = breaks_perc,
                   binwidth = 0.1) +
-  coord_cartesian(xlim = c(0, 4)) +
+  coord_cartesian(xlim = c(0, 3)) +
   labs(x = "Probability (%)") +
   theme(axis.title = element_text(size = 7))
 
+mean(values_nona(r) > 3)*100 # % of data now shown in histogram
 
 stars_pred <- st_as_stars(r)
 names(stars_pred) <- 'values'
@@ -289,8 +282,8 @@ g_pred2 <- g_pred1 +
   inset_element(h, 0, 0, 0.32, 0.4, align_to = 'plot') 
 g_pred2
 
-# combine into two paneled map
-png(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v4", s_target, 
+# combine into two paneled map (fig 2 in manuscript)
+png(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v6", s_target, 
             ".png"), units = 'in', res = 600, height = 2.6, width = 8)
   g_obs + g_pred2
 dev.off()
@@ -339,7 +332,7 @@ tms_pred2 <- map2(tms_pred1, names(tms_pred1), function(x, name) {
 })
 
 
-jpeg("figures/maps_fire_prob/cwf_observed_predicted_maps_v3.jpeg",
+jpeg("figures/maps_fire_prob/cwf_observed_predicted_maps_v4.jpeg",
     units = 'in', res = 600, height = height, width = width)
 
 tmap_arrange(tms_pred2, ncol = ncol)
@@ -391,7 +384,8 @@ rasts_alter1 <- map2(mods1, rasts_pred1, function(mod, r) {
     pred <- empty
     
     # raster of predicted values for the given alteration and model
-    pred[] <- predict(mod, newdata = df, type = "response")
+    pred <- predict_cell_avg(mod, newdata = df, type = "response") %>% 
+      df2rast(empty = empty)
     
     # difference between the altered prediction and the original
     # data prediction 
@@ -404,6 +398,12 @@ rasts_alter1 <- map2(mods1, rasts_pred1, function(mod, r) {
 # * burned area -----------------------------------------------------------
 
 plot(area_ha ~ year, data = ba1, type = 'l')
+
+# total area of study area
+study_area <- rast_rap1[[1]]
+study_area[!is.na(study_area)] <- 1
+total_area <- calc_exp_ba(study_area)
+
 # observed mean burned area (accurately calculated based on rasterizing polygons
 # to ~30 m pixels)
 ba_obs <- ba1 %>% 
@@ -413,16 +413,20 @@ ba_obs
 # 4835.
 
 # observed burned area (based on the coarse ~1x1 km data)
-mods1[[s_target]]$data %>% 
+ba_obs2 <- df1 %>% 
   mutate(ba = cell_size*nfire_cwf) %>% 
   # mean annual burned area
   summarize(area_km2 = sum(ba)/(2019-1986)) 
-# 5311.
+ba_obs2
+# 4104.
+ba_obs2/total_area*100 # observed fire probability
 
 # expected (long term) mean annual burned area (ha) based on the model
 ba_exp <- calc_exp_ba(rasts_pred1[[s_target]])
 ba_exp
 # 4338.9
+# 4374
+ba_exp/total_area*100 # average modelled fire probability
 
 # change in burned area with climate perturbations
 
@@ -669,7 +673,7 @@ maps_delta2 <- map2(maps_delta1, hist_l2, function(g, h) {
 
 #maps_delta2[[1]]
 
-png(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v5", s_target, ".png"), 
+png(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v6", s_target, ".png"), 
      units = 'in', res = 600, height = 8.5, width = 8)
 wrap_plots(maps_delta2, ncol = 2) +
   plot_layout(guides = 'collect') 
