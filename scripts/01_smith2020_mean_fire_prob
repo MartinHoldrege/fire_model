@@ -35,7 +35,7 @@ Export.image.toDrive({
     folder: 'cheatgrass_fire',
     maxPixels: 1e13, 
     scale: resolution,
-    region: meanImage.geometry(),
+    region:  m.region,
     crs: crs,
     fileFormat: 'GeoTIFF'
 });
