@@ -123,7 +123,7 @@ rap_df3 <- rap_df2 %>%
   select(-lyr) %>% 
   pivot_wider(names_from = 'pft', values_from = 'value')
 
-# for exploration
+# comparing biomass pre and post fire
 if (FALSE) {
   df <- rap_df2 %>% 
     filter(
@@ -132,21 +132,25 @@ if (FALSE) {
     pivot_wider(names_from = 'lyr',
                 values_from = 'value')
   
+  ymax <- max(c(df$fire_0_afgAGB, df$fire_2_afgAGB), na.rm = TRUE)
+  
   pdf("figures/AGB_pre_vs_post_fire_v1.pdf")
-  ggplot(df, aes(fire_0_afgAGB, fire_1_afgAGB)) +
-    geom_point(alpha = 0.1) +
-    geom_smooth() +
+  g1 <- ggplot(df, aes(fire_0_afgAGB, fire_1_afgAGB)) +
+    geom_point(alpha = 0.05, size = 0.5) +
     geom_abline(slope = 1) +
-    labs(x = "annual biomass pre-fire",
-        y = "annual biomass after 1 fire")
-  
-  ggplot(df, aes(fire_0_afgAGB, fire_2_afgAGB)) +
-    geom_point(alpha = 0.1) +
-    geom_smooth() +
+    labs(x = "Annual biomass pre-fire (g/m^2)",
+        y = "Annual biomass after 1 fire (g/m^2)")+
+    coord_cartesian(ylim = c(0, ymax))
+  g1+
+    geom_smooth()
+  g2 <- ggplot(df, aes(fire_0_afgAGB, fire_2_afgAGB)) +
+    geom_point(alpha = 0.05, size = 0.5) +
     geom_abline(slope = 1)+
-    labs(x = "annual biomass pre-fire",
-         y = "annual biomass after 2 fires")
-  
+    labs(x = "Annual biomass pre-fire (g/m^2)",
+         y = "Annual biomass after 2 fires (g/m^2)")+
+    coord_cartesian(ylim = c(0, ymax))
+  g2 +
+    geom_smooth()
   ggplot(df, aes(fire_0_pfgAGB, fire_1_pfgAGB)) +
     geom_point(alpha = 0.1) +
     geom_smooth() +
@@ -161,7 +165,14 @@ if (FALSE) {
     labs(x = "perennial biomass pre-fire",
          y = "perennial biomass after 2 fires")
   dev.off()
+  
+  # for appendix
+  png("figures/AGB_pre_vs_post_fire_v1.png",
+      height = 4, width = 8, units = 'in', res = 600)
+  patchwork::wrap_plots(g1, g2, ncol = 2)
+  dev.off()
 }
+
 
 # * cell size --------------------------------------------------------------
 # used as a weight when calculating later averages?

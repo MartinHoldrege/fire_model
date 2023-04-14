@@ -96,6 +96,16 @@ data2 <- pred %>%
 cor(data2$pred, data2$fsim, use = "complete.obs")
 cor(data2$pred, data2$smith, use = "complete.obs")
 # 0.74
+cor(data2$fsim, data2$smith, use = "complete.obs")
+
+
+data3 <- data2 %>% 
+  drop_na()
+
+# farer comparison to the strength of correlation with 
+# fsim (compared to the fsim&smith correlation) b/ 
+# datasets here have the ~ same extent
+cor(data3$pred, data3$fsim, use = "complete.obs")
 
 range <- range(c(data2$pred, data2$fsim), na.rm = TRUE)*100
 
