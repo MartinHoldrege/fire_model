@@ -26,13 +26,13 @@ library(stars)
 bin_string <- "bin20"
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-sv <-  c("", # original model (model 1)
-  "_A2-T2_A-Pr", # model 4
-  "_A-P_A2-T2_A-Pr", # model 4b # final 'best' model
-  "_S-T_A2-T2_A-Pr", # model 6
-  "_A-P_S-T_A2-T2_A-Pr", # model 6b
-  "_S2-T2_A2-T2_A-Pr", # model 7
-  "_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
+sv <-  c(#"", # original model (model 1)
+  #"_A2-T2_A-Pr", # model 4
+  "_A-P_A2-T2_A-Pr"#, # model 4b # final 'best' model
+  # "_S-T_A2-T2_A-Pr", # model 6
+  # "_A-P_S-T_A2-T2_A-Pr", # model 6b
+  # "_S2-T2_A2-T2_A-Pr", # model 7
+  # "_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
 )
 
 files_mod <- paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf", 
@@ -403,6 +403,8 @@ plot(area_ha ~ year, data = ba1, type = 'l')
 study_area <- rast_rap1[[1]]
 study_area[!is.na(study_area)] <- 1
 total_area <- calc_exp_ba(study_area)
+total_area
+#824174
 
 # observed mean burned area (accurately calculated based on rasterizing polygons
 # to ~30 m pixels)
@@ -424,7 +426,6 @@ ba_obs2/total_area*100 # observed fire probability
 # expected (long term) mean annual burned area (ha) based on the model
 ba_exp <- calc_exp_ba(rasts_pred1[[s_target]])
 ba_exp
-# 4338.9
 # 4374
 ba_exp/total_area*100 # average modelled fire probability
 
@@ -433,8 +434,6 @@ ba_exp/total_area*100 # average modelled fire probability
 ba_delta1 <- map_dfr(rasts_alter1[[s_target]], function(x) {
   calc_exp_ba(x$delta)
 })
-ba_delta1
-
 ba_delta1
 
 
