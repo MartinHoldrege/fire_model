@@ -3,9 +3,10 @@ Determining the relationship (i.e., fitting a GLM) between wildfire and  annual 
 
 # Scripts
 Earthengine and R code can be found the the scripts folder. 
-Data will be made available on ScienceBase
 
 # Data
+
+Data will be made available on ScienceBase
 
 ## `data_raw` folder
 
