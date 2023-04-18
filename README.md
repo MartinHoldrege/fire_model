@@ -1,5 +1,9 @@
-# cheatgrass_fire
-Determining relationship between cheatgrass (and other variables) and fire, that could be used in STEPWAT2
+# fire_model
+Determining the relationship (i.e., fitting a GLM) between wildfire and  annual forb and grass biomass, perennial forb and grass biomass, mean annual temperature, mean annual precipitation, proportion summer precitation. Using data from across the sagebrush biome. 
+
+# Scripts
+Earthengine and R code can be found the the scripts folder. 
+Data will be made available on ScienceBase
 
 # Data
 
