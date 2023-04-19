@@ -89,7 +89,7 @@ labels_met <- label_creator(breaks_met)
 labels_met[1] <- paste("<", breaks_met[2])
 met2 <- tm_shape(rasts_clim1$Yearly[["tavg"]], bbox = bbox2) +
   tm_raster(title = 'MAT (\u00B0C)', # deg C
-            palette = '-RdYlGn',
+            palette = '-RdYlBu',
             breaks = breaks_met,
             labels = labels_met,
             legend.hist = TRUE,
@@ -116,7 +116,7 @@ blank_map <- tm_shape(spData::us_states) +
 
 
 # left column is met, right column is biomass
-jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v2.jpeg", units = 'in', res = 600,
+jpeg("figures/maps_climate/maps_RAP-and-climate-with-hist_v3.jpeg", units = 'in', res = 600,
      height = 8.5, width = 7.5)
 tmap_arrange( met2, tm_afgAGB, met1, tm_pfgAGB, met3,  nrow = 3)
 dev.off()
