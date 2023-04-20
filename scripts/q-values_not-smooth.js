@@ -65,6 +65,7 @@ for (var e=1; e<=lstEcoregionIds.length; e++) {
 
 }
 
+// just applying the mask here for easier visualization
 Map.addLayer(Q2.updateMask(SEI.mask), {min:0, max:1, palette: ["white", "black"]}, 'Perennials Q values');
 Map.addLayer(Q3.updateMask(SEI.mask), {min:0, max:1, palette: ["white", "black"]}, "Annuals Q values");
 
