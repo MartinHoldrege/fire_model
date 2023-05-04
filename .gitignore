@@ -17,6 +17,9 @@
 *.docx
 *.pptx
 
+# folders
+paper/*
+
 # figures
 *.png
 *pdf

@@ -190,6 +190,7 @@ cwf_nfire_df1 <- get_values('first', rast_cwf1)
 numYrs_df1 <- map_dfr(names(rast_numYrs), get_values, r = rast_numYrs)
 
 numYrs_df2 <- numYrs_df1 %>% 
+  # cumulative number of fires
   mutate(c_fire_num = as.numeric(str_extract(lyr, "\\d+$"))) %>% 
   rename(numYrs = value) %>% 
   select(-lyr)
@@ -216,7 +217,7 @@ numYrs_df3 <- numYrs_df2 %>%
     # b/ fires in 1986 aren't counted (b/ then no prior years RAP biomass)
     # the total period is 1 year shorter, so need to remove 1 year
     # from the last period. In other words this is b/ rap data is 
-    # from 1986-2019, and fire data is 
+    # from 1986-2019, and fire data used is from 1987-2019
     numYrs = ifelse(max_c_fire_num == c_fire_num, numYrs - 1, numYrs),
     # it counts as period with a fire if the fire didn't 
     # occured in the first year (which we're removing),
