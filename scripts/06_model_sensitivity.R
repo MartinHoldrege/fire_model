@@ -169,8 +169,9 @@ f_max <- max(rast_fPerPixel)@ptr$range_max
 labels[length(labels)] <- paste0('6-', f_max)
 
 # labels fire fire probability
-label_prob <- c(round(0:5/36, 3)*100, NA)
-label_prob[length(label_prob)] <- paste0(c(round(6/36, 3), round(f_max/36, 3))*100,
+n <- 2019-1986
+label_prob <- c(round(0:5/n, 3)*100, NA)
+label_prob[length(label_prob)] <- paste0(c(round(6/n, 3), round(f_max/n, 3))*100,
                                            collapse = "-")
 
 

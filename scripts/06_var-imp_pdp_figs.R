@@ -71,7 +71,11 @@ lookup <- c('sqrt(afgAGB)' = 'sqrt(afgAGB)',
             "I(afgAGB^2):I(MAT^2)" = '(afgAGB:MAT)^2'
             )
 
-g$data$Variable <- lookup[g$data$Variable]
+g$data$Variable <- lookup[g$data$Variable] %>% 
+  # renaming based on updated acronyms used the paper
+  str_replace_all("prcpPropSum", "PSP") %>% 
+  str_replace_all("afgAGB", "AFG") %>% 
+  str_replace_all("pfgAGB", "PFG")
 
 jpeg(paste0('figures/vip_v3_glm_byNFire', s, '.jpeg'), 
             width = 3, height = 3, units = 'in', res = 600)
@@ -317,3 +321,4 @@ if(all(x[x!='hmod'] == y)) {
 
 
 }
+
