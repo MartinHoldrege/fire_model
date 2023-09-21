@@ -54,6 +54,10 @@ smith1 <- rast("data_processed/fire_probability/smith2022_mean_annual_fire_prob_
 short1 <- rast('data_raw/SBRA_BP/SBRA_BP.tif')
 
 
+# * pastick ---------------------------------------------------------------
+# https://doi.org/10.5066/P9ZN7BN8
+pastick1 <- rast('data_raw/fire_probability/LT_Wildfire_Prob_85to19_v1-0.tif')
+
 # line up rasters ---------------------------------------------------------
 
 # *fsim -------------------------------------------------------------------
@@ -99,6 +103,16 @@ df_short <- get_values(lyr = 1, r = short2) %>%
   select(-lyr)
 
 
+# * pastick ---------------------------------------------------------------
+pastick2 <- project(pastick1, cell_nums, method = 'bilinear')
+
+compareGeom(pastick2, cell_nums,  crs = TRUE, ext = TRUE,
+            rowcol = TRUE)
+
+df_pastick <- get_values(lyr = 1, r = pastick2) %>% 
+  rename('pastick' = 'value') %>% 
+  select(-lyr)
+
 # predicted fire probability ----------------------------------------------
 
 # predicted fire probability (from our model)
@@ -110,13 +124,16 @@ pred <- predict_cell_avg(mod, newdata = data1, type = 'response')
 data2 <- pred %>% 
   left_join(df_fsim, by = "cell_num") %>% 
   left_join(df_smith, by = "cell_num") %>% 
-  left_join(df_short, by = 'cell_num')
+  left_join(df_short, by = 'cell_num')%>% 
+  left_join(df_pastick, by = 'cell_num')
 
 cor(data2$pred, data2$fsim, use = "complete.obs")
 cor(data2$pred, data2$smith, use = "complete.obs")
 # 0.74
 cor(data2$pred, data2$short, use = "complete.obs")
 # 0.64
+cor(data2$pred, data2$pastick, use = "complete.obs")
+# 0.76
 cor(data2$fsim, data2$smith, use = "complete.obs")
 cor(data2$fsim, data2$short, use = "complete.obs")
 
@@ -146,11 +163,13 @@ data2 %>%
        y = "Wildfire probability (%, FSim)")
 dev.off()
 
+set.seed(123)
+df_sample <- data2 %>% 
+  sample_n(1*10^5)
 png("figures/comparison_with_smith_v1.png",
     width = 4, height = 4, units = "in", res = 600)
-data2 %>% 
-  sample_n(1*10^5) %>% 
-  ggplot(aes(pred*100, smith)) +
+
+  ggplot(df_sample, aes(pred*100, smith)) +
   geom_point(alpha = 0.05, size = 0.5) +
   labs(x = xlab,
        y = "Relative wildfire probability (Smith et al. 2022)")
@@ -158,12 +177,20 @@ dev.off()
 
 png("figures/comparison_with_short2023_v1.png",
     width = 4, height = 4, units = "in", res = 600)
-data2 %>% 
-  sample_n(1*10^5) %>% 
-  ggplot(aes(pred*100, short*100)) +
+
+ggplot(df_sample, aes(pred*100, short*100)) +
   geom_point(alpha = 0.05, size = 0.5) +
   labs(x = xlab,
        y = "Burn probability (Short et al. 2023) (converted to %)") +
   geom_smooth(method = 'lm', se = FALSE) +
   geom_abline(slope = 1)
+dev.off()
+
+png("figures/comparison_with_pastick_v1.png",
+    width = 4, height = 4, units = "in", res = 600)
+
+ggplot(df_sample, aes(pred*100, pastick)) +
+  geom_point(alpha = 0.05, size = 0.5) +
+  labs(x = xlab,
+       y = "Long term wildfire probability (%, Pastick et al. 2021)")
 dev.off()
