@@ -23,7 +23,7 @@ theme_set(theme_classic())
 
 sv <-  c(#"", # original model (model 1)
          #"_A2-T2_A-Pr", # model 4
-         "_A-P_A2-T2_A-Pr"#, # model 4b
+         "_A-P_A2-T2_A-Pr"#, # model 4b (final model)
          #"_S-T_A2-T2_A-Pr", # model 6
          #"_A-P_S-T_A2-T2_A-Pr", # model 6b
          #"_S2-T2_A2-T2_A-Pr", # model 7
