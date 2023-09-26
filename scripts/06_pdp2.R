@@ -22,7 +22,7 @@ theme_set(theme_classic())
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 
-s <- "_A-P_A2-T2_A-Pr"#, # model 4b (final model)
+s <- "_A-P_A2-T2_A2-S2_A-Pr"#, # model 4c
 
 limit_axes <- FALSE
 
@@ -49,7 +49,7 @@ train1 <- mod$data
 
 # train1 <- slice_sample(train1, n = 1000) # for testing
 
-probs <- c(0.0001, 0.9999)
+probs <- c(0.2, 0.8)
 quantiles <- map(train1[mod_vars], \(x) quantile(x, probs = probs))
 quantiles
 vars <- quantiles[c('MAT', 'MAP', 'pfgAGB', 'afgAGB')]
@@ -88,7 +88,9 @@ inter_l <- list(
   c('MAP', 'afgAGB_low'),
   c('MAP', 'afgAGB_high'),
   c('pfgAGB', 'afgAGB_low'),
-  c('pfgAGB', 'afgAGB_high')
+  c('pfgAGB', 'afgAGB_high'),
+  c('prcpPropSum', 'afgAGB_low'),
+  c('prcpPropSum', 'afgAGB_high')
 )  
   
 dfs_inter1 <- map(inter_l, function(x) {
@@ -168,7 +170,7 @@ base_pdp <- function(limit_x = FALSE) {
 ggplot(df_pdp2, aes(x_value, yhat, color = inter_var)) +
   geom_line() +
   facet_wrap(~xlab, scales = 'free')
-png(paste0("figures/pdp/pdp_high-low_v2", s, ".png"),
+png(paste0("figures/pdp/pdp_high-low_v1", s, ".png"),
     units = "in", res = 600,  width = 8, height = 3.5)
 ggplot(df_pdp2, aes(x_value, yhat*100)) +
   geom_line(aes(color = inter_var)) +
