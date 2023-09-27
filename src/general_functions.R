@@ -4,6 +4,7 @@
 
 # Purpose: Misc. functions to be used in other scripts
 library(patchwork)
+library(dtplyr)
 # misc. -------------------------------------------------------------------
 
 
@@ -644,22 +645,26 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
            # this will still work
            matches('numYrs'), matches('weight')) %>% 
     group_by(across(all_of(group_vars))) %>% 
+    #lazy_dt() %>% 
     nest() %>% 
     # empirical cdf
     mutate(cdf = map(data, function(df) ecdf(df$value)),
            # calculate the percentile of each data point based on the ecdf
            percentile = map2(data, cdf, function(df, f) f(df$value))) %>% 
     select(-cdf) %>% 
+    # as_tibble() %>% 
     unnest(cols = c("data", "percentile")) %>% 
     group_by(across(all_of(group_vars))) %>% 
     mutate(decile = cut(percentile, cut_points,
                         labels = 1:(length(cut_points) - 1))) %>% 
     # calculate mean of response variables for each decile of each predictor
     # variable
-    group_by(across(all_of(c(group_vars, 'decile')))) 
+    group_by(across(all_of(c(group_vars, 'decile'))), arrange = FALSE) %>% 
+    lazy_dt() # this speeds up the code ~3x
   
+
   if(!return_means) {
-    return(out0)
+    return(as_tibble(out0))
   }
   
   if(weighted_mean) {
@@ -676,7 +681,7 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
                 .groups = 'drop')
   }
 
-  out
+  as_tibble(out)
 }
 
 

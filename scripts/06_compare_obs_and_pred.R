@@ -16,19 +16,21 @@
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 
-sv <-  c("", # original model (model 1)
-         "_A2-T2_A-Pr", # model 4
+sv <-  c(
+          #"", # original model (model 1)
+         #"_A2-T2_A-Pr", # model 4
          "_A-P_A2-T2_A-Pr", # model 4b
-         "_S-T_A2-T2_A-Pr", # model 6
-         "_A-P_S-T_A2-T2_A-Pr", # model 6b
-         "_S2-T2_A2-T2_A-Pr", # model 7
-         "_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
+         "_A-P_A2-T2_A2-S2_A-Pr" # model 4c
+         #"_S-T_A2-T2_A-Pr", # model 6
+         #"_A-P_S-T_A2-T2_A-Pr", # model 6b
+         #"_S2-T2_A2-T2_A-Pr", # model 7
+         #"_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
 )
 
 # whether to create quantile plots based on 10,000 bins (which is slow)
-run_10k <- TRUE 
+run_10k <- TRUE
 
-
+test_run <- FALSE
 # dependencies ------------------------------------------------------------
 
 source("src/general_functions.R")
@@ -63,6 +65,13 @@ dfs1 <- map(mods1, function(x) {
   data$MAT <- data$MAT - 273.15 # k to c
   data
 })
+
+if(test_run) {
+  cells2keep <- dfs1[[1]]$cell_num %>% 
+    unique() %>% 
+    sample(size = 5e4)
+  dfs1 <- map(dfs1, \(x) x[x$cell_num %in% cells2keep, ])
+}
 
 
 # spatial grouping --------------------------------------------------------
@@ -134,6 +143,13 @@ quant1k <-   map_dfr(dfs1, predvars2deciles,
                      .id = 'model') %>% 
   mutate(model = factor(model, levels = sv))
 
+# by 1000 bins but filtered by other variables
+quant1kfilt <-   map(dfs1, predvars2deciles, 
+                     response_vars = response_vars, pred_vars = pred_vars,
+                     filter_var = TRUE,
+                     filter_vars = pred_vars,
+                     cut_points = seq(0, 1, 0.001)) 
+
 # by 10000 bins
 if(run_10k){
 quant10k <-   map_dfr(dfs1, predvars2deciles, 
@@ -141,6 +157,12 @@ quant10k <-   map_dfr(dfs1, predvars2deciles,
                      cut_points = seq(0, 1, 0.0001),
                      .id = 'model') %>% 
   mutate(model = factor(model, levels = sv))
+
+quant10kfilt <-   map(dfs1, predvars2deciles, 
+                     response_vars = response_vars, pred_vars = pred_vars,
+                     filter_var = TRUE,
+                     filter_vars = pred_vars,
+                     cut_points = seq(0, 1, 0.0001)) 
 }
 # figures -----------------------------------------------------------------
 
@@ -167,7 +189,7 @@ plots_bgcn <- map2(dfs_bgcn2, names(dfs_bgcn1), function(df, name) {
   out <- add_dotplot_inset(g, df2, add_smooth = TRUE, method = 'loess')
 })
 
-pdf("figures/spatial_grouping/obs_and_pred_by_group_v2.pdf", 
+pdf("figures/spatial_grouping/obs_and_pred_by_group_v3.pdf", 
     width = 6, height = 4.5)
   plots_bgcn
 dev.off()
@@ -187,9 +209,36 @@ plots_1k <- split(quant1k, quant1k$model) %>%
     out
   })
 
-pdf("figures/quantile_plots/quantile_plot_1k_by_mod_v2.pdf", 
-    width = 6, height = 4.5)
+pdf("figures/quantile_plots/quantile_plot_1k_by_mod_v3.pdf", 
+    width = 6, height = 5)
 plots_1k 
+dev.off()
+
+
+# * quantile filtered (1k bins) -------------------------------------------
+
+plots_filt_1k <- map2(quant1kfilt, names(quant1kfilt), function(df, name) {
+    decile_dotplot_filtered_pq(df) +
+      labs(subtitle = paste(name, "model"),
+           caption = 'predictor variables cut into 1000 bins (based on quantile)')+
+      theme(plot.caption = element_text(size = 6))
+  })
+
+clim_vars <- c('MAT', 'MAP', 'prcpPropSum')
+# climate variables on x axis
+plots_filt_1kc <- map2(quant1kfilt, names(quant1kfilt), function(df, name) {
+  decile_dotplot_filtered_pq(df, xvars = clim_vars) +
+    labs(subtitle = paste(name, "model"),
+         caption = 'predictor variables cut into 1000 bins (based on quantile)')+
+    theme(plot.caption = element_text(size = 6))
+})
+
+pdf("figures/quantile_plots/quantile_plot_filtered_1k_by_mod_v1.pdf", 
+    width = 6, height = 7)
+plots_filt_1k 
+map(plots_filt_1k, \(g) g+ coord_cartesian(ylim = c(0, 7)) + labs(caption = 'ylim restricted'))
+plots_filt_1kc
+map(plots_filt_1kc, \(g) g+ coord_cartesian(ylim = c(0, 7)) + labs(caption = 'ylim restricted'))
 dev.off()
 
 # * quantile (10k bins) ----------------------------------------------
@@ -206,12 +255,36 @@ plots_10k <- split(quant10k, quant10k$model) %>%
     out
   })
 
-pdf("figures/quantile_plots/quantile_plot_10k_by_mod_v2.pdf", 
-    width = 6, height = 4.5)
+pdf("figures/quantile_plots/quantile_plot_10k_by_mod_v3.pdf", 
+    width = 6, height = 5)
  map(plots_10k, print)
 dev.off()
-}
 
+
+# * quantile filtered (10k bins) -------------------------------------------
+
+plots_filt_10k <- map2(quant10kfilt, names(quant1kfilt), function(df, name) {
+  decile_dotplot_filtered_pq(df) +
+    labs(subtitle = paste(name, "model"),
+         caption = 'predictor variables cut into 10000 bins (based on quantile)')+
+    theme(plot.caption = element_text(size = 6))
+})
+
+# plots_filt_10kc <- map2(quant10kfilt, names(quant1kfilt), function(df, name) {
+#   decile_dotplot_filtered_pq(df, xvars = clim_vars) +
+#     labs(subtitle = paste(name, "model"),
+#          caption = 'predictor variables cut into 10000 bins (based on quantile)')+
+#     theme(plot.caption = element_text(size = 6))
+# })
+
+pdf("figures/quantile_plots/quantile_plot_filtered_10k_by_mod_v1.pdf", 
+    width = 6, height = 7)
+plots_filt_10k 
+map(plots_filt_10k, \(g) g+ coord_cartesian(ylim = c(0, 10)) + labs(caption = 'ylim restricted'))
+# plots_filt_10kc 
+# map(plots_filt_10kc, \(g) g+ coord_cartesian(ylim = c(0, 10)) + labs(caption = 'ylim restricted'))
+dev.off()
+}
 # * residuals -------------------------------------------------------------
 
 # residuals vs predictor variabls
@@ -234,6 +307,6 @@ quant3 <- split(quant2, quant2$name, drop = TRUE)
 
 plots <- map2(quant3, var2lab(names(quant3)), residual_plot)
 
-pdf("figures/residuals/residuals_v2.pdf")
+pdf("figures/residuals/residuals_v3.pdf")
 plots
 dev.off()
