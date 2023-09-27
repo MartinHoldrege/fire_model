@@ -56,6 +56,10 @@ mods1 <- map(files_mod, readRDS)
 # and extent are)
 r <- terra::rast("data_processed/RAP/RAP_afgAGB-pfgAGB_byNFire_1986-2019_mean_1000m_sagebrush-biome-mask_v1.tif")[[1]]
 
+
+# vif ---------------------------------------------------------------------
+# look at variance inflation factor (just out interest not used below)
+map(mods1, \(x) car::vif(x$paint_cwf, type = 'terms'))
 # predict -----------------------------------------------------------------
 
 dfs1 <- map(mods1, function(x) {

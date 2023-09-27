@@ -22,18 +22,24 @@ theme_set(theme_classic())
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 
-s <- "_A-P_A2-T2_A2-S2_A-Pr"#, # model 4c
 
-limit_axes <- FALSE
+sv <- c("_A-P_A2-T2_A-Pr",  # model 4b
+        "_A-P_A2-T2_A2-S2_A-Pr" # model 4c
+        )
 
+# quantiles to fix interacting terms at
+probs_list <- list(c(0.2, 0.8),
+              c(0.0001, 0.9999)
+)
+# probs <- c(0.0001, 0.9999)
+
+for (s in sv) {
 # read in model objects ---------------------------------------------------
 
 # main model
 mods <- readRDS(paste0("models/glm_binomial_models_byNFire_v2_bin20_cwf",
                        s, ".RDS"))
 mod <- mods$paint_cwf
-
-
 
 # create pdp --------------------------------------------------------------
 
@@ -49,10 +55,17 @@ train1 <- mod$data
 
 # train1 <- slice_sample(train1, n = 1000) # for testing
 
-probs <- c(0.2, 0.8)
+for (probs in probs_list) {
+
+v <- case_when(
+  probs[1] == 0.2 ~ 'v1',
+  probs[1] == 0.0001 ~ 'v2',
+  TRUE ~ paste0('v', probs[1])
+)
+
 quantiles <- map(train1[mod_vars], \(x) quantile(x, probs = probs))
 quantiles
-vars <- quantiles[c('MAT', 'MAP', 'pfgAGB', 'afgAGB')]
+vars <- quantiles[c('MAT', 'MAP', 'pfgAGB', 'afgAGB', 'prcpPropSum')]
 train_l1 <- map2(quantiles, names(quantiles), function(quant, var) {
   out <- list()
   df <- train1
@@ -83,6 +96,8 @@ inter_l <- list(
   c('afgAGB', 'MAP_high'),
   c('afgAGB', 'pfgAGB_low'),
   c('afgAGB', 'pfgAGB_high'),
+  c('afgAGB', 'prcpPropSum_low'),
+  c('afgAGB', 'prcpPropSum_high'),
   c('MAT', 'afgAGB_low'),
   c('MAT', 'afgAGB_high'),
   c('MAP', 'afgAGB_low'),
@@ -170,10 +185,9 @@ base_pdp <- function(limit_x = FALSE) {
 ggplot(df_pdp2, aes(x_value, yhat, color = inter_var)) +
   geom_line() +
   facet_wrap(~xlab, scales = 'free')
-png(paste0("figures/pdp/pdp_high-low_v1", s, ".png"),
-    units = "in", res = 600,  width = 8, height = 3.5)
-ggplot(df_pdp2, aes(x_value, yhat*100)) +
-  geom_line(aes(color = inter_var)) +
+
+g <- ggplot(df_pdp2, aes(x_value, yhat*100)) +
+  geom_line(aes(color = inter_var, linetype = inter_var)) +
   geom_rug(data = deciles, aes(x = decile, y = NULL), sides = 'b') +
   geom_text(data = letter_df, aes(label = letter),
             hjust = -0.8,
@@ -182,14 +196,28 @@ ggplot(df_pdp2, aes(x_value, yhat*100)) +
   # so additional limits should not be set
   base_pdp() +
   scale_color_manual(values = c('#006837', '#66bd63',
-                       '#2166ac', '#92c5de',
-                       '#b2182b', '#f4a582',
-                       'black',
-                       '#66c2a5', '#abdda4')) +
+                                '#2166ac', '#92c5de',
+                                '#b2182b', '#f4a582',
+                                'black',
+                                '#66c2a5', '#abdda4',
+                                '#8e0152', '#de77ae'
+                                
+  )) +
+  #scale_linetype_manual(values = c(rep(c(1,2), 3), 1, rep(c(1,2), 2))) +
   labs(caption = paste('percentiles used:', paste0(probs*100, "%", collapse = ', ')))
+g
 
-
+png(paste0("figures/pdp/pdp_high-low_", v, s, ".png"),
+    units = "in", res = 600,  width = 8, height = 3.5)
+print(g)
 dev.off()
   
-  
+# restricted ylim
+png(paste0("figures/pdp/pdp_high-low_", v, s, "_rylim.png"),
+    units = "in", res = 600,  width = 8, height = 3.5)
+print(g +
+  coord_cartesian(ylim = c(0, 5)))
+dev.off()
+}
+}
  
