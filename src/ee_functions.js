@@ -3,6 +3,8 @@
  * in other javascript earth engine scripts in this repository.
  * Module created by Martin Holdrege
  * @module src/ee_functions.js
+ * 
+ * var fns = require('users/mholdrege/cheatgrass_fire:src/ee_functions.js')
  */
 
 
