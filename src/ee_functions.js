@@ -103,3 +103,8 @@ exports.setTimeStart = function(x) {
       .set('system:time_start', startDate);
     return image;
 };
+
+
+// misc objects 
+exports.path = 'projects/usgs-gee-drylandecohydrology/assets/cheatgrass_fire/';
+
