@@ -234,6 +234,8 @@ names(cols_fold) <- fold_name
 r_folds1 <- r_clim2[[1]]
 r_folds1[!is.na(r_folds1)] <- eb1$foldID
 
+writeRaster(r_folds1, 'data_processed/cv_folds_v1.tif')
+
 # the base and bbox objects come from src/basemaps.R
 base +
   tm_shape(r_folds1, bbox = bbox) +
