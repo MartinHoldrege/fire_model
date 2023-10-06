@@ -110,3 +110,6 @@ exports.setTimeStart = function(x) {
 // misc objects 
 exports.path = 'projects/usgs-gee-drylandecohydrology/assets/cheatgrass_fire/';
 
+// For setting the projection (albers conical equal area)
+exports.crs = ee.ImageCollection('USGS/NLCD_RELEASES/2019_REL/NLCD').first().projection().wkt().getInfo();
+
