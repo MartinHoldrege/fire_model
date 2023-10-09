@@ -89,7 +89,7 @@ if(testRun) {
 
 var yearStart = years.reduce('min').getInfo();
 var yearEnd = years.reduce('max').getInfo();
-var fileName = 'mean-ann-cover_by-fold-burn-status_' + yearStart + "_" + yearEnd + "_" + resolution + "m";
+var fileName = 'mean-ann-biomass_by-fold-burn-status_' + yearStart + "_" + yearEnd + "_" + resolution + "m";
 if(testRun) {
   fileName = 'testRun_' + fileName;
 }
