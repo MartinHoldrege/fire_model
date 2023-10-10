@@ -202,7 +202,7 @@ var bioM3AvgImage = bioM3Avg
   
 var bioM3AvgImage = bioM3AvgImage.regexpRename('^\\d+_', '');
 
-print(bioM3AvgImage)
+//print(bioM3AvgImage)
 /************************************************
  * 
  * Prepare human modification data
@@ -213,6 +213,65 @@ print(bioM3AvgImage)
 // at the moment looks like I only have access to the 2019 human modification file
 var hMod = ee.Image('users/DavidTheobald8/HM/HM_US_v3_dd_' + '2019' + '_90_60ssagebrush');
 //Map.addLayer(hMod, {}, 'humanMod', false);
+
+/************************************************
+ * 
+ * Prepare climate data
+ * (calculating 3 year averages)
+ * 
+ ************************************************
+ */
+ 
+var climYearlyIc = ee.ImageCollection(clim.climYearlyList)
+  .select('prcp', 'tavg');
+
+var climSummerIc = ee.ImageCollection(clim.climSummerList)
+  .select('prcpProp');
+  
+var yearsShort = ee.List.sequence(startYear +2 , endYear);
+
+// 3 year running average MAT and MAP
+var climYearly3Avg = yearsShort.map(function(y) {
+  var y3 = ee.Number(y);
+  var y1 = y3.subtract(2);
+  
+  // 3 year mean
+  var image = climYearlyIc
+    .filter(ee.Filter.rangeContains('year', y1, y3))
+    .mean();
+  var oldNames = image.bandNames();
+  var newNames = oldNames.map(function(x) {
+    return ee.String(x).cat(ee.String('_')).cat(y3.int());
+  });
+  return image.rename(newNames);
+  
+});
+
+var climYearly3AvgImage = ee.ImageCollection(climYearly3Avg)
+  .toBands()
+  .regexpRename('\\d+_', '');
+  
+// 3 year running average proportion summer precip  
+var climSummer3Avg = yearsShort.map(function(y) {
+  var y3 = ee.Number(y);
+  var y1 = y3.subtract(2);
+  
+  // 3 year mean
+  var image = climSummerIc
+    .filter(ee.Filter.rangeContains('year', y1, y3))
+    .mean();
+  var oldNames = image.bandNames();
+  var newNames = oldNames.map(function(x) {
+    return ee.String(x).cat(ee.String('_')).cat(y3.int());
+  });
+  return image.rename(newNames);
+  
+});
+
+var climSummer3AvgImage = ee.ImageCollection(climSummer3Avg)
+  .toBands()
+  .regexpRename('\\d+_', '');
+
 
 /************************************************
  * 
@@ -261,8 +320,8 @@ Export.image.toDrive({
 
 var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm';
 
-var climList = [clim.climYearlyAvg, clim.climSummerAvg, clim.climSpringAvg];
-var climDescription = ['climYearlyAvg', 'climSummerAvg', 'climSpringAvg'];
+var climList = [climYearly3AvgImage, climSummer3AvgImage];
+var climDescription = ['climYearly3yrAvg', 'climSummer3yrAvg'];
 
 for (var i = 0; i < climList.length; i++) {
   Export.image.toDrive({
