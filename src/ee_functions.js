@@ -3,6 +3,8 @@
  * in other javascript earth engine scripts in this repository.
  * Module created by Martin Holdrege
  * @module src/ee_functions.js
+ * 
+ * var fns = require('users/mholdrege/cheatgrass_fire:src/ee_functions.js')
  */
 
 
@@ -103,3 +105,11 @@ exports.setTimeStart = function(x) {
       .set('system:time_start', startDate);
     return image;
 };
+
+
+// misc objects 
+exports.path = 'projects/usgs-gee-drylandecohydrology/assets/cheatgrass_fire/';
+
+// For setting the projection (albers conical equal area)
+exports.crs = ee.ImageCollection('USGS/NLCD_RELEASES/2019_REL/NLCD').first().projection().wkt().getInfo();
+
