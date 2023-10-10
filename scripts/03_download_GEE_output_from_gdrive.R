@@ -3,7 +3,7 @@
 # Script started Feb 28, 2022
 
 # Purpose: download rasters that have been exported to google drive
-# in the 01_compile_data.js script
+# in the 01_compile_pred-vars_ann.js script
 
 
 # dependencies ------------------------------------------------------------
@@ -16,7 +16,7 @@ library(tidyverse)
 
 # sagebrush biome masked data
 files_biome <- drive_ls(path = "cheatgrass_fire",
-                        pattern = "(sagebrush-biome-mask)|(sw2sim-extent)")
+                        pattern = "sagebrush-biome-mask")
 files_biome
 
 # download  ---------------------------------------------------------------
@@ -35,17 +35,6 @@ daymet_files <- files_biome %>%
 for (i in 1:nrow(daymet_files)) {
   drive_download(file = daymet_files$id[i], 
                  path = file.path("data_processed/daymet", daymet_files$name[i]),
-                 overwrite = TRUE)
-}
-
-# * fires -----------------------------------------------------------------
-
-fire_files <- files_biome %>%
-  filter(str_detect(name, '[Ff]ires'))
-
-for (i in 1:nrow(fire_files)) {
-  drive_download(file = fire_files$id[i], 
-                 path = file.path("data_processed/fire_probability", fire_files$name[i]),
                  overwrite = TRUE)
 }
 
@@ -72,54 +61,3 @@ for (i in 1:nrow(hMod_files)) {
                  path = file.path("data_processed/human_mod", hMod_files$name[i]),
                  overwrite = TRUE)
 }
-# * old data downloads below ----------------------------------------------
-
-# files masked to pastick et al fire probability data set
-files_daymet_pastick <- drive_ls(path = 'gee', 
-                                 pattern = '^daymet.*pastick-etal')
-files_daymet_pastick
-files_rap_pastick <- drive_ls(path = 'gee', 
-                              pattern = 'RAP.*pastick-etal')
-
-
-# daymet data
-for (i in 1:nrow(files_daymet_pastick)) {
-  row <- files_daymet_pastick[i, ]
-  drive_download(file = row$id, 
-                 path = file.path("data_processed/daymet", row$name),
-                 overwrite = TRUE)
-}
-
-# RAP data
-for (i in 1:nrow(files_rap_pastick)) {
-  row <- files_rap_pastick[i, ]
-  drive_download(file = row$id, 
-                 path = file.path("data_processed/RAP", row$name),
-                 overwrite = TRUE)
-}
-
-# fire probability
-fire_name <- 'LT_Wildfire_Prob_85to19_v1-0_1000m.tif'
-drive_download(fire_name,
-               path = file.path("data_processed/fire_probability", fire_name),
-               overwrite = TRUE)
-
-# mtbs--fire count per pixel
-file <- 'mtbs-ifph-comb_fires-per-pixel_1985-2019_1000m_pastick-etal-mask_v1.tif'
-drive_download(file,
-               path = file.path("data_processed/fire_probability", file),
-               overwrite = TRUE)
-
-# fsim burn probability
-file <- 'fsim_burn-prob_1000m_pastick-etal-mask_v1.tif'
-drive_download(file,
-               path = file.path("data_processed/fire_probability", file),
-               overwrite = TRUE)
-
-
-# AIM data
-file <- 'AIM-sagebrush-sites_with-climate-and-fire_1985-2019_v1.csv'
-drive_download(file,
-               path = file.path("data_processed/AIM", file),
-               overwrite = TRUE)
-
