@@ -8,7 +8,7 @@ Script Started Sept. 29, 2023
 */
 
 // parameters -------------------------------------------------
-var resolution = 120; 
+var resolution = 30; 
 var testRun = false;
 // dependencies -----------------------------------------------
 
@@ -89,7 +89,7 @@ if(testRun) {
 
 var yearStart = years.reduce('min').getInfo();
 var yearEnd = years.reduce('max').getInfo();
-var fileName = 'mean-ann-biomass_by-fold-burn-status_' + yearStart + "_" + yearEnd + "_" + resolution + "m";
+var fileName = 'mean-ann-cover_by-fold-burn-status_' + yearStart + "_" + yearEnd + "_" + resolution + "m";
 if(testRun) {
   fileName = 'testRun_' + fileName;
 }
@@ -101,7 +101,6 @@ Export.table.toDrive({
   fileFormat: 'CSV'
 });
   
-
 
 
 
