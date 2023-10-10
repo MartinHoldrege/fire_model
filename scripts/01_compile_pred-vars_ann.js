@@ -20,10 +20,10 @@ Data is masked to the extent of the sagebrush biome
 // User defined variables -------------------------------------
 
 // whether to run the code the exports the files
-var run = false; 
+var run = true; 
 // date range
-//var startYear = 1986;
-  var startYear = 2016; // short time period for testing
+var startYear = 1986;
+//var startYear = 2016; // short time period for testing
 var endYear = 2019;
 var startDate = ee.Date.fromYMD(startYear, 1, 1);
 var endDate = ee.Date.fromYMD(endYear, 12, 31); 
@@ -149,46 +149,13 @@ var bioM = biomass.map(function(x) {
 
 // b/ want to have a 3 year average the first year of data will be 
 // two years after the first year of available biomass data
-var yearsShort = ee.List.sequence(startYear -2, endYear);
+var bioMShort = bioM.filter(ee.Filter.rangeContains('year', startYear +2 , endYear));
 
-// testing ~~~~~~~~~~~~~~~~~
-  var y3 = ee.Number(2018);
-  var y2 = y3.subtract(1);
-  var y1 = y3.subtract(2);
-  
-  var f1 = cwfByYr.filter(ee.Filter.eq('year', y1)).first(); // fire in 1st year
-  var f2 = cwfByYr.filter(ee.Filter.eq('year', y2)).first(); // fire in 2nd year
-  var f3 = cwfByYr.filter(ee.Filter.eq('year', y3)).first(); // fire in 2nd year
-  
-  // creating masks
-  var m1 = f1.eq(ee.Image(0)); // where there were no fires first year
-  var m2 = f1.add(f2).eq(ee.Image(0)); // where there were no fires first or 2nd year
-
-  // applying masks to the biomass data 
-  var b1 = bioM.filter(ee.Filter.eq('year', y1))
-    .first()
-    .updateMask(ee.Image(m1));
-
-  var b2 = bioM.filter(ee.Filter.eq('year', y2))
-    .first()
-    .updateMask(m2);
-    
-  var b3 = bioM.filter(ee.Filter.eq('year', y3))
-    .first();
-  
-  // average biomass across 3 years except if fires occured in yrs 1 or 2 than the pixels
-  // in the fire year (and following year if fire occured in yr 1) are masked out
-  var bAvg = ee.ImageCollection.fromImages([b3, b2, b1])
-    .mean()
-    .addBands(f3)
-    .copyProperties(b3);
-    
-  print('bAvg', bAvg)
- // end testing ~~~~~~~~~~~~~~~~~~~~~~~
- 
 // 3 year averages
-var bioM3AvgL = yearsShort.map(function(x) {
-  var y3 = ee.Number(x);
+// mapping over image collection not list because may help reduce memory problems (?)
+var bioM3Avg = bioMShort.map(function(x) {
+  var b3 = ee.Image(x); // biomass in the '3rd' year
+  var y3 = ee.Number(b3.get('year'));
   var y2 = y3.subtract(1);
   var y1 = y3.subtract(2);
   
@@ -209,9 +176,6 @@ var bioM3AvgL = yearsShort.map(function(x) {
     .first()
     .updateMask(m2);
     
-  var b3 = bioM.filter(ee.Filter.eq('year', y3))
-    .first();
-  
   // average biomass across 3 years except if fires occured in yrs 1 or 2 than the pixels
   // in the fire year (and following year if fire occured in yr 1) are masked out
   var bAvg = ee.ImageCollection.fromImages([b3, b2, b1])
@@ -222,9 +186,8 @@ var bioM3AvgL = yearsShort.map(function(x) {
   return bAvg;
 });
 
-print('list', bioM3AvgL.slice(0,1))
 // appending year to band names and converting to single image
-var bioM3AvgImage = ee.ImageCollection(bioM3AvgL)
+var bioM3AvgImage = bioM3Avg
   .map(function(x) {
     var image = ee.Image(x);
     var oldNames = image.bandNames();
@@ -257,7 +220,6 @@ var hMod = ee.Image('users/DavidTheobald8/HM/HM_US_v3_dd_' + '2019' + '_90_60ssa
  * 
  ************************************************
  */
-
 
 
  if (run) {
