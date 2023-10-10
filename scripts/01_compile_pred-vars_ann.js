@@ -19,22 +19,17 @@ Data is masked to the extent of the sagebrush biome
 
 // User defined variables -------------------------------------
 
-var createCharts = false; //whether to create timeseries charts
 // whether to run the code the exports the files
 var run = false; 
 // date range
-var startYear = 1986;
-//var startYear = 2018; // short time period for testing
+//var startYear = 1986;
+var startYear = 2018; // short time period for testing
 var endYear = 2019;
 var startDate = ee.Date.fromYMD(startYear, 1, 1);
 var endDate = ee.Date.fromYMD(endYear, 12, 31); 
 
 var resolution = 1000; // this is the resolution of the daymet product (i.e. which
 // is coarser than the RAP data)
-
-// visualization params ----------------------------------------
-var fireVis = {min: 0, max: 100, palette: ['white', 'red']};
-var coverVis = {min: 0, max: 100, palette: ['white', 'green']}; 
 
 // read in data -------------------------------------------------
 
@@ -47,6 +42,9 @@ var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
 // Climate (daymet) data
 var clim = require("users/mholdrege/cheatgrass_fire:scripts/00_daymet_summaries.js");
 
+// fire data 
+var f= require("users/mholdrege/cheatgrass_fire:scripts/01_compile_fire_data.js");
+
 // Mask of the sagebrush region
 var m = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js");
 var mask = m.mask;
@@ -55,7 +53,22 @@ var region = m.region;
 
 Map.addLayer(region, {}, 'region', false);
 
+/************************************************
+ * 
+ * Prepare fire data
+ * (combined wildland fire datase)
+ * 
+ ************************************************
+ */
 
+// annual fire presence/abbs
+var cwfByYr = ee.ImageCollection(f.cwfImageByYearM)
+  .map(function(x) {
+    // adding a year property (for later linking of collections)
+    var image = ee.Image(x);
+    var year = ee.Number.parse(ee.Date(image.get('system:time_start')).format('YYYY'));
+    return image.rename('burned').set('year', year);
+  });
 
 /************************************************
  * 
@@ -122,11 +135,75 @@ Map.addLayer(biomass.filterDate('2019').select('pfgAGB'),
 //print('biomass', biomass);
 
 // mask and calculate median
-var bioMasked = biomass.map(function(x) {
-    return ee.Image(x).updateMask(mask);
+var bioM = biomass.map(function(x) {
+  var year = ee.Number.parse(ee.Image(x).get('year'));
+  return ee.Image(x)
+    .updateMask(mask)
+    .select(['pfgAGB', 'afgAGB'])
+    // converting year property to numeric
+    .set('year', year);
 });
-var bioMed = bioMasked.median();
 
+
+// biomass data--3 year averages ----------------------------------------------
+
+// b/ want to have a 3 year average the first year of data will be 
+// two years after the first year of available biomass data
+var yearsShort = ee.List.sequence(startYear -2, endYear);
+
+
+// 3 year averages
+var bioM3AvgL = yearsShort.map(function(x) {
+  var y3 = ee.Number(x);
+  var y2 = y3.subtract(1);
+  var y1 = y3.subtract(2);
+  
+  var f1 = cwfByYr.filter(ee.Filter.eq('year', y1)).first(); // fire in 1st year
+  var f2 = cwfByYr.filter(ee.Filter.eq('year', y2)).first(); // fire in 2nd year
+  var f3 = cwfByYr.filter(ee.Filter.eq('year', y3)).first(); // fire in 2nd year
+  
+  // creating masks
+  var m1 = f1.eq(ee.Image(0)); // where there were no fires first year
+  var m2 = f1.add(f2).eq(ee.Image(0)); // where there were no fires first or 2nd year
+  
+  // applying masks to the biomass data 
+  var b1 = bioM.filter(ee.Filter.eq('year', y1))
+    .first()
+    .updateMask(m1);
+
+  var b2 = bioM.filter(ee.Filter.eq('year', y2))
+    .first()
+    .updateMask(m2);
+    
+  var b3 = bioM.filter(ee.Filter.eq('year', y3))
+    .first();
+  
+  // average biomass across 3 years except if fires occured in yrs 1 or 2 than the pixels
+  // in the fire year (and following year if fire occured in yr 1) are masked out
+  var bAvg = ee.ImageCollection.fromImages([b3, b2, b1])
+    .mean()
+    .addBands(f3)
+    .copyProperties(b3);
+    
+  return bAvg;
+});
+
+// appending year to band names and converting to single image
+var bioM3AvgImage = ee.ImageCollection(bioM3AvgL)
+  .map(function(x) {
+    var image = ee.Image(x);
+    var oldNames = image.bandNames();
+    var yr = ee.String(image.get('year'));
+    var newNames = oldNames.map(function(x) {
+      return ee.String(x).cat(ee.String('_')).cat(yr);
+    });
+    return image.rename(newNames);
+  })
+  .toBands();
+  
+var bioM3AvgImage = bioM3AvgImage.regexpRename('^\\d+_', '');
+
+print(bioM3AvgImage)
 /************************************************
  * 
  * Prepare human modification data
@@ -136,7 +213,7 @@ var bioMed = bioMasked.median();
  
 // at the moment looks like I only have access to the 2019 human modification file
 var hMod = ee.Image('users/DavidTheobald8/HM/HM_US_v3_dd_' + '2019' + '_90_60ssagebrush');
-Map.addLayer(hMod, {}, 'humanMod', false);
+//Map.addLayer(hMod, {}, 'humanMod', false);
 
 /************************************************
  * 
@@ -145,22 +222,15 @@ Map.addLayer(hMod, {}, 'humanMod', false);
  * 
  ************************************************
  */
- 
- // export files so that this script can be sourced from other scripts
-exports.bioMasked = bioMasked;
- 
- 
+
+
+
  if (run) {
  // export files to drive
  
 var crs = fns.crs;
 var maskString = '_sagebrush-biome-mask_v2';
 
-// rap data
-
-var rapOut = bioMed.select(['afgAGB', 'pfgAGB'])
-  .addBands(rapMed.select('SHR').rename('shrCover')); //Shrub cover
-  
 
 // export to drive 
 // human modification dataset
@@ -176,25 +246,10 @@ Export.image.toDrive({
 });
 
 
-
-// RAP data (unmasked) for the whole extent of stepwat2 upscaling
-Export.image.toDrive({
-  image: rapOutSw2,
-  description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_med-max_' + resolution + 'm' + extentStringSw2,
-  folder: 'cheatgrass_fire',
-  maxPixels: 1e13, 
-  scale: sw2Resolution,
-  region: sw2Region,
-  crs: sw2Projection,
-  fileFormat: 'GeoTIFF'
-});
-
-
-
 // sagebrush biome mask
 Export.image.toDrive({
-  image: rapOut,
-  description: 'RAP_afgAGB-pfgAGB-shrCover_' + startYear + '-' + endYear + '_median_' + resolution + 'm' + maskString,
+  image: bioM3AvgImage,
+  description: 'RAP_afgAGB-pfgAGB-fire_' + startYear + '-' + endYear + '_3yrAvg_' + resolution + 'm' + maskString,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
   scale: resolution,
@@ -224,7 +279,6 @@ for (var i = 0; i < climList.length; i++) {
   });
   
 }
-
 
 }
 
