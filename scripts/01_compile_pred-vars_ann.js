@@ -245,7 +245,7 @@ Export.image.toDrive({
 
 // sagebrush biome mask
 Export.image.toDrive({
-  image: bioM3AvgImage,
+  image: bioM3AvgImage.toFloat(),
   description: 'RAP_afgAGB-pfgAGB-fire_' + startYear + '-' + endYear + '_3yrAvg_' + resolution + 'm' + maskString,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
