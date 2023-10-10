@@ -57,7 +57,9 @@ var climYearlyList = years.map(function(y) {
   var precip = filteredP.sum(); // total ppt for the year
   var temp = filteredT.mean(); // mean of min/max temp for the year
    // casting to double so datatype of temp and precp same. otherwise can't export to drive
-  var out = ee.Image(precip).addBands(temp.toDouble());
+  var out = ee.Image(precip)
+    .addBands(temp.toDouble())
+    .set('year', ee.Number(y));
   return out;
 });
 
@@ -83,7 +85,9 @@ var createSeasonClimFun = function(startMonth, endMonth) {
       .filter(ee.Filter.calendarRange(startMonth, endMonth, 'month'));
     var precip = filteredP.sum(); // total ppt for the year
     var temp = filteredT.mean(); // mean of min/max temp for the year
-    var out = ee.Image(precip).addBands(temp.toDouble());
+    var out = ee.Image(precip)
+      .addBands(temp.toDouble())
+      .set('year', ee.Number(y));
   return out;
   };
   return outFun;
@@ -132,6 +136,8 @@ var climSpringAvg = ee.ImageCollection(climSpringList)
  // export files so that this script can be sourced as a module
  // and these objects accessed
  
+exports.climSummerList = climSummerList;
+exports.climYearlyList = climYearlyList;
 exports.climSpringAvg = climSpringAvg;
 exports.climSummerAvg = climSummerAvg;
 exports.climYearlyAvg = climYearlyAvg;
