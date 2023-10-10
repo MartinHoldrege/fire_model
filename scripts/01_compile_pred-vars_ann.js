@@ -23,7 +23,7 @@ Data is masked to the extent of the sagebrush biome
 var run = false; 
 // date range
 //var startYear = 1986;
-var startYear = 2018; // short time period for testing
+  var startYear = 2016; // short time period for testing
 var endYear = 2019;
 var startDate = ee.Date.fromYMD(startYear, 1, 1);
 var endDate = ee.Date.fromYMD(endYear, 12, 31); 
@@ -151,7 +151,41 @@ var bioM = biomass.map(function(x) {
 // two years after the first year of available biomass data
 var yearsShort = ee.List.sequence(startYear -2, endYear);
 
+// testing ~~~~~~~~~~~~~~~~~
+  var y3 = ee.Number(2018);
+  var y2 = y3.subtract(1);
+  var y1 = y3.subtract(2);
+  
+  var f1 = cwfByYr.filter(ee.Filter.eq('year', y1)).first(); // fire in 1st year
+  var f2 = cwfByYr.filter(ee.Filter.eq('year', y2)).first(); // fire in 2nd year
+  var f3 = cwfByYr.filter(ee.Filter.eq('year', y3)).first(); // fire in 2nd year
+  
+  // creating masks
+  var m1 = f1.eq(ee.Image(0)); // where there were no fires first year
+  var m2 = f1.add(f2).eq(ee.Image(0)); // where there were no fires first or 2nd year
 
+  // applying masks to the biomass data 
+  var b1 = bioM.filter(ee.Filter.eq('year', y1))
+    .first()
+    .updateMask(ee.Image(m1));
+
+  var b2 = bioM.filter(ee.Filter.eq('year', y2))
+    .first()
+    .updateMask(m2);
+    
+  var b3 = bioM.filter(ee.Filter.eq('year', y3))
+    .first();
+  
+  // average biomass across 3 years except if fires occured in yrs 1 or 2 than the pixels
+  // in the fire year (and following year if fire occured in yr 1) are masked out
+  var bAvg = ee.ImageCollection.fromImages([b3, b2, b1])
+    .mean()
+    .addBands(f3)
+    .copyProperties(b3);
+    
+  print('bAvg', bAvg)
+ // end testing ~~~~~~~~~~~~~~~~~~~~~~~
+ 
 // 3 year averages
 var bioM3AvgL = yearsShort.map(function(x) {
   var y3 = ee.Number(x);
@@ -188,6 +222,7 @@ var bioM3AvgL = yearsShort.map(function(x) {
   return bAvg;
 });
 
+print('list', bioM3AvgL.slice(0,1))
 // appending year to band names and converting to single image
 var bioM3AvgImage = ee.ImageCollection(bioM3AvgL)
   .map(function(x) {
