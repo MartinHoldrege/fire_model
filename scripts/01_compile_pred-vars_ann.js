@@ -161,11 +161,12 @@ var bioM3Avg = bioMShort.map(function(x) {
   
   var f1 = cwfByYr.filter(ee.Filter.eq('year', y1)).first(); // fire in 1st year
   var f2 = cwfByYr.filter(ee.Filter.eq('year', y2)).first(); // fire in 2nd year
-  var f3 = cwfByYr.filter(ee.Filter.eq('year', y3)).first(); // fire in 2nd year
+  var f3 = cwfByYr.filter(ee.Filter.eq('year', y3)).first(); // fire in 3rd year
   
   // creating masks
-  var m1 = f1.eq(ee.Image(0)); // where there were no fires first year
-  var m2 = f1.add(f2).eq(ee.Image(0)); // where there were no fires first or 2nd year
+  
+  var m2 = f2.eq(ee.Image(0)); // were there were no fires in the 2nd year
+  var m1 = f1.add(f2).eq(ee.Image(0)); // were there were no fires first year or the following year
   
   // applying masks to the biomass data 
   var b1 = bioM.filter(ee.Filter.eq('year', y1))
