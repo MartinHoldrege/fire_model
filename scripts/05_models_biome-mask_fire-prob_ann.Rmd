@@ -26,14 +26,14 @@ User defined parameters
 
 ```{r}
 # set to true if want to run for a limited number of rows (i.e. for code testing)
-test_run <- TRUE
-s <- "_A-P_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
+test_run <- FALSE
+# _ann defines this model as being built on annual data
+s <- "_ann_A-P_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
 # such as (summer ppt * MAT) and annuals*temperature interactions
 fit_sample <- TRUE # fit model to a sample of the data
-n_train <- 1e6
+n_train <- 5e6
 
 ```
-
 
 
 ```{r warning=FALSE, message=FALSE}
@@ -64,6 +64,7 @@ df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v1.csv',
 # Prep data
 
 ```{r}
+set.seed(1)
 df_biome3 <- df_ann1
 
 # small dataset for if testing the data
@@ -287,7 +288,7 @@ predict_by_response <- function(mod, df) {
   df_out
 }
 
-pred_glm1 <- predict_by_response(mod_glm1, df_train)
+pred_glm1 <- predict_by_response(mod_glm1, df_biome3)
 ```
 
 ```{r message = FALSE}
@@ -336,73 +337,19 @@ pred_glm1_deciles <- predvars2deciles(pred_glm1,
                                       response_vars = response_vars,
                                       pred_vars = pred_vars)
 
-map2(pred_glm1_deciles, names(pred_glm1_deciles), function(df, method) {
-  map(var_prop, decile_dotplot, df = df, method = method, 
-      add_predicted = TRUE)
-})
-
-
-
-
-# tryng
-map2(pred_glm1_deciles_warm, names(pred_glm1_deciles_warm), function(df, method) {
-  map(var_prop, decile_dotplot, df = df, method = method, 
-      add_predicted = TRUE, title = "data w/ +5 deg C warming")
-})
-
-
 ```
 
 
-
-
-
-Plot observed vs predicted values for the quantile
-
-```{r}
-# long format, so have columns of predicted and observed
-# and can facet by response variable
-dfs_obs_v_pred <- map(pred_glm1_deciles, function(df) {
-  df %>% 
-    select(matches("_prop")) %>% 
-    mutate(id = 1:nrow(.)) %>% 
-    pivot_longer(cols = matches("_prop")) %>% 
-    mutate(type = ifelse(str_detect(name, "_pred$"),
-                         "predicted", "observed"),
-           variable = str_extract(name, "^[a-z]+")) %>% 
-    pivot_wider(id_cols = c(id, variable), names_from = 'type')
-})     
-
-map2(dfs_obs_v_pred, names(dfs_obs_v_pred), function(df, method) {
-  ggplot(df, aes(observed, predicted)) +
-    geom_point() +
-    facet_wrap(~variable) +
-    geom_abline(slope = 1) +
-    labs(title = paste(method, "method"),
-         subtitle = "fire probability averaged for each decile of each predictor variable",
-         caption = "each panel shows observed and predicted values
-         of annual fire probability, for a given fire dataset")
-})
-
-
-```
-
-R2 of observed vs predicted
-
-```{r}
-m <- lm(predicted ~ observed, dfs_obs_v_pred$paint)
-summary(m)$r.squared
-```
 
 Publication quality quantile plot
 
 ```{r}
 
 # publication quality version
-g <- decile_dotplot_pq(pred_glm1_deciles$paint)
+g <- decile_dotplot_pq(pred_glm1_deciles)
 
 # obs/pred inset
-g2 <- add_dotplot_inset(g, pred_glm1_deciles$paint)
+g2 <- add_dotplot_inset(g, pred_glm1_deciles)
 
 g2
 png(paste0("figures/quantile_plots/quantile_plot_v5", s,  ".png"), 
@@ -411,34 +358,12 @@ g2
 dev.off()
 ```
 
-### Deciles--original data
-
-Observed/predicted quantiles for the original (non resampled) dataset
-
-```{r}
-
-# just doing for $paint method data
-pred_glm_orig <- map2(mod_glm1[1], dfs_biome3_orig[1], predict_by_response)
-
-pred_glm_deciles_orig <- map(pred_glm_orig, predvars2deciles, 
-                         response_vars = response_vars,
-                         pred_vars = pred_vars)
-
-
-map2(pred_glm_deciles_orig[1], names(pred_glm_deciles_orig)[1], function(df, method) {
-  map(var_prop, decile_dotplot, df = df, method = method, 
-      add_predicted = TRUE, title = "Original data")
-})
-```
-
-
-
 ### Deciles Filtered 
 
 20th and 80th percentiles for each climat variable
 
 ```{r}
-df <- pred_glm1$paint[, c("MAT", "MAP", "prcpPropSum")] %>% 
+df <- pred_glm1[, c("MAT", "MAP", "prcpPropSum")] %>% 
   mutate(MAT = MAT - 273.15) # k to c
 map(df, quantile, probs = c(0.2, 0.8), na.rm = TRUE)
 ```
@@ -451,103 +376,29 @@ each climate variable.
 
 ```{r glm_deciles_filtered, fig.height = 10, fig.width = 5, message = FALSE}
 clim_vars <- c("MAT", "MAP", "prcpPropSum")
-pred_glm1_deciles_filt <- map(pred_glm1, predvars2deciles, 
+pred_glm1_deciles_filt <- predvars2deciles( pred_glm1, 
                          response_vars = response_vars,
                          pred_vars = pred_vars,
                          filter_var = TRUE,
                          filter_vars = pred_vars) 
 
-
-map(pred_glm1_deciles_filt, decile_dotplot_filtered_pq)
-
-```
-
-Climate variables shown on the x axis
-
-```{r fig.height = 10, fig.width = 7}
-map(pred_glm1_deciles_filt, decile_dotplot_filtered_pq,
-    xvars = clim_vars)
-```
-
-
-
-Publication quality
-
-
-```{r insets}
-df_l1 <- pred_glm1_deciles_filt$paint %>% 
-  dplyr::filter(name %in% c("afgAGB", "pfgAGB")) %>% 
-  split(., .$name, drop = TRUE)
-
-# list of lists, 
-df_l2 <- map(df_l1, function(df) split(df, df$filter_var))
-
-# one list element for veg var and filter var
-df_l3 <- flatten_rename(df_l2)
-
-inset_l1 <- map(df_l3, create_inset_filt)
+decile_dotplot_filtered_pq(pred_glm1_deciles_filt, xvars = clim_vars)
+decile_dotplot_filtered_pq(pred_glm1_deciles_filt)
 
 ```
 
 
-
-```{r, fig.gwidth = 7, fig.height = 8 }
-# create inset elements
-
-# inset locations
-l <- 0.01 # left
-b <- c(0.18, 0.515, 0.85) + 0.02 #bottom
-w <- 0.36 # width
-h <- 0.11 #height
-
-# letters of insets correspond to the panels they belong in
-A <- inset_element(inset_l1$afgAGB_MAT, l, b[3], l + w, b[3] + h)
-B <- inset_element(inset_l1$pfgAGB_MAT, l, b[3], l + w, b[3] + h)
-C <- inset_element(inset_l1$afgAGB_MAP, l, b[2], l + w, b[2] + h)
-D <- inset_element(inset_l1$pfgAGB_MAP, l, b[2], l + w, b[2] + h)
-E <- inset_element(inset_l1$afgAGB_prcpPropSum, l, b[1], l + w, b[1] + h)
-f <- inset_element(inset_l1$pfgAGB_prcpPropSum, l, b[1], l + w, b[1] + h)
-
-g2 <- pred_glm1_deciles_filt$paint %>% 
-  filter(filter_var %in% clim_vars) %>% 
-  decile_dotplot_filtered_pq2(insets_left = list(A, C, E),
-                              insets_right = list(B, D, f),
-                              ylim = c(0, 3.48))
-g2
-# add insets
-
-png(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v3",
-            s, ".png"), units = "in", res = 600, width = 8, height = 8)
-g2
-dev.off()
-
-```
-
-version without insets 
-
-```{r fig.width = 7, fig.height = 8}
-
-g <- pred_glm1_deciles_filt$paint %>% 
-  filter(filter_var %in% clim_vars) %>% 
-  decile_dotplot_filtered_pq2()
-
-jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_v3", s,  ".jpeg"), 
-     units = "in", res = 600, width = 7, height = 8 )
-g 
-dev.off()
-g
-```
 
 Filtered quantile figure with middle 2 deciles also shown
 
-```{r}
-pred_glm1_deciles_filt_mid <- map(pred_glm1, predvars2deciles, 
+```{r fig.height = 8, fig.width = 5}
+pred_glm1_deciles_filt_mid <- predvars2deciles(pred_glm1, 
                          response_vars = response_vars,
                          pred_vars = pred_vars,
                          filter_var = TRUE,
                          add_mid = TRUE)
 
-g <- decile_dotplot_filtered_pq(df = pred_glm1_deciles_filt_mid$paint)
+g <- decile_dotplot_filtered_pq(df = pred_glm1_deciles_filt_mid)
 g
 
 jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_mid_v1", s, ".jpeg"),
@@ -557,37 +408,21 @@ dev.off()
 ```
 
 
-### Deciles Filtered --Orig
-
-Filtered deciles for values predicted on the original data.
-
-
-```{r glm_orig_deciles_filtered, fig.height = 6}
-
-# just runningfor the paint method data 
-pred_glm_orig_deciles_filt <- map(pred_glm_orig[1], predvars2deciles, 
-                         response_vars = response_vars,
-                         pred_vars = pred_vars,
-                         filter_var = TRUE)
-
-map2(pred_glm_orig_deciles_filt, names(pred_glm_orig_deciles_filt), function(df, method) {
-  map(var_prop, decile_dotplot_filtered, df = df, method = method,
-      title = "Original (not resampled) data")
-})
-
-```
 
 # Save output
 
 ```{r save_output}
 # glm models
-mods2save <- mod_glm1
+mods2save <- butcher::butcher(mod_glm1) # removes some model components so the saved object isn't huge
+mods2save$summary <- summary(mod_glm1) # summary doesn't work on the butchered object
 mods2save$formula <- best_form
 mods2save$pred_vars_inter <- pred_vars_inter # so have interactions
+n <- nrow(df_sample)
+mods2save$data_rows <- n
 
 if(!test_run) {
   saveRDS(mods2save, 
-        paste0("models/glm_binomial_models_ann_v1", s, ".RDS"))
+        paste0("models/glm_binomial_models_v1", s, "_", n, "n.RDS"))
 }
 
 
