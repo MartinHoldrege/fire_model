@@ -1,0 +1,311 @@
+---
+title: "GAM of fire probability for the sagebrush biome"
+subtitle: "Annual (3 year running average) predictor data"
+author: "Martin Holdrege"
+date: "`r lubridate::today()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+This dataset consists of annual fire occurrence per cell (i.e. 1 or 0)
+and the 3 year average (that year and lag1 and lag2) climate and biomass
+of annuals. 
+
+Fitting GAM with no interactions, to better visualize what the non linear
+relationship would look like if a more flexible model were used. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE,
+                      message = FALSE)
+```
+
+# Dependencies 
+
+User defined parameters
+
+```{r}
+# set to true if want to run for a limited number of rows (i.e. for code testing)
+test_run <- FALSE
+# _ann defines this model as being built on annual data
+s <- "_ann_gam" # string to paste to file names e.g., that defines the interactions in the model
+# such as (summer ppt * MAT) and annuals*temperature interactions
+fit_sample <- TRUE # fit model to a sample of the data
+n_train <- 2e6
+n_test <- 1e6 # the q
+
+```
+
+
+```{r warning=FALSE, message=FALSE}
+# set option so resampled dataset created here reproduces earlier runs of this code with dplyr 1.0.10
+source("src/general_functions.R")
+source("src/fig_params.R")
+source("src/modeling_functions.R")
+source("src/resample_functions.R")
+library(tidyverse)
+library(GGally) # for ggpairs()
+library(pdp) # for partial dependence plots
+library(gridExtra)
+library(knitr)
+library(patchwork) # for figure insets etc. 
+theme_set(theme_classic())
+```
+
+# read in data
+
+Data compiled in the `04_create_biom-mask_dataframe_ann.R` script
+
+```{r}
+df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v1.csv',
+                    progress = FALSE, show_col_types = FALSE)
+```
+
+
+# Prep data
+
+```{r}
+set.seed(1)
+df_biome3 <- df_ann1
+
+# small dataset for if testing the data
+if(test_run) {
+  df_biome3 <- slice_sample(df_biome3, n = 1e5)
+}
+```
+
+
+For now, not doing any resampling
+
+```{r}
+set.seed(1234)
+pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
+names(pred_vars) <- pred_vars
+# so that herbAGB is in the final dataframes
+pred_vars2 <- pred_vars
+
+# predictor vars are the same in both dfs
+df_pred <- df_biome3[, pred_vars2]
+```
+
+Training data
+
+```{r}
+df_sample <- if(fit_sample) {
+  slice_sample(df_biome3, n = n_train)
+} else {
+    df_biome3
+}
+
+df_test <- if(fit_sample & !test_run & 
+              # antijoin only works if there are enough rows that meet 
+              # that criterion, i.e. if df_sample contains most of the data i
+              # doesnt' work
+              (nrow(df_biome3) - nrow(df_sample) > n_test)) {
+  df_biome3 %>% 
+    anti_join(df_sample, by = c("cell_num", "year")) %>% 
+    slice_sample(n = n_test)
+} else {
+  df_biome3 %>% 
+    slice_sample(n = n_test)
+}
+
+# small sample for certain plots
+df_small <- slice_sample(df_biome3, n = 1e5)
+```
+
+# describe data
+
+Number of fires in the data used to fit the model
+
+```{r}
+sum(df_sample$nfire_cwf)
+```
+
+# GAMS 
+
+## fitting models
+
+
+```{r fit_gam1}
+
+# refitting the gam with the best formula
+best_form <- formula(cwf_prop ~ s(afgAGB, bs = 'bs') + s(pfgAGB, bs = 'bs') + 
+                  s(MAT, bs = 'bs') + s(MAP, bs = 'bs') + s(prcpPropSum, bs = 'bs'))
+mod_gam1 <- mgcv::bam(best_form,
+                data = df_sample, family = 'binomial')
+
+# should be the same AIC (i.e. refitting the same model)
+
+summary(mod_gam1)
+
+```
+
+## partial dependence & VIP
+
+PDP plot trend made using a small sample of the data
+
+```{r pdp_gam, warning = FALSE, fig.width = 8, fig.height=8}
+# vip::vip(bin_gam1) # variable importance
+
+pdp_all_vars(mod_gam1, mod_vars = pred_vars, ylab = 'probability',train = df_small)
+
+```
+
+
+## observed vs. predicted
+
+Predicting on the data
+
+```{r}
+var_prop <- 'cwf_prop'
+# create prediction for each each model
+# (i.e. for each fire proporation variable)
+predict_by_response <- function(mod, df) {
+  df_out <- df
+
+  response_name <- paste0(var_prop, "_pred")
+  df_out[[response_name]] <- predict(mod, df, type = 'response')
+  df_out
+}
+
+pred_gam1 <- predict_by_response(mod_gam1, df_biome3)
+```
+
+```{r message = FALSE}
+
+# long format so can have observed and predicted columns
+pred_gam1_long <- pred_gam1 %>% 
+    select(matches("_prop")) %>% 
+    mutate(row = 1:n()) %>% 
+    pivot_longer(cols = -row) %>% 
+    mutate(data_source = str_extract(name, "^[a-z]+"),
+           type = ifelse(str_detect(name, "prop_pred$"), 'predicted', 
+                         'observed')) %>% 
+    select(-name) %>% 
+    pivot_wider(id_cols = c('row', 'data_source'), 
+                names_from = 'type',
+                values_from = 'value') %>% 
+    select(-row)
+
+# observed vs predicted ggplots
+g <- ggplot(pred_gam1_long %>% filter(observed <= 0.1), 
+            aes(y = predicted)) +
+  facet_wrap(~data_source) +
+  labs(subtitle = 'observed and predicted fire probabilities',
+       y = "predicted probability")
+
+g +
+  geom_boxplot(aes(x = as.factor(as.numeric(as.factor(observed)) - 1)))+
+  labs(x = "number of observed fires")
+
+
+```
+
+### Deciles
+
+Binning predictor variables into deciles (actually percentiles) and looking at the mean
+predicted probability for each percentile. The use of the word deciles
+is just a legacy thing (they started out being actual deciles)
+
+Then predicting on an identical dataset but with warming
+
+```{r}
+var_prop_pred <- paste0(var_prop, "_pred")
+response_vars <- c(var_prop, var_prop_pred)
+
+pred_gam1_deciles <- predvars2deciles(pred_gam1,
+                                      response_vars = response_vars,
+                                      pred_vars = pred_vars)
+
+```
+
+
+
+Publication quality quantile plot
+
+```{r}
+
+# publication quality version
+g <- decile_dotplot_pq(pred_gam1_deciles)
+
+# obs/pred inset
+g2 <- add_dotplot_inset(g, pred_gam1_deciles)
+
+g2
+if(!test_run){
+png(paste0("figures/quantile_plots/quantile_plot_v5", s,  ".png"), 
+     units = "in", res = 600, width = 5.5, height = 3.5 )
+g2
+dev.off()
+}
+```
+
+### Deciles Filtered 
+
+20th and 80th percentiles for each climat variable
+
+```{r}
+df <- pred_gam1[, c("MAT", "MAP", "prcpPropSum")] %>% 
+  mutate(MAT = MAT - 273.15) # k to c
+map(df, quantile, probs = c(0.2, 0.8), na.rm = TRUE)
+```
+
+
+Filtered 'Decile' plots of data. These plots show each vegetation variable,
+but only based on data that falls into the upper and lower two deciles of
+each climate variable. 
+
+
+```{r gam_deciles_filtered, fig.height = 10, fig.width = 5, message = FALSE}
+clim_vars <- c("MAT", "MAP", "prcpPropSum")
+pred_gam1_deciles_filt <- predvars2deciles( pred_gam1, 
+                         response_vars = response_vars,
+                         pred_vars = pred_vars,
+                         filter_var = TRUE,
+                         filter_vars = pred_vars) 
+
+decile_dotplot_filtered_pq(pred_gam1_deciles_filt, xvars = clim_vars)
+decile_dotplot_filtered_pq(pred_gam1_deciles_filt)
+
+```
+
+
+# Save output
+
+```{r save_output}
+# gam models
+mods2save <- butcher::butcher(mod_gam1) # removes some model components so the saved object isn't huge
+mods2save$summary <- summary(mod_gam1) # summary doesn't work on the butchered object
+mods2save$formula <- best_form
+n <- nrow(df_sample)
+mods2save$data_rows <- n
+
+if(!test_run) {
+  saveRDS(mods2save, 
+        paste0("models/gam_binomial_models_v1", s, "_", n, "n.RDS"))
+}
+
+
+```
+
+# session info
+
+Hash of current commit (i.e. to ID the version of the code used)
+
+```{r}
+system("git rev-parse HEAD", intern=TRUE)
+```
+
+Packages etc.
+
+```{r}
+sessionInfo()
+
+```
+
+
+
+
