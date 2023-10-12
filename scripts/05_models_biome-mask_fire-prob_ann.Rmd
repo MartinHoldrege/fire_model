@@ -3,6 +3,12 @@ title: "Models of fire probability for the sagebrush biome"
 subtitle: "Annual (3 year running average) predictor data"
 author: "Martin Holdrege"
 date: "`r lubridate::today()`"
+params: 
+  test_run: !r TRUE
+  save_figs: !r FALSE
+  s: !r "_ann_A-P_A-S"
+  inter: !r c('afgAGB:MAP' = "(afgAGB:MAP)", "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
+  sample_group: 1
 output:
   html_document:
     toc: true
@@ -16,7 +22,7 @@ of annuals.
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE,
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,
                       message = FALSE)
 ```
 
@@ -25,14 +31,18 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, cache.lazy = FALSE,
 User defined parameters
 
 ```{r}
+print(params)
 # set to true if want to run for a limited number of rows (i.e. for code testing)
-test_run <- FALSE
+test_run <- params$test_run
+save_figs <- params$save_figs
+# by changing the sample_group the model can be fit to a completely different set of rows
+sample_group <- params$sample_group 
 # _ann defines this model as being built on annual data
-s <- "_ann_A-P_A2-T2_A-Pr" # string to paste to file names e.g., that defines the interactions in the model
+s <- params$s # string to paste to file names e.g., that defines the interactions in the model
 # such as (summer ppt * MAT) and annuals*temperature interactions
 fit_sample <- TRUE # fit model to a sample of the data
-n_train <- 5e6
-
+n_train <- 5e6 # sample size of the training data
+n_test <- 1e6 # sample size of the testing data (if this is too big the decile dotplot code throws memory errors)
 ```
 
 
@@ -90,10 +100,31 @@ df_pred <- df_biome3[, pred_vars2]
 Training data
 
 ```{r}
-df_sample <- if(fit_sample) {
-  slice_sample(df_biome3, n = n_train)
+
+df_sample <- if(fit_sample & !test_run) {
+  reordered <- slice_sample(df_biome3, prop = 1)
+  
+  low <- (sample_group - 1)*n_train + 1 # first row (of reordered data) to get
+  high <- low + n_train - 1 # last row
+  if(high > nrow(df_biome3)) {
+    stop('trying to sample from rows that dont exist')
+  }
+  reordered[low:high, ]
 } else {
     df_biome3
+}
+
+df_test <- if(fit_sample & !test_run & 
+              # antijoin only works if there are enough rows that meet 
+              # that criterion, i.e. if df_sample contains most of the data i
+              # doesnt' work
+              (nrow(df_biome3) - nrow(df_sample) > n_test)) {
+  df_biome3 %>% 
+    anti_join(df_sample, by = c("cell_num", "year")) %>% 
+    slice_sample(n = n_test)
+} else {
+  df_biome3 %>% 
+    slice_sample(n = n_test)
 }
 
 # small sample for certain plots
@@ -133,7 +164,7 @@ kable(response_summary,
 
 here using pred dataframe, because smaller and this code is slow. 
 
-```{r pred_v_pred, cache = TRUE, dependson='train'}
+```{r pred_v_pred}
 df_pred %>% 
   slice_sample(n = 5e4) %>% 
   select(-matches("_")) %>% 
@@ -143,7 +174,7 @@ ggpairs(lower = list(continuous = GGally::wrap("points", alpha = 0.1,    size=0.
 
 ## boxplots-- # of fires vs predictor variables
 
-```{r n_fires_boxplots, fig.height=9, fig.width=8, cache = FALSE, dependson='prep_data'}
+```{r n_fires_boxplots, fig.height=9, fig.width=8}
 
 # vectors of names of response variables
 vars_nfire <- names(df_biome3) %>% 
@@ -183,26 +214,15 @@ that repeated for each variable. So have models with 1 variable transformed,
 see documentation for glms_iterate_transforms, in the modelling_functions.R
 script
 
-```{r iterate_transform, warning = FALSE, dependson='train', cache = FALSE}
+```{r iterate_transform, warning = FALSE}
 set.seed(1234)
 
 # adding an interaction term to help deal with over-predicting fire probability
 # at pixels with high afgAGB and high MAP. parentheses around interaction
 # term are included so that glms_iterate_transforms doesn't transform
 # the interaction term. 
-pred_vars_inter <- c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
-                     #"afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)",
-                     # based on examination of diagnostics plots with 
-                     # Daniel, decided to try fitting this interaction
-                     # (annuals and temp) as a parabola to help avoid
-                     # over-predictions in warm high annual places. 
-                     "afgAGB:MAT" = "(afgAGB:MAT)",
-                     "afgAGB2:MAT2" = "I(afgAGB^2):I(MAT^2)",
-                     #"afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)",
-                     #"afgAGB2:prcpPropSum2" = "I(afgAGB^2):I(prcpPropSum^2)",
-                     "afgAGB:pfgAGB" = "(afgAGB:pfgAGB)"#,
-                     #"afgAGB2:pfgAGB2" = "I(afgAGB^2):I(pfgAGB^2)"
-                     )
+pred_vars_inter <- c(pred_vars, params$inter)
+
 
 # pred_vars_inter <- pred_vars
 
@@ -244,7 +264,7 @@ var_transformed
 Response variables are the proportion of years in which fires occurred.
 Using best model formula selected in the previous step
 
-```{r fit_glm1, dependson='iterate_transform'}
+```{r fit_glm1}
 
 best_form <- as.formula(mods_glm_cwf1$final_formula)
 print(best_form)
@@ -263,7 +283,7 @@ summary(mod_glm1)
 
 PDP plot trend made using a small sample of the data
 
-```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8, cache = FALSE, dependson='fit_glm1'}
+```{r pdp_glm, warning = FALSE, fig.width = 8, fig.height=8}
 # vip::vip(bin_glm1) # variable importance
 vip::vip(mod_glm1, num_features = 15)
 
@@ -288,7 +308,7 @@ predict_by_response <- function(mod, df) {
   df_out
 }
 
-pred_glm1 <- predict_by_response(mod_glm1, df_biome3)
+pred_glm1 <- predict_by_response(mod_glm1, df_test)
 ```
 
 ```{r message = FALSE}
@@ -352,10 +372,14 @@ g <- decile_dotplot_pq(pred_glm1_deciles)
 g2 <- add_dotplot_inset(g, pred_glm1_deciles)
 
 g2
-png(paste0("figures/quantile_plots/quantile_plot_v5", s,  ".png"), 
+
+if(save_figs) {
+  png(paste0("figures/quantile_plots/quantile_plot_v5", s,  ".png"), 
      units = "in", res = 600, width = 5.5, height = 3.5 )
-g2
-dev.off()
+    print(g2)
+  dev.off()
+}
+
 ```
 
 ### Deciles Filtered 
@@ -390,8 +414,9 @@ decile_dotplot_filtered_pq(pred_glm1_deciles_filt)
 
 
 Filtered quantile figure with middle 2 deciles also shown
+(this is very memory intensive so no running at the moment)
 
-```{r fig.height = 8, fig.width = 5}
+```{r fig.height = 8, fig.width = 5, eval = FALSE}
 pred_glm1_deciles_filt_mid <- predvars2deciles(pred_glm1, 
                          response_vars = response_vars,
                          pred_vars = pred_vars,
@@ -401,10 +426,12 @@ pred_glm1_deciles_filt_mid <- predvars2deciles(pred_glm1,
 g <- decile_dotplot_filtered_pq(df = pred_glm1_deciles_filt_mid)
 g
 
+if(save_figs) {
 jpeg(paste0("figures/quantile_plots/quantile_plot_filtered_mid_v1", s, ".jpeg"),
      units = "in", res = 600, width = 5.5, height = 6 )
-g 
+  g 
 dev.off()
+}
 ```
 
 
@@ -422,7 +449,8 @@ mods2save$data_rows <- n
 
 if(!test_run) {
   saveRDS(mods2save, 
-        paste0("models/glm_binomial_models_v1", s, "_", n, "n.RDS"))
+        paste0("models/glm_binomial_models_v1", s, "_", n, "n_g", 
+        sample_group, ".RDS"))
 }
 
 
