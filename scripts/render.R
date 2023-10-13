@@ -34,7 +34,8 @@ render_glm = function(s, inter, sample_group,
       test_run = test_run,
       save_figs = save_figs,
       s = s,
-      inter = inter
+      inter = inter,
+      sample_group = sample_group
     ),
     output_file = paste0("05_models_biome-mask_fire-prob_ann_", date, 
                          stringr::str_replace(s, "_ann", ""),
@@ -52,12 +53,32 @@ render_glm = function(s, inter, sample_group,
 #            sample_group = 1, 
 #            test_run = FALSE)
 
-render_glm(s = "_ann_A-P_A-T_A-S", 
-           inter = c('afgAGB:MAP' = "(afgAGB:MAP)", 
-                     'afgAGB:MAT' = "(afgAGB:MAT)",
-                     "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)"),
-           sample_group = 1, 
+# run again to create smaller object
+render_glm(s = "_ann_A-P",
+           inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
+           sample_group = 1,
            test_run = FALSE)
+
+for (sample_group in 2:5) {
+  render_glm(s = "_ann_A-P",
+             inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
+             sample_group = sample_group,
+             test_run = FALSE)
+}
+
+
+
+# render_glm(s = "_ann_A-P_A-T_A-S", 
+#            inter = c('afgAGB:MAP' = "(afgAGB:MAP)", 
+#                      'afgAGB:MAT' = "(afgAGB:MAT)",
+#                      "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)"),
+#            sample_group = 1, 
+#            test_run = FALSE)
+
+
+
+
+
 
 
 

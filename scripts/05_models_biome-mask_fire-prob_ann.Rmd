@@ -266,11 +266,11 @@ Using best model formula selected in the previous step
 
 ```{r fit_glm1}
 
-best_form <- as.formula(mods_glm_cwf1$final_formula)
+best_form <- mods_glm_cwf1$final_formula
 print(best_form)
 
 # refitting the glm with the best formula
-mod_glm1 <- glm(best_form, data = df_sample, family = 'binomial')
+mod_glm1 <- glm(as.formula(best_form), data = df_sample, family = 'binomial')
 
 # should be the same AIC (i.e. refitting the same model)
 AIC(mod_glm1)
@@ -441,7 +441,7 @@ dev.off()
 ```{r save_output}
 # glm models
 mods2save <- butcher::butcher(mod_glm1) # removes some model components so the saved object isn't huge
-mods2save$summary <- summary(mod_glm1) # summary doesn't work on the butchered object
+
 mods2save$formula <- best_form
 mods2save$pred_vars_inter <- pred_vars_inter # so have interactions
 n <- nrow(df_sample)
