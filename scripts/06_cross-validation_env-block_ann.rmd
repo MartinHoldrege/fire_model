@@ -1,8 +1,13 @@
 ---
 title: "Cross validation using environmental blocking"
-subtitle: "Based on before/after fire resampled data"
+subtitle: "Based on annual fire data"
 author: "Martin Holdrege"
 date: "`r lubridate::today()`"
+params:
+  test_run: TRUE
+  s: '_ann_A-P'
+  n_train: 5000000
+  sample_group: 1
 output:
   html_document:
     toc: true
@@ -21,32 +26,30 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE,
 
 # Dependencies
 
-Note, I'm using blockCV version 2.1.4. The newest version doesn't 
-exactly reproduce the same results (b/ of random number generator difference?)
-which makes the blocks numbered differently (actual differences in results
-are trivial). So running this code
-`devtools::install_version("blockCV", version = "2.1.4", repos = "http://cran.us.r-project.org")`
-will install the same version as I've been using. 
-
 
 ```{r, message = FALSE, warning = FALSE}
 # set option so resampled datasets created here reproduces earlier runs of this code with dplyr 1.0.10
-options(dplyr.legacy_locale = TRUE) 
-source("scripts/04_create_biome-mask_dataframe_byNFire.R")
+#source("scripts/04_create_biome-mask_dataframe_byNFire.R")
 source("src/resample_functions.R")
 source("src/modeling_functions.R")
+source("src/general_functions.R")
 source("src/basemaps.R")
 source("src/fig_params.R")
 library(blockCV) # for creating environmental blocks
 library(sf)
 library(knitr)
+library(tidyverse)
+library(stars)
 ```
 
 params
 
 ```{r}
-test_run <- FALSE # runs code on data subset, for testing
-s <- "_A-P_A2-T2_A2-S2_A-Pr" # string to paste to file names (often named based on added interactions)
+print(params)
+test_run <- params$test_run # runs code on data subset, for testing
+s <- params$s
+n_train <- params$n_train
+sample_group <- params$sample_group
 ```
 
 
@@ -55,27 +58,28 @@ s <- "_A-P_A2-T2_A2-S2_A-Pr" # string to paste to file names (often named based 
 Read in model object (for the formula)
 
 ```{r}
-mods1 <- readRDS(paste0("models/glm_binomial_models_byNFire_v2_bin20_cwf",
-                        s, ".RDS"))
+path_mod <- paste0("models/glm_binomial_models_v1", s, "_", n_train, "n_g", 
+        sample_group, ".RDS")
+mod1 <- readRDS(path_mod)
 ```
 
-Reading in the data again here because below the data needs to be 
-a raster object not a terra object, and the conversion between the two
-was not properly working
+Reading in predictor vars
 
 ```{r}
+df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v1.csv',
+                    progress = FALSE, show_col_types = FALSE)
 
-seasons <- c('Yearly', 'Summer') # not using spring at the moment
-
-# using the data starting in 1986 so that it matches the rap data
-# that we're using
-clim_paths <- paste0("data_processed/daymet/daymet_clim",  seasons,
-                     "Avg_1986-2019_1000m", maskString, "v1.tif")
-
-names(clim_paths) <- seasons
-
-r_clim1 <- map(clim_paths, raster::brick) # list of rasters
+df_ann2 <- df_ann1 %>% 
+  select(cell_num, pfgAGB, afgAGB, nfire_cwf, MAP, MAT, prcpPropSum)
 ```
+
+Template (cell number) raster
+
+```{r}
+template <- rast("data_processed/data_publication/cell_nums.tif")
+```
+
+
 
 # functions
 
@@ -88,10 +92,7 @@ summarize_pred_response <- function(df) {
          across(matches("cwf_prop"),
                         .fns = function(x) x*100)) %>% 
     summarise(across(c(MAT, MAP, prcpPropSum, afgAGB, pfgAGB, matches("cwf_prop")),
-                  .fns = weighted.mean,
-                  # note--older dataframes didn't have a weight column,
-                  # and those cases numYrs should be used. 
-                  w = weight))
+                  .fns = weighted.mean))
   out
 }
 ```
@@ -104,54 +105,46 @@ Combine climate data into a single raster for use in blockCV::envBlock(),
 and create an sf object of fake datapoints so that function will work. 
 
 ```{r}
+# average climate conditions across all the years 
+df_clim_avg <- df_ann1 %>% 
+  select(cell_num, MAT, MAP, prcpPropSum) %>% 
+  group_by(cell_num) %>% 
+  summarise(across(everything(), mean))
 
-r_clim2 <- raster::stack(r_clim1$Yearly[[c("prcp", "tavg")]],
-             r_clim1$Summer[['prcpProp']]) %>% 
-  raster::setMinMax() # if this isn't set envBlock won't work
-
-names(r_clim2) <- c("MAP", "MAT", "prcpPropSum")
-
+r_clim2 <- fill_raster(df_clim_avg, template)
 
 n <- ncell(r_clim2)
-cell_coords <- xyFromCell(r_clim2[[1]], 1:n) %>% 
+cell_coords <- xyFromCell(template, 1:n) %>% 
   as.data.frame() %>% 
   mutate(
-    value = as.numeric(values(r_clim2[[1]])),
-    cell_num = 1:n,
-    # thi is just a dummy variable to make 
-    #  envBlock() run
-    dummy_col = sample(c(0,1), n, replace = TRUE)) %>% 
-  filter(!is.na(value)) %>% 
-  dplyr::select(-value)
+    cell_num = as.numeric(values(template))) %>% 
+  filter(!is.na(cell_num)) %>% 
+  # sf object of the center of sagebrush biome grid points
+  st_as_sf(coords = c('x', 'y'), crs = crs(template))
 
-
-# sf object of the center of sagebrush biome grid points
-cells_sf1 <- st_as_sf(cell_coords, coords = c("x", "y"),
-                      crs = sf::st_crs(r_clim2))
 
 k <- 5
 fold_name <- paste0('fold', 1:k)
 
 set.seed(124) # envBlock uses kmeans which is affected by the seed
 
-eb1 <- envBlock(rasterLayer = r_clim2,
-               speciesData = cells_sf1,
-               species = "dummy_col", # name of the column with response
-               k = k,
-               standardization = "normal",
-               rasterBlock = TRUE)
+# environmental blocks
+eb1 <- blockCV::cv_cluster(x = cell_coords, # coords of center of eath grid cell
+                           r = r_clim2,
+                           k = k,
+                           scale = TRUE,
+                           raster_cluster = FALSE)
+
 
 # checking that size of all test datasets sums to the 
 # number of grid cells in the original dataset
-stopifnot(length(unique(df_byNFire2$cell_num)) 
-          == sum(eb1$records$test_0 +eb1$records$test_1))
+cell_nums <- unique(df_clim_avg$cell_num)
+stopifnot(length(unique(cell_nums)) 
+          == sum(eb1$records$train[1] + eb1$records$test[1]))
 ```
 
 # Prepare Data
 
-## Resample
-
-First, bin the data.
 
 ```{r}
 pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
@@ -159,55 +152,34 @@ clim_vars <- c("MAT", "MAP", "prcpPropSum")
 names(pred_vars) <- pred_vars
 response_vars <- c("cwf_prop", "cwf_prop_pred")
 
-bins <- 20
-
-df_binned1 <- bin_df(df_byNFire2, cols = pred_vars, n_categories = bins)
-
-df_resampled1 <- resample_bins(df_binned1)
 ```
 
 
 ## Split into train/test
 
 ```{r}
-cell_nums <- unique(df_byNFire2$cell_num)
-
-test_cell_endices <- map(eb1$folds, function(x) x[[2]])
-
-# show be as many unique values in all the test sets as
-# there are gridcells in the original dataset
-stopifnot(length(unique(unlist(test_cell_endices))) == 
-            length(unique(df_byNFire2$cell_num)))
-
-# shouldn't be duplicates in the test dataset endices
-stopifnot(sum(duplicated(unlist(test_cell_endices))) == 0)
-
-
-test_cell_nums <- map(test_cell_endices, function(x) {
-  # the first element of the sub list contains the endices
-  # of the training data set, the second the endices for the test set
-  stopifnot(max(x) <= length(cell_nums))
-  cell_nums[x] 
-})
-
-stopifnot(
-  sort(unique(unlist(test_cell_nums))) == 
-    sort(unique(df_byNFire2$cell_num))
-)
-
-df_test_cell_nums <- map2_dfr(test_cell_nums, fold_name, function(x, y) {
-  tibble(cell_num = x,
-         fold = y)
-})
-
+fold_endices <- cell_coords
+fold_endices$geometry <- NULL
+fold_endices$fold <- eb1$folds_ids
+fold_endices <- as_tibble(fold_endices) %>% 
+  # renumbering so number (and colors) will
+  # (more or less) match with the first submission
+  # to fire ecology (for easier interpretation)
+  mutate(fold = c(1, 2, 4, 3, 5)[fold]) %>% 
+  arrange(fold, cell_num)
+test_cell_nums <- fold_endices %>% 
+  mutate(fold = paste0('fold', fold)) %>% 
+  group_by(fold) %>% 
+  group_split()
 names(test_cell_nums) <- fold_name
-
+# data for a given fold
 dfs_test1 <- map(test_cell_nums, function(x) {
-  df_resampled1[df_resampled1$cell_num %in% x, ] 
+  df_ann2[df_ann2$cell_num %in% x$cell_num, ] 
 })
 
+# data for the other folds
 dfs_train1 <- map(test_cell_nums, function(x) {
-  df_resampled1[!df_resampled1$cell_num %in% x, ] 
+  df_ann2[!df_ann2$cell_num %in% x$cell_num, ] 
 })
 
 ```
@@ -219,7 +191,9 @@ if (test_run) {
     map(sample_n, size = n)
   dfs_train1 <- map(dfs_train1, ungroup) %>% 
     map(sample_n, size = n)
-  df_byNFire2 <- sample_n(ungroup(df_byNFire2), size = n*5)
+  df_ann3 <- sample_n(ungroup(df_ann2), size = n*5)
+} else {
+  df_ann3 <- df_ann2
 }
 ```
 
@@ -230,24 +204,31 @@ if (test_run) {
 
 ```{r}
 cols_fold <- RColorBrewer::brewer.pal(k, 'RdYlBu')
-names(cols_fold) <- fold_name
-r_folds1 <- r_clim2[[1]]
-r_folds1[!is.na(r_folds1)] <- eb1$foldID
+r_folds1 <- fill_raster(fold_endices, template)
 
-writeRaster(r_folds1, 'data_processed/cv_folds_v1.tif')
+writeRaster(r_folds1, 'data_processed/cv_folds_v2.tif', overwrite = TRUE)
 
 # the base and bbox objects come from src/basemaps.R
-base +
-  tm_shape(r_folds1, bbox = bbox) +
-  tm_raster(palette = cols_fold,
-            as.count = TRUE,
-            title = "Fold") +
-  tm_layout(main.title = "Folds (environmental blocks) used for cross validation")
+g <- ggplot() +
+  geom_stars(data = st_as_stars(r_folds1), aes(fill = factor(fold, levels = 1:k))) +
+  basemap_g() +
+  scale_fill_manual(values = cols_fold,
+                     na.value ='white',
+                    name = 'Fold',
+                    na.translate = FALSE) 
+g
+ggsave("figures/cv/folds_map_v1.png", plot = g,  width = 4, height = 4,
+       dpi = 600)
+
+png("figures/cv/folds_map_v1.png",width = 5, height = 4, units = 'in',
+       res = 600)
+g
+dev.off()
 
 ```
 
 
-
+STOP--continue working here
 
 # Fit models
 
@@ -255,11 +236,10 @@ All models have the same formula. But are fit to data where one
 block of data is held out. 
 
 ```{r}
-form1 <- mods1$paint_cwf$formula
+form1 <- as.formula(mod1$formula)
 
 mods_train1 <- map(dfs_train1, function(df) {
-  glm(form1, family = 'binomial', data = df,
-      weights = numYrs)
+  glm(form1, family = 'binomial', data = df)
 })
 
 
@@ -282,7 +262,7 @@ variable, with other variables held at their mean.
 ```{r}
 lookup_var <- var2lab(x = NULL, units_md = TRUE)
 
-mods_train2 <- c(mods_train1, list('biome-wide' = mods1$paint_cwf))
+mods_train2 <- c(mods_train1, list('biome-wide' = mod1))
 
 letter_df <- tibble(
   letter = fig_letters[1:length(lookup_var)],
@@ -347,7 +327,7 @@ df_byNFire2_fold <- df_byNFire2_fold %>%
   bind_rows(.id = "fold")
 
 # prediction from the main model
-df_byNFire2_fold$cwf_prop_pred_main <- predict(mods1$paint_cwf, newdata = df_byNFire2_fold,
+df_byNFire2_fold$cwf_prop_pred_main <- predict(mod1, newdata = df_byNFire2_fold,
                                  type = 'response')
 
 digits <- c(NA, 1, 0, 3, 1, 1, 2, 2, 2)
@@ -564,8 +544,8 @@ set.seed(1234)
 
 # some older model objects don't have interactions included
 # so doing this so the code doesn't crash
-pred_vars_inter <- if(!is.null(mods1$pred_vars_inter)) {
-  mods1$pred_vars_inter
+pred_vars_inter <- if(!is.null(mod1$pred_vars_inter)) {
+  mod1$pred_vars_inter
 } else {
   message('actual model interactions not provided')
   c(pred_vars, 'afgAGB:MAP' = "(afgAGB:MAP)",
