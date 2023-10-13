@@ -54,10 +54,10 @@ render_glm = function(s, inter, sample_group,
 #            test_run = FALSE)
 
 # run again to create smaller object
-render_glm(s = "_ann_A-P",
-           inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
-           sample_group = 1,
-           test_run = FALSE)
+# render_glm(s = "_ann_A-P",
+#            inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
+#            sample_group = 1,
+#            test_run = FALSE)
 
 for (sample_group in 2:5) {
   render_glm(s = "_ann_A-P",

@@ -4,9 +4,9 @@ subtitle: "Annual (3 year running average) predictor data"
 author: "Martin Holdrege"
 date: "`r lubridate::today()`"
 params: 
-  test_run: !r TRUE
-  save_figs: !r FALSE
-  s: !r "_ann_A-P_A-S"
+  test_run: TRUE
+  save_figs: FALSE
+  s: "_ann_A-P_A-S"
   inter: !r c('afgAGB:MAP' = "(afgAGB:MAP)", "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
   sample_group: 1
 output:
