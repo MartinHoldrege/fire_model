@@ -216,16 +216,16 @@ var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
   
   # Including units that are written using markdown formating
   lookup_md <- c(
-    "MAT" = "MAT (\u00b0C)",
-    "MAP" = "MAP (mm)",
+    "MAT" = "Temperature (\u00b0C)",
+    "MAP" = "Precitation (mm)",
     "prcpPropSum" = "PSP (proportion)",
     "afgAGB" = "Annual biomass (g/m<sup>2</sup>)",
     "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)"
   )
   
   lookup_name_only <- c(
-    "MAT" = "MAT",
-    "MAP" = "MAP",
+    "MAT" = "Temperature",
+    "MAP" = "Precitation",
     "prcpPropSum" = "PSP",
     "afgAGB" = "Annual biomass",
     "pfgAGB" = "Perennial biomass"
@@ -434,20 +434,6 @@ predict_cell_avg <- function(object, newdata, ...) {
   out
 }
 
-#' Fill empty raster with contents of dataframe
-#'
-#' @param df dataframe with pred and cell_num columns
-#' @param empty empty spatRaster
-#'
-#' @return raster with pred values filled in the correct cell numbers
-df2rast <- function(df, empty) {
-  stopifnot(c("pred", "cell_num") %in% names(df),
-            'SpatRaster' %in% class(empty))
-  out <- empty
-  out[] <- NA # make sure contents of raster are actually 'empty'
-  out[df$cell_num] <- df$pred
-  out
-}
 
 # quantile plots ----------------------------------------------------------
 
@@ -1372,6 +1358,82 @@ fill_raster <- function(df, template) {
   terra::values(r_out) <- as.matrix(full_df2)
   r_out
 }
+
+#' summarize yearly data to get cell level summaries
+#'
+#' @param df dataframe (usually of same structure as used for model fitting)
+#' @param weighted_vars variable names to take weighted averages of
+#' @param mean_vars variables to take unweighted averages of
+#' @param sum_vars variables to sum (e.g. fire counte)
+#' @param na.rm 
+summarize_yearly <-  function(df, 
+                              # vars to take a weighted mean of (i.e. b/ they running
+                              # 3 year avgs)
+                              weighted_vars = c("pfgAGB", "afgAGB", "MAP", "MAT", "prcpPropSum"),
+                              # take a straight mean of theses
+                              mean_vars = NULL,
+                              # sum these vars
+                              sum_vars = 'nfire_cwf',
+                              na.rm = FALSE
+) {
+  stopifnot(
+    c('cell_num', 'year', weighted_vars, mean_vars, sum_vars) %in% names(df)
+  )
+  
+  yr_min <- min(df$year)
+  yr_max <- max(df$year)
+  df2 <- df %>% 
+    # weight, first and last years in the sequence are increased in weight
+    # because they are included in only one 3 year avg. 2nd to last
+    # years are in ontly 2 weighted averages
+    # this way the summaries are true e.g. mean annual temperature for the 
+    # whole time period
+    mutate(w = case_when(
+      year == yr_min | year == yr_max ~ 3,
+      year == yr_min + 1 | year == yr_max - 1 ~ 3/2,
+      TRUE ~ 1
+    )) %>% 
+    group_by(cell_num) %>% 
+    summarize(
+      across(all_of(weighted_vars), 
+             .fns = \(x) weighted.mean(x, w = w, na.rm = na.rm)),
+      across(all_of(mean_vars), .fns = \(x) mean(x, na.rm = na.rm)),
+      across(all_of(sum_vars), .fns = \(x) sum(x, na.rm = na.rm)),
+    ) %>% 
+    select(cell_num, all_of(weighted_vars), all_of(mean_vars), all_of(sum_vars))
+  
+  df2
+  
+}
+
+#' Convert model data into a raster of across year means
+#' 
+#'
+#' @param df dataframe (containing climate, vegetation, and fire data).
+#' @param template raster providing cell numbers
+#' @param na.rm passed to mean and sum
+#'
+#' @return multie layered raster one per column in the dataframe
+df2raster <- function(df, template,
+                      # vars to take a weighted mean of (i.e. b/ they running
+                      # 3 year avgs)
+                      weighted_vars = c("pfgAGB", "afgAGB", "MAP", "MAT", "prcpPropSum"),
+                      # take a straight mean of theses
+                      mean_vars = NULL,
+                      # sum these vars
+                      sum_vars = 'nfire_cwf',
+                      na.rm = FALSE
+                      ) {
+  df2 <- summarize_yearly(df = df, weighted_vars = weighted_vars,
+                          mean_vars = mean_vars,
+                          sum_vars = sum_vars,
+                          na.rm = na.rm)
+  
+  fill_raster(df2, template)
+    
+}
+
+
 
 # mapping -----------------------------------------------------------------
 

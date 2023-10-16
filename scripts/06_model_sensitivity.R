@@ -11,42 +11,27 @@
 # this script is useful because it reads in the rasters used below
 # and dataframes to predict on (note this is not the 
 # data used to fit the byNfire model)
-source('scripts/04_create_biome-mask_dataframe_1986.R') # only for rast_fPerPixel object
-source('scripts/04_create_biome-mask_dataframe_byNFire.R')
 source("src/basemaps.R")
 source("src/fig_params.R")
 source("src/general_functions.R")
 library(RColorBrewer)
 library(stars)
-
+library(terra)
 
 # params ------------------------------------------------------------------
 
-# strings of model names
-bin_string <- "bin20"
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-sv <-  c(#"", # original model (model 1)
-  #"_A2-T2_A-Pr", # model 4
-  "_A-P_A2-T2_A-Pr"#, # model 4b # final 'best' model
-  # "_S-T_A2-T2_A-Pr", # model 6
-  # "_A-P_S-T_A2-T2_A-Pr", # model 6b
-  # "_S2-T2_A2-T2_A-Pr", # model 7
-  # "_7B_A-P_S2-T2_A2-T2_A-Pr" # model 7b
-)
+s <- 'ann_A-P_entire'
 
-files_mod <- paste0("models/glm_binomial_models_byNFire_v2_", bin_string, "_cwf", 
-                sv, ".RDS")
-sv[sv == ""] <- "original"
-names(files_mod) <- sv
-
-s_target <- "_A-P_A2-T2_A-Pr" # which model (based on files_mod names) do you want
-# to make publication quality figures for? This if files_mod has names
-# of multiple model objects, figures for all those are just packaged 
-# together pdfs for exploration
-
+files_mod <- paste0("models/glm_binomial_models_v1_", s, ".RDS")
 
 # read in data ------------------------------------------------------------
+
+
+# * raster template ---------------------------------------------------------
+# provides cell numbers
+template <- rast("data_processed/data_publication/cell_nums.tif")
 
 # * burned area ----------------------------------------------------------
 
@@ -57,21 +42,10 @@ ba1 <- read_csv("data_processed/area_burned_by_yr_cwf_30m.csv",
                 show_col_types = FALSE) %>% 
   select(area_ha, year)
 
-# * fire data -------------------------------------------------------------
 
-# number of observed fires per pixel, cwf (combined wildand fire dataset) 
-# from now on just using the cwf dataset which is the best
-rast_fPerPixel <- rasts_fPerPixel$paint
+# * predictor/response dataframe ------------------------------------------
 
-# * rap data --------------------------------------------------------------
-
-rast_rap1
-
-# * daymet ----------------------------------------------------------------
-
-# using these raster so that the climate spans the same time period
-# as the RAP & fire data that we're using for the nFire model
-rasts_clim1
+df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v1.csv')
 
 # * dataframe -------------------------------------------------------------
 
@@ -83,79 +57,55 @@ df1 <- dfs_byNFire3_hmod$paint
 
 # glm models fit to resampled/balanced data
 
-# here the bin_string in the file name refers to how many bins each predictor variable
-# was split into before resampling, and the by NFire means that
-# data was split into before/after fires for training
-glm_mods_resample1 <- map(files_mod, readRDS)
 
-mods1 <- map(glm_mods_resample1, function(x) x$paint)
-formulas1 <- map_chr(glm_mods_resample1, function(x) x$formula)
+mod1 <- readRDS(files_mod)
+formula1 <- mod$formula
 
 # removing , 2, raw = TRUE from formula terms, just to shorten the string
-formulas2 <- str_replace_all(formulas1, ",[ ]*2[ ]*,[ ]*raw[ ]*=[ ]*TRUE[ ]*", "") %>% 
+formula2 <- str_replace_all(formula1, ",[ ]*2[ ]*,[ ]*raw[ ]*=[ ]*TRUE[ ]*", "") %>% 
   str_replace_all("[ ]*", "") %>% # getting rid of additional spaces
   # new line so prints on two lines (2nd line is interactions)
   str_replace_all("poly\\(prcpPropSum\\)", "poly\\(prcpPropSum\\)\n") 
-names(formulas2) <- sv
-cat(formulas2, sep = "\n")
+names(formula2) <- s
 
+# STOP--this hasn't been updated yet (the new Hmod model object will
+# be needed)
 # model that includes hmod (human modification) as an additional
 # predictor variable (object created in
 # "scripts/05_models_biome-mask_fire-prob_byNFire_hmod.Rmd")
 
 glm_mods_hmod <- readRDS(
-  paste0("models/glm_binomial_models_byNFire_hmod_v2_", bin_string, "_cwf.RDS"))
+  paste0("models/glm_binomial_models_byNFire_hmod_v2_", 'bin20', "_cwf.RDS"))
 
 # checking that the hmod and regular mod of the 'target' model
 # have the same interactions (i.e. are comparable)
 hmod1 <- glm_mods_hmod$paint_cwf
-x <- glm_mods_hmod$pred_vars_inter
-
-# note that some of the older model objects don't include the pred_vars_inter
-# list element
-stopifnot(x[x!='hmod'] == mods1[[s_target]]$pred_vars_inter)
+# x <- glm_mods_hmod$pred_vars_inter
+# 
+# # note that some of the older model objects don't include the pred_vars_inter
+# # list element
+# stopifnot(x[x!='hmod'] == mods1[[s_target]]$pred_vars_inter)
 
 # predicted fire probability ----------------------------------------------
+
+df_ann2 <- df_ann1 
 
 # model predictions 
 # predicting on the 'old' data where there is just 1 row per pixel
 # regardless of whether there was a fire--otherwise you have multiple
 # predictions per pixel which is a bit harder to deal with
-mods_pred1 <- map(mods1, predict_cell_avg, newdata = df1, type = "response")
+df_ann2$pred <- predict(mod1, newdata = df_ann2, type = "response")
+df_avg1 <- summarize_yearly(df_ann2, mean_vars = 'pred')
 
 hmod_pred1 <- predict_cell_avg(hmod1, newdata = df1, type = "response")
 
-empty <- rast_rap1[[1]]
-empty[] <- NA
-
-# filling empty raster w/ predicted values
-rasts_pred1 <- map(mods_pred1, df2rast, empty = empty)
-
-rast_pred_hmod1 <- df2rast(hmod_pred1, empty)
+# raster layers included observed fire occurence,
+# mean prediction, and means of predictor vars
+rasts1 <- fill_raster(df_avg1, template)
 
 
-# functions ---------------------------------------------------------------
-# functions used here that likel rely on objects in the global environment 
-# so best just defined here
+# rast_pred_hmod1 <- df2rast(hmod_pred1, empty)
 
-breaks_prob <- c(seq(0, 0.021, .003), 0.2)
-
-# create map of fire probability
-tm_create_prob_map <- function(r, legend.text.size = 0.55,
-                               main.title = "", 
-                               legend.title.size = 0.8,
-                               main.title.size = 0.8, ...) {
-  
-  tm_shape(r, bbox = bbox) +
-    tm_raster(title = "Probability (%)",
-              breaks = breaks_prob,
-              labels = label_creator(breaks_prob, convert2percent = TRUE),
-              ...) +
-    basemap(legend.text.size = legend.text.size, 
-            legend.title.size = legend.title.size,
-            main.title.size = main.title.size) +
-    tm_layout(main.title = main.title)
-}
 
 
 # * Observed fire occurrence --------------------------------------------------
@@ -163,13 +113,13 @@ tm_create_prob_map <- function(r, legend.text.size = 0.55,
 # prepare breaks, colors, labels
 breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 37)
 labels <-  c(0, 1, 2, 3, 4, 5, NA)
-f_max <- max(rast_fPerPixel)@ptr$range_max
+f_max <- max(df_avg1$nfire_cwf)
 
 # labels for n fire
 labels[length(labels)] <- paste0('6-', f_max)
 
 # labels fire fire probability
-n <- 2019-1986
+n <- 2019-1987
 label_prob <- c(round(0:5/n, 3)*100, NA)
 label_prob[length(label_prob)] <- paste0(c(round(6/n, 3), round(f_max/n, 3))*100,
                                            collapse = "-")
@@ -177,7 +127,7 @@ label_prob[length(label_prob)] <- paste0(c(round(6/n, 3), round(f_max/n, 3))*100
 
 palette <- c('grey', RColorBrewer::brewer.pal(7, "YlOrRd")[-1])
 
-stars_fPerPixel <- st_as_stars(rast_fPerPixel)
+stars_fPerPixel <- st_as_stars(rasts1[['nfire_cwf']])
 names(stars_fPerPixel) <- 'fPerPixel'
 levels <- levels(cut(0:10, breaks))
 names(palette) <- levels
@@ -185,8 +135,6 @@ names(palette) <- levels
 # create map
 g_obs <- ggplot() +
   geom_stars(data = stars_fPerPixel, 
-             # values is theattribute that corresponds
-             # to the values in the grid-cells
              aes(x = x, y = y, fill = cut(fPerPixel, breaks))) +
   # 
   geom_point(data = tibble(x = 1:10, y = 1:10, values = 0:9), 
@@ -208,7 +156,7 @@ g_obs <- ggplot() +
                      name = "N fires",
                      values = 1:length(labels),
                      drop = FALSE) +
-  labs(subtitle = paste(fig_letters[1], "Number of observed fires (1987-2019)")) +
+  labs(subtitle = paste(fig_letters[1], "Number of observed fires (1988-2019)")) +
   make_legend_small() +
   guides(fill = guide_legend(order = 2),
          shape = guide_legend(order = 1, label.hjust = 1,

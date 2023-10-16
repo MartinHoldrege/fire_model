@@ -15,9 +15,9 @@ bbox <- sf::st_bbox(c(xmin = -2240000,
                        ymin = 1257000, ymax = 3162000))
 bbox_g <- bbox
 bbox2 <- bbox
-bbox2['xmin'] <- -130
+#bbox2['xmin'] <- -130
 bbox3 <- bbox
-bbox3['xmin'] <- -129.5
+bbox3['xmin'] <- -2370000
 
 # * base map --------------------------------------------------------------
 
