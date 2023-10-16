@@ -23,23 +23,26 @@ theme_set(theme_classic())
 # the model interactions
 
 
-sv <- c("_A-P_A2-T2_A-Pr",  # model 4b
-        "_A-P_A2-T2_A2-S2_A-Pr" # model 4c
-        )
+s <- "_ann_A-P_entire"
 
 # quantiles to fix interacting terms at
 probs_list <- list(c(0.2, 0.8),
-              c(0.0001, 0.9999)
+              c(0.01, 0.99)
 )
 # probs <- c(0.0001, 0.9999)
 
-for (s in sv) {
+
+# read in data ------------------------------------------------------------
+
+train <- read_csv("data_processed/fire-clim-veg_3yrAvg_v1.csv",
+                  show_col_types = FALSE) %>% 
+  slice_sample(n = 5e5)
+
 # read in model objects ---------------------------------------------------
 
-# main model
-mods <- readRDS(paste0("models/glm_binomial_models_byNFire_v2_bin20_cwf",
+# main model (fit to the entire dataset)
+mod <- readRDS(paste0("models/glm_binomial_models_v1",
                        s, ".RDS"))
-mod <- mods$paint_cwf
 
 # create pdp --------------------------------------------------------------
 
@@ -51,7 +54,7 @@ names(mod_vars) <- mod_vars
 # * prepare 'training' datasets -------------------------------------------
 # datasets with a given variable fixed at a certain percentile. 
 
-train1 <- mod$data 
+train1 <- train
 
 # train1 <- slice_sample(train1, n = 1000) # for testing
 
@@ -59,7 +62,7 @@ for (probs in probs_list) {
 
 v <- case_when(
   probs[1] == 0.2 ~ 'v1',
-  probs[1] == 0.0001 ~ 'v2',
+  probs[1] == 0.01 ~ 'v2',
   TRUE ~ paste0('v', probs[1])
 )
 
@@ -165,9 +168,9 @@ letter_df <- tibble(
 )
 
 
-base_pdp <- function(limit_x = FALSE) {
+base_pdp <- function(limit_x = FALSE, scales = 'free_x') {
   out <- list(
-    facet_wrap(~xlab, scales = 'free', strip.position = "bottom"),
+    facet_wrap(~xlab, scales = scales, strip.position = "bottom"),
     theme(strip.text = element_markdown(),
           strip.placement = "outside",
           axis.title.x = element_blank(),
@@ -208,16 +211,17 @@ g <- ggplot(df_pdp2, aes(x_value, yhat*100)) +
 g
 
 png(paste0("figures/pdp/pdp_high-low_", v, s, ".png"),
-    units = "in", res = 600,  width = 8, height = 3.5)
+    units = "in", res = 600,  width = 8, height = 5)
 print(g)
 dev.off()
   
-# restricted ylim
+# # restricted ylim
 png(paste0("figures/pdp/pdp_high-low_", v, s, "_rylim.png"),
     units = "in", res = 600,  width = 8, height = 3.5)
 print(g +
-  coord_cartesian(ylim = c(0, 5)))
+  coord_cartesian(ylim = c(0, 3)))
 dev.off()
+# 
 }
-}
+
  

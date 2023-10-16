@@ -41,15 +41,8 @@ if(FALSE) {
 
 # model fitting -----------------------------------------------------------
 set.seed(1234)
-form <- "cwf_prop ~ sqrt(afgAGB) + poly(pfgAGB,2,raw=TRUE) + poly(MAT,2,raw=TRUE) + poly(MAP,2,raw=TRUE) + poly(prcpPropSum,2, raw = TRUE) + (afgAGB:MAP)"
+form <- "cwf_prop ~ sqrt(afgAGB) + stats::poly(pfgAGB,2,raw=TRUE) + stats::poly(MAT,2,raw=TRUE) + stats::poly(MAP,2,raw=TRUE) + stats::poly(prcpPropSum,2, raw = TRUE) + (afgAGB:MAP)"
 
-# starting values are rounded coefficients from the same model fit to a sample of 5 million data points
-start <- c(`(Intercept)` = -600, `sqrt(afgAGB)` = 0.8, `poly(pfgAGB, 2, raw = TRUE)1` = 0.03, 
-           `poly(pfgAGB, 2, raw = TRUE)2` = -2e-04, `poly(MAT, 2, raw = TRUE)1` = 4, 
-           `poly(MAT, 2, raw = TRUE)2` = -0.007, `poly(MAP, 2, raw = TRUE)1` = 0.02, 
-           `poly(MAP, 2, raw = TRUE)2` = -1e-05, `poly(prcpPropSum, 2, raw = TRUE)1` = -3, 
-           `poly(prcpPropSum, 2, raw = TRUE)2` = -6, `afgAGB:MAP` = -1e-04
-)
 
 m1 <- glm(as.formula(form), family = binomial(link = 'logit'),
              data = df_ann, 
