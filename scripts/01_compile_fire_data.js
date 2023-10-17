@@ -427,7 +427,6 @@ if (run) { // set to true of want to export.
   
 Export.image.toAsset({
   image: cwfByYrImage,
-  description: 'cwf_annual-burned_30m',
   assetId: 'cheatgrass_fire/cwf_annual-burned_30m',
   maxPixels: 1e13, 
   scale: 30,
