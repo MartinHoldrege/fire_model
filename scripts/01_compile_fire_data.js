@@ -396,8 +396,8 @@ if (usePaint) {
 var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_sagebrush-biome-mask' + method + 'v1';
 
 if (run) { // set to true of want to export. 
-  
-/*Export.image.toDrive({
+/*  
+Export.image.toDrive({
   image: allFiresPerPixelM,
   description: 'cwf-mtbs-ifph-lba_fires-per-pixel' + s,
   folder: 'cheatgrass_fire',
@@ -406,9 +406,9 @@ if (run) { // set to true of want to export.
   region: region,
   crs: crs,
   fileFormat: 'GeoTIFF'
-});*/
+});
 
-
+*/
 }
 
 var cwfByYrImage = ee.ImageCollection(cwfImageByYear)
@@ -424,10 +424,24 @@ var cwfByYrImage = ee.ImageCollection(cwfImageByYear)
 
 
 if (run) { // set to true of want to export. 
+
+Export.image.toAsset({
+  image: allFiresPerPixelM,
+  description: 'test',
+  assetId: path + 'test',
+  maxPixels: 1e13, 
+  scale: 10000,
+  region: region,
+  crs: crs //,
+  // want mean pyramiding so upper levels of the pyramid 
+  // show the proportion of area burned (i.e. values between 0 and 1)
+  //pyramidingPolicy: {'.default': 'mean'}
+});
   
 Export.image.toAsset({
   image: cwfByYrImage,
-  assetId: 'cheatgrass_fire/cwf_annual-burned_30m',
+  description: 'cwf_annual-burned_30m',
+  assetId: path + 'cwf_annual-burned_30m',
   maxPixels: 1e13, 
   scale: 30,
   region: region,
@@ -436,6 +450,5 @@ Export.image.toAsset({
   // show the proportion of area burned (i.e. values between 0 and 1)
   pyramidingPolicy: {'.default': 'mean'}
 });
-
 
 }
