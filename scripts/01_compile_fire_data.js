@@ -46,7 +46,7 @@ var usePaint = true;
 
 var createCharts = false; //whether to create timeseries charts
 // logical--whether to run export images
-var run = false;
+var run = true;
 
 // read in data -------------------------------------------------
 
@@ -377,13 +377,14 @@ exports.allFiresPerPixel = allFiresPerPixel; // not masked so can be used for ot
 exports.startYear = startYear;
 exports.endYear = endYear;
 exports.yearsString = yearsString;
+exports.cwfImageByYear = cwfImageByYear; // not masked so can be used for other extents
 exports.cwfImageByYearM = cwfImageByYearM; 
 exports.cwfFiresPerPixelM = cwfFiresPerPixelM;
 
 var allFiresPerPixelM = allFiresPerPixel.updateMask(mask);
 
 
-var crs = 'EPSG:4326';
+var crs = fns.crs;
 
 // which method was used to convert polygons to rasters
 if (usePaint) {
@@ -396,7 +397,7 @@ var s =  '_' + startYear + '-' + endYear + '_' + resolution + 'm_sagebrush-biome
 
 if (run) { // set to true of want to export. 
   
-Export.image.toDrive({
+/*Export.image.toDrive({
   image: allFiresPerPixelM,
   description: 'cwf-mtbs-ifph-lba_fires-per-pixel' + s,
   folder: 'cheatgrass_fire',
@@ -405,9 +406,37 @@ Export.image.toDrive({
   region: region,
   crs: crs,
   fileFormat: 'GeoTIFF'
-});
+});*/
+
 
 }
 
+var cwfByYrImage = ee.ImageCollection(cwfImageByYear)
+  .map(function(x) {
+    // adding a year property (for later linking of collections)
+    var image = ee.Image(x);
+    var year = ee.Number.parse(ee.Date(image.get('system:time_start')).format('YYYY'));
+    return image.rename(ee.String('burned').cat(ee.String('_')).cat(year));
+  })
+    .toBands()
+    .regexpRename('\\d+_', '')
+    .toFloat();
 
 
+if (run) { // set to true of want to export. 
+  
+Export.image.toAsset({
+  image: cwfByYrImage,
+  description: 'cwf_annual-burned_30m',
+  assetId: 'cheatgrass_fire/cwf_annual-burned_30m',
+  maxPixels: 1e13, 
+  scale: 30,
+  region: region,
+  crs: crs,
+  // want mean pyramiding so upper levels of the pyramid 
+  // show the proportion of area burned (i.e. values between 0 and 1)
+  pyramidingPolicy: {'.default': 'mean'}
+});
+
+
+}
