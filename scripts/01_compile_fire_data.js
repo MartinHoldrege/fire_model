@@ -425,19 +425,7 @@ var cwfByYrImage = ee.ImageCollection(cwfImageByYear)
 
 if (run) { // set to true of want to export. 
 
-Export.image.toAsset({
-  image: allFiresPerPixelM,
-  description: 'test',
-  assetId: path + 'test',
-  maxPixels: 1e13, 
-  scale: 10000,
-  region: region,
-  crs: crs //,
-  // want mean pyramiding so upper levels of the pyramid 
-  // show the proportion of area burned (i.e. values between 0 and 1)
-  //pyramidingPolicy: {'.default': 'mean'}
-});
-  
+
 Export.image.toAsset({
   image: cwfByYrImage,
   description: 'cwf_annual-burned_30m',
