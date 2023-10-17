@@ -15,7 +15,7 @@ var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
 // but averaged at higher levels in the pyramid so then it can be interpretted as proportion burned
 // this can be confirmed by zooming in and out on the map and using the 'selector'
 
-
+// asset created in the 01_compile_fire_data.js script
 var burn = ee.Image('users/MartinHoldrege/cheatgrass_fire/cwf_annual-burned_30m');
 Map.addLayer(burn.select('burned_1988'), {min: 0, max: 1, palette: ['red', 'blue']}, 'burn fraction');
 
