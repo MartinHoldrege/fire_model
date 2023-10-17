@@ -17,14 +17,39 @@ source("src/general_functions.R")
 library(RColorBrewer)
 library(stars)
 library(terra)
+library(tidyverse)
+theme_set(theme_classic())
 
 # params ------------------------------------------------------------------
 
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-s <- 'ann_A-P_entire'
+s <- '_ann_A-P_entire'
 
-files_mod <- paste0("models/glm_binomial_models_v1_", s, ".RDS")
+files_mod <- paste0("models/glm_binomial_models_v1", s, ".RDS")
+
+# functions ---------------------------------------------------------------
+# functions used here that likel rely on objects in the global environment 
+# so best just defined here
+
+breaks_prob <- c(seq(0, 0.021, .003), 0.2)
+
+# create map of fire probability
+tm_create_prob_map <- function(r, legend.text.size = 0.55,
+                               main.title = "", 
+                               legend.title.size = 0.8,
+                               main.title.size = 0.8, ...) {
+  
+  tm_shape(r, bbox = bbox) +
+    tm_raster(title = "Probability (%)",
+              breaks = breaks_prob,
+              labels = label_creator(breaks_prob, convert2percent = TRUE),
+              ...) +
+    basemap(legend.text.size = legend.text.size, 
+            legend.title.size = legend.title.size,
+            main.title.size = main.title.size) +
+    tm_layout(main.title = main.title)
+}
 
 # read in data ------------------------------------------------------------
 
@@ -49,7 +74,7 @@ df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v1.csv')
 
 # * dataframe -------------------------------------------------------------
 
-df1 <- dfs_byNFire3_hmod$paint 
+#df1 <- dfs_byNFire3_hmod$paint 
 
 # * model objects ---------------------------------------------------------
 
@@ -59,7 +84,7 @@ df1 <- dfs_byNFire3_hmod$paint
 
 
 mod1 <- readRDS(files_mod)
-formula1 <- mod$formula
+formula1 <- mod1$formula
 
 # removing , 2, raw = TRUE from formula terms, just to shorten the string
 formula2 <- str_replace_all(formula1, ",[ ]*2[ ]*,[ ]*raw[ ]*=[ ]*TRUE[ ]*", "") %>% 
@@ -74,12 +99,12 @@ names(formula2) <- s
 # predictor variable (object created in
 # "scripts/05_models_biome-mask_fire-prob_byNFire_hmod.Rmd")
 
-glm_mods_hmod <- readRDS(
-  paste0("models/glm_binomial_models_byNFire_hmod_v2_", 'bin20', "_cwf.RDS"))
+# glm_mods_hmod <- readRDS(
+#   paste0("models/glm_binomial_models_byNFire_hmod_v2_", 'bin20', "_cwf.RDS"))
 
 # checking that the hmod and regular mod of the 'target' model
 # have the same interactions (i.e. are comparable)
-hmod1 <- glm_mods_hmod$paint_cwf
+# hmod1 <- glm_mods_hmod$paint_cwf
 # x <- glm_mods_hmod$pred_vars_inter
 # 
 # # note that some of the older model objects don't include the pred_vars_inter
@@ -97,7 +122,7 @@ df_ann2 <- df_ann1
 df_ann2$pred <- predict(mod1, newdata = df_ann2, type = "response")
 df_avg1 <- summarize_yearly(df_ann2, mean_vars = 'pred')
 
-hmod_pred1 <- predict_cell_avg(hmod1, newdata = df1, type = "response")
+#hmod_pred1 <- predict_cell_avg(hmod1, newdata = df1, type = "response")
 
 # raster layers included observed fire occurence,
 # mean prediction, and means of predictor vars
@@ -112,6 +137,7 @@ rasts1 <- fill_raster(df_avg1, template)
 
 # prepare breaks, colors, labels
 breaks <- c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 37)
+
 labels <-  c(0, 1, 2, 3, 4, 5, NA)
 f_max <- max(df_avg1$nfire_cwf)
 
@@ -144,7 +170,11 @@ g_obs <- ggplot() +
   theme(plot.margin = margin(0, 0, 0, 45),
         legend.position = c(-0.05, 0.5),
         legend.box = 'horizontal',
-        legend.margin = margin()) +
+        legend.margin = margin(),
+        legend.box.background = element_rect(fill = "white",
+                                             color = 'white'),
+        #legend.title = element_rect(fill = "white")
+        ) +
   scale_fill_manual(na.value = NA,
                     name = "        Probability (%)",
                     values = palette,
@@ -166,9 +196,10 @@ g_obs
 # * predicted ------------------------------------------------------------
 
 pal_prob <- RColorBrewer::brewer.pal(11, "RdYlBu")[9:2]
+breaks_prob <- c(seq(0, 0.021, .003), 0.2)
 labels_prob <- label_creator(breaks_prob, convert2percent = TRUE)
 breaks_perc <- breaks_prob*100 # proportion to %
-r <- rasts_pred1[[s_target]]*100
+r <- rasts1[['pred']]*100
 
 # histogram for inset
 h <- hist_colored(r, 
@@ -179,7 +210,7 @@ h <- hist_colored(r,
   labs(x = "Probability (%)") +
   theme(axis.title = element_text(size = 7))
 
-mean(values_nona(r) > 3)*100 # % of data now shown in histogram
+mean(values_nona(r) > 3)*100 # % of data not shown in histogram
 
 stars_pred <- st_as_stars(r)
 names(stars_pred) <- 'values'
@@ -228,67 +259,14 @@ g_pred1
 
 # add histogram inset
 g_pred2 <- g_pred1 +
-  inset_element(h, 0, 0, 0.32, 0.4, align_to = 'plot') 
-g_pred2
+  inset_element(h, -0.1, 0, 0.25, 0.4, align_to = 'plot') 
+#g_pred2
 
 # combine into two paneled map (fig 2 in manuscript)
-png(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v6", s_target, 
-            ".png"), units = 'in', res = 600, height = 2.6, width = 8)
+png(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v6", s, 
+            ".png"), units = 'in', res = 600, height = 3, width =9)
   g_obs + g_pred2
 dev.off()
-
-# predicted fire probability maps, for each model (for exploration) 
-
-# keeping this here--b/ it is used for non-publication quality figures below
-tms_pred1 <-  map(rasts_pred1, function(r) {
-  tm_shape(r*100, bbox = bbox) +
-    tm_raster(title = "Probability (%)",
-              breaks = breaks_perc,
-              legend.hist = TRUE,
-              palette = pal_prob) +
-    basemap(legend.text.size = 0.4, 
-            legend.title.size = 0.75,
-            main.title.size = 0.8) +
-    tm_layout(main.title = paste(fig_letters[2], "Modelled annual fire probability"),
-              legend.hist.width = 1,
-              legend.hist.height = 0.4, 
-              title.position = c("left", "top"),
-              legend.height = 0.9,
-              legend.width = 1)
-})
-
-# dimensions for figure flexible depending on the number of maps
-n <- length(tms_pred1)
-if(n == 1) {
-  width = 3.5
-  height <- 2.6
-  ncol <- 1
-} else {
-  ncol <- 2
-  width <- 7
-  rows <- ceiling(n/2) # number of rows
-  height <- 2.6*rows
-}
-
-tms_pred2 <- map2(tms_pred1, names(tms_pred1), function(x, name) {
-  x2 <- x +
-    tm_credits(text = formulas2[name],
-               size = 0.6,
-               position = c("center", "BOTTOM"),
-               bg.color = 'white') +
-    tm_layout(main.title = paste(name, "model"))
-  x2
-})
-
-
-jpeg("figures/maps_fire_prob/cwf_observed_predicted_maps_v4.jpeg",
-    units = 'in', res = 600, height = height, width = width)
-
-tmap_arrange(tms_pred2, ncol = ncol)
-
-dev.off()
-
-
 
 # altered preds  ------------------------------------------------------------
 
@@ -303,45 +281,48 @@ alter_names <- c("mat_warm", # mid level amount of warming
                  "prop_minus", # reduction in prcpPropSum
                  "prop_plus" # increase in prcpPropSum
                  )
+
 dfs_alter1 <- vector('list', length(alter_names))
 for (i in 1:length(dfs_alter1)) {
-  dfs_alter1[[i]] <- df1
+  dfs_alter1[[i]] <- df_ann2
 }
 names(dfs_alter1) <- alter_names
 
 warm <- 2
 hot <- 5
-dfs_alter1$mat_warm$MAT <- df1$MAT + warm
-dfs_alter1$mat_hot$MAT <- df1$MAT + hot
+dfs_alter1$mat_warm$MAT <- df_ann2$MAT + warm
+dfs_alter1$mat_hot$MAT <- df_ann2$MAT + hot
 
 map_change <- 0.2
-dfs_alter1$map_minus$MAP <- df1$MAP*(1-map_change)
-dfs_alter1$map_plus$MAP <- df1$MAP*(1 + map_change)
+dfs_alter1$map_minus$MAP <- df_ann2$MAP*(1-map_change)
+dfs_alter1$map_plus$MAP <- df_ann2$MAP*(1 + map_change)
 
 prop_change <- 0.2
-dfs_alter1$prop_minus$prcpPropSum <- df1$prcpPropSum*(1-prop_change)
-dfs_alter1$prop_plus$prcpPropSum <- df1$prcpPropSum*(1+prop_change)
+dfs_alter1$prop_minus$prcpPropSum <- df_ann2$prcpPropSum*(1-prop_change)
+dfs_alter1$prop_plus$prcpPropSum <- df_ann2$prcpPropSum*(1+prop_change)
 
 
 # * predictions -----------------------------------------------------------
 # create predictions for each model and climate scenario
+# then average across years, then convert to a raster
 # map over models
-rasts_alter1 <- map2(mods1, rasts_pred1, function(mod, r) {
-  # map over dataframes
-  map(dfs_alter1, function(df) {
+rasts_alter1 <- map(dfs_alter1, function(df) {
 
-    pred <- empty
+    tmp <- df_ann2[,  c('cell_num', 'year')]
     
     # raster of predicted values for the given alteration and model
-    pred <- predict_cell_avg(mod, newdata = df, type = "response") %>% 
-      df2rast(empty = empty)
+    tmp$pred <- predict(mod1, newdata = df, type = "response") 
+    
+    tmp_avg <- summarize_yearly(tmp, weighted_vars = NULL,
+                                mean_vars = 'pred', sum_vars = NULL)
+    
+    pred <- fill_raster(tmp_avg, template)
     
     # difference between the altered prediction and the original
     # data prediction 
-    delta <- pred - r
+    delta <- pred - rasts1[['pred']]
     
     list(pred = pred, delta = delta)
-  })
 })
 
 # * burned area -----------------------------------------------------------
@@ -349,7 +330,7 @@ rasts_alter1 <- map2(mods1, rasts_pred1, function(mod, r) {
 plot(area_ha ~ year, data = ba1, type = 'l')
 
 # total area of study area
-study_area <- rast_rap1[[1]]
+study_area <- template
 study_area[!is.na(study_area)] <- 1
 total_area <- calc_exp_ba(study_area)
 total_area
@@ -358,29 +339,31 @@ total_area
 # observed mean burned area (accurately calculated based on rasterizing polygons
 # to ~30 m pixels)
 ba_obs <- ba1 %>% 
-  filter(year >=1987) %>% 
+  filter(year >=1988) %>% 
   summarise(area_km2 = mean(area_ha)/100)
 ba_obs
 # 4835.
 
 # observed burned area (based on the coarse ~1x1 km data)
-ba_obs2 <- df1 %>% 
-  mutate(ba = cell_size*nfire_cwf) %>% 
-  # mean annual burned area
-  summarize(area_km2 = sum(ba)/(2019-1986)) 
+ba_obs2 <- df_ann2 %>% 
+  # each pixel is now exactly 1 km
+  mutate(ba = nfire_cwf) %>% 
+  group_by(year) %>% 
+  summarize(ba = sum(ba)) %>% 
+  summarize(area_km2 = mean(ba))
 ba_obs2
 # 4104.
 ba_obs2/total_area*100 # observed fire probability
 
 # expected (long term) mean annual burned area (ha) based on the model
-ba_exp <- calc_exp_ba(rasts_pred1[[s_target]])
+ba_exp <- calc_exp_ba(rasts1[['pred']])
 ba_exp
 # 4374
 ba_exp/total_area*100 # average modelled fire probability
 
 # change in burned area with climate perturbations
 
-ba_delta1 <- map_dfr(rasts_alter1[[s_target]], function(x) {
+ba_delta1 <- map_dfr(rasts_alter1, function(x) {
   calc_exp_ba(x$delta)
 })
 ba_delta1
@@ -415,7 +398,7 @@ ba_delta2 <- ba_delta1%>%
          label = paste(label, percent, sep = "\n"),
          x = Inf, y = Inf)
 
-df_delta1 <- map2_dfr(names(rasts_alter1[[s_target]]), rasts_alter1[[s_target]], 
+df_delta1 <- map2_dfr(names(rasts_alter1), rasts_alter1, 
          function(lyr, x) {
            out <- get_values(1, x$delta)
            out$lyr <- lyr
@@ -430,39 +413,20 @@ delta_range <- df_delta1 %>%
   group_by(title, lyr) %>% 
   summarise(min = min(delta_fire_prob),
             max = max(delta_fire_prob))
-
-limits <- list(title == lookup_var['MAT'] ~ scale_x_continuous(
-  limits = c(with(delta_range, min[lyr == 'mat_hot']),
-             with(delta_range, max[lyr == 'mat_hot'])))
-)
-
-# limits for MAT panels
-mat_limits <- c(with(delta_range, min[lyr == 'mat_hot']),
-                with(delta_range, max[lyr == 'mat_hot']))
-
-map_limits <- c(with(delta_range, min(min[!str_detect(lyr, 'mat')])),
-                with(delta_range, max(max[!str_detect(lyr, 'mat')])))
-
 # limits for other panels
 h <- ggplot(df_delta1, aes(x = delta_fire_prob)) +
   geom_histogram(bins = 100) +
   geom_vline(data = delta_range, aes(xintercept = min, linetype = "min")) +
   geom_vline(data = delta_range, aes(xintercept = max, linetype = "max")) +
-  facet_wrap(~title, scales = 'free_x', ncol = 2) +
-  expand_limits(x = c(-1, 1)) +
+  facet_wrap(~title, scales = 'fixed', ncol = 2) +
   annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7) +
   geom_label(data = ba_delta2, aes(x = x, y = y, label = label),
             hjust = 1.0,
             vjust = 1.2,
             size = 2.5,
             label.size = NA # remove border around label
             )+
-  ggh4x::facetted_pos_scales(
-    x = list(str_detect(title, "MAT") ~
-               scale_x_continuous(limits = mat_limits),
-             !str_detect(title, "MAT") ~
-               scale_x_continuous(limits = map_limits))
-  ) +
   scale_linetype_manual(values = c('max' = 3, "min" = 4)) +
   labs(x = lab_delta,
        y = 'Count') +
@@ -475,7 +439,7 @@ h <- ggplot(df_delta1, aes(x = delta_fire_prob)) +
   #                                           # x10^5 
   #                                          suffix = "x10\U2075"))
 h
-png("figures/histograms/sensitivity_delta_fire-prob_v1.png",
+png("figures/histograms/sensitivity_delta_fire-prob_v2.png",
     height = 5, width = 4, units = 'in', res = 600)
 h
 dev.off()
@@ -491,59 +455,28 @@ legend.text.size <- 0.55
 rasts_alter2 <- rasts_alter1
 
 # make sure elements refer to the same alteration
-stopifnot(names(rasts_alter2[[1]]) == names(delta_titles))
+stopifnot(names(rasts_alter2) == names(delta_titles))
 
 # combining delta rasters for a given model into one raster w/ multiple layers
 # creating one multilayered raster per model
-rasts_delta1 <- map(rasts_alter2, function(x_list) {
-  out <- map2(x_list, names(x_list), function(x, name) {
+rasts_delta1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
     r <- x$delta
     names(r) <- name
     r
-  }) 
-  rast(out)
-})
+  }) %>% 
+  rast()
+
 
 # combining predicted rasters for a given model into one raster w/ multiple layers
 # creating one multilayered raster per model
-rasts_alter_pred1 <- map(rasts_alter2, function(x_list) {
-  out <- map2(x_list, names(x_list), function(x, name) {
-    r <- x$pred
-    names(r) <- name
-    r
-  }) 
-  rast(out)
-})
+rasts_alter_pred1 <- map2(rasts_alter2, names(rasts_alter2), function(x, name) {
+  r <- x$pred
+  names(r) <- name
+  r
+}) %>% 
+  rast()
 
 
-tms_delta <- map(rasts_delta1, function(r) {
-  tm_shape(r, bbox = bbox) +
-    tm_raster(title = lab_delta,
-              breaks = breaks_delta,
-              labels = labels_delta,
-              palette = cols_delta,
-              midpoint = 0) +
-    tm_layout(panel.labels = delta_titles,
-              panel.label.bg.color = 'white')+
-    tm_facets(ncol =2) +
-    basemap(legend.text.size = legend.text.size)
-})
-
-
-
-# creating version for all models (for exploration)
-
-tms_delta2 <- map2(tms_delta, names(tms_delta), function(x, name) {
-  x2 <- x +
-    tm_layout(main.title = paste(name, "model\n", formulas2[name]),
-              main.title.size = 0.5)
-  x2
-})
-
-pdf("figures/maps_sensitivity/delta-prob_clim-vars_by-mod_v2.pdf",
-     height = 8.5, width = 7.5)
-  tms_delta2
-dev.off()
 
 # ** pub qual version  ----------------------------------------------------
 # change in the number of fires per 100 years in response to change in climate
@@ -561,7 +494,7 @@ delta_names <- names(delta_titles) %>%
 
 # histograms (for insets)
 hist_l1 <- map(delta_names, function(lyr) {
-  r <-  rasts_delta1[[s_target]][[lyr]]*100
+  r <-  rasts_delta1[[lyr]]*100
   out <- hist_colored(r, palette = cols_delta, palette_breaks = b1,
                binwidth = 0.1)
   out
@@ -570,7 +503,7 @@ hist_l1 <- map(delta_names, function(lyr) {
 hist_l2 <- hist_l1
 # restricting axes, so meat of distribution is more visible
 hist_l2[1:2] <- map(hist_l2[1:2], function(g) {
-  g + coord_cartesian(xlim = c(-2, 5))
+  g + coord_cartesian(xlim = c(-0.7, 0.7))
 })
 
 hist_l2[3:6] <- map(hist_l2[3:6], function(g) {
@@ -578,7 +511,7 @@ hist_l2[3:6] <- map(hist_l2[3:6], function(g) {
 })
 
 maps_delta1 <-  map(delta_names, function(lyr) {
-  r <-  rasts_delta1[[s_target]][[lyr]]*100
+  r <-  rasts_delta1[[lyr]]*100
   
   r_star <- st_as_stars(r)
  
@@ -621,173 +554,30 @@ maps_delta2 <- map2(maps_delta1, hist_l2, function(g, h) {
 
 #maps_delta2[[1]]
 
-png(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v6", s_target, ".png"), 
+png(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v7", s, ".png"), 
      units = 'in', res = 600, height = 8.5, width = 8)
 wrap_plots(maps_delta2, ncol = 2) +
   plot_layout(guides = 'collect') 
 
 dev.off()
 
-# * histograms --------------------------------------------------------------
 
-# creating 1 dataframe for each model
-# where each dataframe includes predicted and delta values
-# for each climate scenario
-# (memory hog)
-dfs_pred1 <- map(rasts_alter2, function(r_list) {
-  map_dfr(r_list, function(x) {
-    out <- tibble(
-      pred = values_nona(x$pred)*100, # convert to percent
-      delta = values_nona(x$delta)*100
-    )
-    out
-  }, 
-  .id = "scenario")
-})
-
-
-dfs_pred2 <- map(dfs_pred1, mutate, name = delta_titles0[scenario])
-
-# dfs of predicted values for the observed (climate, veg) data, for each model
-dfs_pred_obs <- map(rasts_pred1, function(r) {
-  tibble(pred = values_nona(r)*100, # convert to percent
-       scenario = "observed",
-       name = "observed data")
-})
-
-# combining predicted data from climate scenarios with predictions on
-# the original (observed) data
-dfs_pred3 <- map2(dfs_pred_obs, dfs_pred2, function(x, y) {
-  out <- bind_rows(x, y)%>% 
-    mutate(name = factor(name, levels = c(delta_titles0, "observed data")))
-  out
-})
-
-# summarize 
-summary1 <- map_dfr(dfs_pred3, function(df) {
-  out <- df %>% 
-    group_by(scenario, name) %>% 
-    summarize(across(c(pred, delta), 
-                     .fns = list(mean = mean, median = median, min = min,
-                                 max = max)),
-              .groups = 'drop')
-}, .id = 'model')
-
-summary_long1 <-  summary1 %>% 
-  pivot_longer(cols = c(starts_with("pred_"), starts_with("delta_")),
-               names_to = c('variable', "summary_stat"),
-               names_sep = "_") %>% 
-  pivot_wider(names_from = 'variable') %>% 
-  mutate(summary_stat = factor(summary_stat,
-                               levels = c("min", "median", "mean", "max")))
-
-# ** predicted probability ------------------------------------------------
-
-
-hists_pred1 <- map2(dfs_pred3, names(dfs_pred3), function(df, name) {
-  ggplot(df, aes(x = pred)) +
-    geom_vline(data = summary_long1[summary_long1$model == name, ], 
-               aes(xintercept = pred, color = summary_stat)) +
-    geom_histogram(bins = 200) +
-    facet_wrap(~name, scales = "free_x")+
-    theme_bw() +
-    labs(x = paste(lab_fireProbPerc, "(predicted)"),
-         subtitle = paste(name, "model"),
-         caption = formulas2[name])
-})
-#hists_pred1[[1]]
-
-# version with fixed limits (across figures)
-hists_pred2 <- map(hists_pred1, function(g) {
-  g +
-    # so all figures have the same limits
-    coord_cartesian(xlim = range(summary_long1$pred)) 
-})
-
-
-# ** delta probability ----------------------------------------------------
-
-
-hists_delta1 <- map2(dfs_pred3, names(dfs_pred3), function(df, name) {
-  ggplot(df, aes(x = delta)) +
-    geom_vline(data = summary_long1[summary_long1$model == name, ],
-               aes(xintercept = delta, color = summary_stat)) +
-    geom_histogram(bins = 200) +
-    facet_wrap(~name, scales = "free_x")+
-    theme_bw() +
-    labs(x = lab_delta,
-         title = paste(name, "model"),
-         subtitle = 'Difference in fire probabily relative to observed data',
-         caption = formulas2[name])
-})
-#hists_delta1[[1]]
-
-# version with fixed limits (across figures)
-hists_delta2 <- map(hists_delta1, function(g) {
-  g +
-    # so all figures have the same limits
-    coord_cartesian(xlim = range(summary_long1$delta, na.rm = TRUE)) 
-})
-
-# this code is slow (takes several minutes)
-pdf("figures/histograms/hists_pred_and_delta_by-model_v2.pdf",
-    width = 8, height = 6)
-  hists_pred2
-  hists_pred1
-  hists_delta2
-  hists_delta1
-dev.off()
 
 # delta summary stats -----------------------------------------------------
 
-quants <- map(names(rasts_delta1[[s_target]]),  function(name) {
-  r <- rasts_delta1[[s_target]][[name]]
+quants <- map(names(rasts_delta1),  function(name) {
+  r <- rasts_delta1[[name]]
   x <- as.vector(values(r))
   out <- quantile(x, c(0, 0.05, 0.1, 0.5, 0.9, 0.95, 1), na.rm = TRUE)
   # mean absolute change
   out <- c(out, 'mean_abs' = mean(abs(x), na.rm = TRUE))
   out*100 # convert to percent change
 })
-names(quants) <- names(rasts_delta1[[s_target]])
+names(quants) <- names(rasts_delta1)
 
 # mean absolute change is larger for mat (both warm and hot) then
 # map or prop changes
 quants
-# maps pred and delta  ------------------------------------------------
-
-
-# * clim vars -------------------------------------------------------------
-
-tm_delta_clim1 <- tm_shape(rasts_delta1[[s_target]], bbox = bbox) +
-  tm_raster(title = lab_delta,
-            breaks = breaks_delta,
-            labels = labels_delta,
-            palette = cols_delta,
-            midpoint = 0,
-            legend.hist = TRUE) +
-  tm_layout(panel.labels = delta_titles0,
-            panel.label.bg.color = 'white',
-            main.title = "Delta probability",
-            legend.show = FALSE,
-            panel.label.size = 0.75)+
-  tm_facets(ncol =1) +
-  basemap(legend.text.size = legend.text.size,
-          main.title.size = 0.7)
-
-tm_pred_clim1 <- tm_create_prob_map(rasts_alter_pred1[[s_target]],
-                                    main.title = "Predicted probability (%)",
-                                    main.title.size = 0.7) +
-  tm_layout(panel.labels = delta_titles0,
-            panel.label.bg.color = 'white',
-            legend.show = FALSE,
-            panel.label.size = 0.75)+
-  tm_facets(ncol =1)
-
-jpeg(paste0("figures/maps_sensitivity/pred_delta-prob_clim-vars_v2", s_target, ".jpeg"), 
-     units = 'in', res = 600, height = 12, width = 4)
-  tmap_arrange(tm_pred_clim1, tm_delta_clim1, ncol = 2)
-dev.off()
-
 
 # delta due to hmod -------------------------------------------------------
 # difference in predicted fire probability when the hmod variable is used.
@@ -795,35 +585,39 @@ dev.off()
 # caution--make sure you actually want to use the s_target
 # model to compare (i.e. make sure calculating delta from model
 # with all the same terms in it (but without hmod))
-hmod_delta <- rasts_pred1[[s_target]] - rast_pred_hmod1
 
-x <- values(hmod_delta) %>% as.vector()
-hist(x, breaks = 100, xlim = c(-0.01, 0.01))
+if (FALSE) {
+  hmod_delta <- rasts_pred1[[s_target]] - rast_pred_hmod1
+  
+  x <- values(hmod_delta) %>% as.vector()
+  hist(x, breaks = 100, xlim = c(-0.01, 0.01))
+  
+  
+  
+  tm_hmod <- tm_create_prob_map(rast_pred_hmod1,
+                                main.title = paste(fig_letters[1], "Predicted probability (%)",
+                                                   '\nfor model including human modification'),
+                                main.title.size = 0.8,
+                                legend.title.size = 0.6)
+  
+  tm_hmod_delta <- tm_shape(hmod_delta*100, bbox = bbox) +
+    tm_raster(title = lab_delta,
+              breaks = b1,
+              labels = l1,
+              palette = cols_delta,
+              midpoint = 0) +
+    basemap(legend.text.size = legend.text.size,
+            legend.title.size = 0.6) +
+    tm_layout(main.title = paste(fig_letters[2],
+                                 "Change in fire probability relative to model",
+                                 "\nwithout human modification"),
+              main.title.size = 0.8)
+  
+  
+  
+  jpeg("figures/maps_fire_prob/cwf_hmod_predicted_v2.jpeg", units = 'in', res = 600,
+       height = 2.8, width = 7)
+  tmap_arrange(tm_hmod, tm_hmod_delta, nrow = 1)
+  dev.off()
+}
 
-
-
-tm_hmod <- tm_create_prob_map(rast_pred_hmod1,
-                   main.title = paste(fig_letters[1], "Predicted probability (%)",
-                                      '\nfor model including human modification'),
-                   main.title.size = 0.8,
-                   legend.title.size = 0.6)
-
-tm_hmod_delta <- tm_shape(hmod_delta*100, bbox = bbox) +
-  tm_raster(title = lab_delta,
-            breaks = b1,
-            labels = l1,
-            palette = cols_delta,
-            midpoint = 0) +
-  basemap(legend.text.size = legend.text.size,
-          legend.title.size = 0.6) +
-  tm_layout(main.title = paste(fig_letters[2],
-                               "Change in fire probability relative to model",
-                               "\nwithout human modification"),
-            main.title.size = 0.8)
-
-
-
-jpeg("figures/maps_fire_prob/cwf_hmod_predicted_v2.jpeg", units = 'in', res = 600,
-     height = 2.8, width = 7)
-tmap_arrange(tm_hmod, tm_hmod_delta, nrow = 1)
-dev.off()
