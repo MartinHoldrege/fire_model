@@ -47,31 +47,46 @@ render_glm = function(s, inter, sample_group,
 
 # render docs ------------------------------------------------------------
 
+render_glm(s = "_ann",
+           inter = NULL,
+           sample_group = 1,
+           test_run = FALSE)
+
+render_glm(s = "_ann_A-P",
+           inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
+           sample_group = 1,
+           test_run = FALSE)
+
+render_glm(s = "_ann_A-T",
+           inter = c('afgAGB:MAT' = "(afgAGB:MAT)"),
+           sample_group = 1,
+           test_run = FALSE)
+
+render_glm(s = "_ann_A-S",
+           inter = c('afgAGB:prcpPropSum' = "(afgAGB:prcpPropSum)"),
+           sample_group = 1,
+           test_run = FALSE)
+
+render_glm(s = "_ann_A-Pr",
+           inter = c('afgAGB:pfgAGB' = "(afgAGB:pfgAGB)"),
+           sample_group = 1,
+           test_run = FALSE)
+
 # render_glm(s = "_ann_A-P_A-S", 
 #            inter = c('afgAGB:MAP' = "(afgAGB:MAP)", 
 #                      "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)"),
 #            sample_group = 1, 
 #            test_run = FALSE)
 
-# run again to create smaller object
-# render_glm(s = "_ann_A-P",
-#            inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
-#            sample_group = 1,
-#            test_run = FALSE)
 
-# for (sample_group in 4:5) {
-#   render_glm(s = "_ann_A-P",
-#              inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
-#              sample_group = sample_group,
-#              test_run = FALSE)
-# }
+for (sample_group in 2:5) {
+  render_glm(s = "_ann_A-P",
+             inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
+             sample_group = sample_group,
+             test_run = FALSE)
+}
 
 
-
-render_glm(s = "_ann",
-           inter = NULL,
-           sample_group = 1,
-           test_run = FALSE)
 
 
 

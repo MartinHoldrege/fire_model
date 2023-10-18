@@ -163,11 +163,13 @@ transform_funs$convert_sq <- function(x) paste0("I(", x, "^2)")
 # adding x^2 term to the model (in addition to x) i.e. to allow for parabola
 #transform_funs$add_sq <- function(x) paste0(x, "+ I(", x, "^2)")
 
-transform_funs$convert_ln <- function(x) paste0("log(", x, ")")
+# adding small constant so not taking log of 0 (this is a problem
+# for about 300k afg observations)
+transform_funs$convert_ln <- function(x) paste0("log(I(", x, "0.001))")
 
 transform_funs$convert_exp <- function(x) paste0("exp(", x, ")")
 
-transform_funs$convert_poly2 <- function(x) paste0("poly(", x, ",2, raw = TRUE)")
+transform_funs$convert_poly2 <- function(x) paste0("stats::poly(", x, ",2, raw = TRUE)")
 
 # # spline with two degrees of freedom (1 would linear)
 # transform_funs$convert_spline2 <- function(x) {

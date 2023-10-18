@@ -65,8 +65,13 @@ theme_set(theme_classic())
 
 Data compiled in the `04_create_biom-mask_dataframe_ann.R` script
 
+This version two of the dataframe defines a cell has having burned
+if ~47% of that cell burned (as opposed to just the centroid). This 
+preserves the correct total area burned, and also should reduce noise, by 
+more correctly determin
+
 ```{r}
-df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v1.csv',
+df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v2.csv',
                     progress = FALSE, show_col_types = FALSE)
 ```
 
@@ -311,35 +316,6 @@ predict_by_response <- function(mod, df) {
 pred_glm1 <- predict_by_response(mod_glm1, df_test)
 ```
 
-```{r message = FALSE}
-
-# long format so can have observed and predicted columns
-pred_glm1_long <- pred_glm1 %>% 
-    select(matches("_prop")) %>% 
-    mutate(row = 1:n()) %>% 
-    pivot_longer(cols = -row) %>% 
-    mutate(data_source = str_extract(name, "^[a-z]+"),
-           type = ifelse(str_detect(name, "prop_pred$"), 'predicted', 
-                         'observed')) %>% 
-    select(-name) %>% 
-    pivot_wider(id_cols = c('row', 'data_source'), 
-                names_from = 'type',
-                values_from = 'value') %>% 
-    select(-row)
-
-# observed vs predicted ggplots
-g <- ggplot(pred_glm1_long %>% filter(observed <= 0.1), 
-            aes(y = predicted)) +
-  facet_wrap(~data_source) +
-  labs(subtitle = 'observed and predicted fire probabilities',
-       y = "predicted probability")
-
-g +
-  geom_boxplot(aes(x = as.factor(as.numeric(as.factor(observed)) - 1)))+
-  labs(x = "number of observed fires")
-
-
-```
 
 ### Deciles
 
@@ -449,7 +425,7 @@ mods2save$data_rows <- n
 
 if(!test_run) {
   saveRDS(mods2save, 
-        paste0("models/glm_binomial_models_v1", s, "_", n, "n_g", 
+        paste0("models/glm_binomial_models_v2", s, "_", n, "n_g", 
         sample_group, ".RDS"))
 }
 
