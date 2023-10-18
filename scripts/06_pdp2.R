@@ -22,8 +22,12 @@ theme_set(theme_classic())
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 
-
-s <- "_ann_A-P_entire"
+sv <- c('_ann_5000000n_g1',
+        '_ann_A-P_5000000n_g1',
+        '_ann_A-T_5000000n_g1',
+        '_ann_A-S_5000000n_g1',
+        '_ann_A-Pr_5000000n_g1')
+#s <- "_ann_A-P_entire"
 
 # quantiles to fix interacting terms at
 probs_list <- list(c(0.2, 0.8),
@@ -32,17 +36,26 @@ probs_list <- list(c(0.2, 0.8),
 # probs <- c(0.0001, 0.9999)
 
 
-# read in data ------------------------------------------------------------
 
-train <- read_csv("data_processed/fire-clim-veg_3yrAvg_v1.csv",
+# read in data ------------------------------------------------------------
+set.seed(123)
+train <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
                   show_col_types = FALSE) %>% 
   slice_sample(n = 5e5)
 
 # read in model objects ---------------------------------------------------
+for (s in sv) {
 
 # main model (fit to the entire dataset)
-mod <- readRDS(paste0("models/glm_binomial_models_v1",
+v <- 2
+mod <- readRDS(paste0("models/glm_binomial_models_v",v,
                        s, ".RDS"))
+
+if (v == 2) {
+  # denoting in name that burn probability defined from fraction of pixel
+  # that was burned (instead of centroid)
+  s <- str_replace(s, 'ann', 'annf')
+}
 
 # create pdp --------------------------------------------------------------
 
@@ -223,5 +236,5 @@ print(g +
 dev.off()
 # 
 }
-
+}
  
