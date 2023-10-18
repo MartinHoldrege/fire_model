@@ -22,11 +22,15 @@ theme_set(theme_classic())
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 
-sv <- c('_ann_5000000n_g1',
-        '_ann_A-P_5000000n_g1',
-        '_ann_A-T_5000000n_g1',
-        '_ann_A-S_5000000n_g1',
-        '_ann_A-Pr_5000000n_g1')
+sv <- c(
+        # '_ann_5000000n_g1',
+        # '_ann_A-P_5000000n_g1',
+        # '_ann_A-T_5000000n_g1',
+        # '_ann_A-S_5000000n_g1',
+        # '_ann_A-Pr_5000000n_g1',
+        # "_ann_sA-P_entire",
+        "_ann_lA-P_entire" # annuals were log transformed
+        )
 #s <- "_ann_A-P_entire"
 
 # quantiles to fix interacting terms at
@@ -56,7 +60,7 @@ if (v == 2) {
   # that was burned (instead of centroid)
   s <- str_replace(s, 'ann', 'annf')
 }
-
+print(s) 
 # create pdp --------------------------------------------------------------
 
 # lookup table
@@ -230,7 +234,7 @@ dev.off()
   
 # # restricted ylim
 png(paste0("figures/pdp/pdp_high-low_", v, s, "_rylim.png"),
-    units = "in", res = 600,  width = 8, height = 3.5)
+    units = "in", res = 600,  width = 8, height = 5)
 print(g +
   coord_cartesian(ylim = c(0, 3)))
 dev.off()

@@ -43,7 +43,8 @@ if(FALSE) {
 # model fitting -----------------------------------------------------------
 set.seed(1234)
 # hard coding this model (for now)
-form <- "cwf_prop ~ sqrt(afgAGB) + stats::poly(pfgAGB,2,raw=TRUE) + stats::poly(MAT,2,raw=TRUE) + stats::poly(MAP,2,raw=TRUE) + stats::poly(prcpPropSum,2, raw = TRUE) + (sqrt(afgAGB):MAP)"
+# form <- "cwf_prop ~ sqrt(afgAGB) + stats::poly(pfgAGB,2,raw=TRUE) + stats::poly(MAT,2,raw=TRUE) + stats::poly(MAP,2,raw=TRUE) + stats::poly(prcpPropSum,2, raw = TRUE) + (sqrt(afgAGB):MAP)"
+form <- "cwf_prop ~ log10(I(afgAGB + 0.001)) + stats::poly(pfgAGB,2,raw=TRUE) + stats::poly(MAT,2,raw=TRUE) + stats::poly(MAP,2,raw=TRUE) + stats::poly(prcpPropSum,2, raw = TRUE) + log10(I(afgAGB + 0.001)):MAP"
 
 
 m1 <- glm(as.formula(form), family = binomial(link = 'logit'),
@@ -58,5 +59,5 @@ mod2save <- butcher::butcher(m1) # removes some model components so the saved ob
 
 mod2save$formula <- form
 
-saveRDS(mod2save, "models/glm_binomial_models_v2_ann_sA-P_entire.RDS")
+saveRDS(mod2save, "models/glm_binomial_models_v2_ann_lA-P_entire.RDS")
 
