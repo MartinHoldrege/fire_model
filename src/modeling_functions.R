@@ -156,20 +156,46 @@ predict_across_avg <- function(mod, pred_vars, df, mult = 0) {
 
 transform_funs <- list()
 
-transform_funs$convert_sqrt <- function(x) paste0("sqrt(", x, ")")
+transform_funs$convert_sqrt <- function(x) {
+  p <- paste0("sqrt(", x, ")")
+  list(main = p, # transformation for main term
+       inter = p) # transformation for term if it is in an interaction
+}
 
-transform_funs$convert_sq <- function(x) paste0("I(", x, "^2)")
+# transform_funs$convert_sq <- function(x) paste0("I(", x, "^2)")
 
 # adding x^2 term to the model (in addition to x) i.e. to allow for parabola
 #transform_funs$add_sq <- function(x) paste0(x, "+ I(", x, "^2)")
 
 # adding small constant so not taking log of 0 (this is a problem
 # for about 300k afg observations)
-transform_funs$convert_ln <- function(x) paste0("log(I(", x, "0.001))")
+transform_funs$convert_log10 <- function(x) {
+  p <- paste0("log10(I(", x, "+ 0.001))")
+  list(main = p,
+       inter = p) 
+}
 
-transform_funs$convert_exp <- function(x) paste0("exp(", x, ")")
+# transform_funs$convert_exp <- function(x) paste0("exp(", x, ")") # removing b/ selected
 
-transform_funs$convert_poly2 <- function(x) paste0("stats::poly(", x, ",2, raw = TRUE)")
+transform_funs$convert_poly2 <- function(x) {
+  p <- paste0("stats::poly(", x, ",2, raw = TRUE)")
+  list(main = p,
+       inter = x) # not changing the interaction term
+}
+
+transform_funs$convert_poly2sqrt <- function(x) {
+  p <- paste0("stats::poly(I(sqrt(", x, ")),2, raw = TRUE)")
+  list(main = p,
+       inter = paste0("sqrt(", x, ")")) 
+}
+
+transform_funs$convert_poly2log10 <- function(x) {
+  p <- paste0("stats::poly(I(log10(I(", x, "+ 0.001))),2, raw = TRUE)")
+  list(main = p,
+       inter = paste0("log10(I(", x, "+ 0.001))")) 
+}
+
+
 
 # # spline with two degrees of freedom (1 would linear)
 # transform_funs$convert_spline2 <- function(x) {
@@ -194,11 +220,11 @@ transform_funs$convert_poly2 <- function(x) paste0("stats::poly(", x, ",2, raw =
 #' @return vector where each element returned is a string, that can be used as 
 #' the right hand side of a model formula. One additional element is transformed
 #' @example 
-#' preds <- letters[1:3]
+#' preds <- c('a', 'b', 'a:b')
 #' names(preds) <- preds
-#' transform_preds(preds)
-#' preds[1] <- 'sqrt(a)' # doesn't transform 'a' if already transformed
-#' transform_preds(preds)
+#' transform_preds(preds) # the interaction term is also transformed, depending on the function
+#' transform_preds(c(a = 'a', b = 'b', `a:b` = '(a:b)'))
+#' transform_preds(c(a = 'sqrt(a)', b = 'b', `a:b`= 'sqrt(a):b'))
 transform_preds <- function(preds) {
   stopifnot(
     is.character(preds),
@@ -210,15 +236,25 @@ transform_preds <- function(preds) {
       is.function(f)
     )
     out <- list()
-    for (var in preds) {
+    # main effects (i.e. not interactions)
+    preds_main <- str_subset(preds, pattern = "[:]", negate = TRUE)
+    for (var in preds_main) {
       tmp_vars <- preds
       
-      # if preds isn't already transformed (which for now is detected
-      # by the presence of parentheses, then transform it)
-      if(str_detect(var, "\\(", negate = TRUE)) {
-        # this subsetting only works b/ pred_vars is named vector
-        tmp_vars[var] <- f(preds[var]) 
-      }
+      # transform main effects
+      main_to_transform <- var == preds & str_detect(preds, "\\(|\\:", negate = TRUE)
+      tmp_vars[main_to_transform] <- f(tmp_vars[main_to_transform])$main
+      
+      # transform interactions
+      inter_to_transform <- str_detect(preds, paste0("(", var, ":)|(:", var, ")")) & # interaction term
+        # not already transformed?
+        # if it isn't allowed to be transformed then the variable will have a (
+        # before it or a ')' after it
+        str_detect(preds, paste0('(\\(',var, ")|(", var, "\\))"), negate = TRUE)
+      
+      tmp_vars[inter_to_transform] <- str_replace(tmp_vars[inter_to_transform],
+                                                  var,
+                                                  f(var)$inter)
       
       out[[var]] <- paste(tmp_vars, collapse = " + ") %>% 
         paste("~", .)
@@ -244,7 +280,7 @@ transform_preds <- function(preds) {
 #' @param df dataframe to fit the model on
 #'
 #' @return list of models, one for each formula
-fit_bin_glms <- function(forms, df, weights_col = 'mtbs_n') {
+fit_bin_glms <- function(forms, df, weights_col = NULL) {
   stopifnot(weights_col %in% names(df))
   
   glm_list <- map(forms, function(form) {
@@ -253,22 +289,22 @@ fit_bin_glms <- function(forms, df, weights_col = 'mtbs_n') {
     # some of these won't fit so returns NA if throws error
     # not using purrr::safely() didn't seem to work, maybe b/ 
     # of environment issues?
-    if(weights_col == 'mtbs_n') {
+
+    if(is.null(weights_col)) {
       out <- tryCatch(glm(formula = form, data = df, 
-                          family = 'binomial', 
-                          weights = mtbs_n),
+                          family = 'binomial'),
                       error = function(e) NA)
     } else if(weights_col == 'numYrs') {
       out <- tryCatch(glm(formula = form, data = df, 
                           family = 'binomial', 
                           weights = numYrs),
                       error = function(e) NA)
-    } else {
+      } else {
       stop('This function not set upt to use that weights_col')
     }
 
     if (any(is.na(out))) message(paste(char_form,  "model couldn't fit \n"))
-    out
+    butcher::butcher(out) # to save memory
   })
   # removing models that couldn't be fit b/ they through an error
   out <- keep(glm_list, function(x) all(!is.na(x)))
@@ -395,7 +431,7 @@ glms_iterate_transforms <- function(preds, df, response_var,
     names(pred_transforms2) <- names(pred_transforms1)
     
     # fitting glm's for each formula (all model objects)
-    glm_list <- fit_mod(forms = pred_transforms2,df = df, ...)
+    glm_list <- fit_mod(forms = pred_transforms2,df = df) #, ...)
     
     # sorting AIC
     aic_sorted <- map_dbl(glm_list, AIC) %>% 
@@ -424,17 +460,22 @@ glms_iterate_transforms <- function(preds, df, response_var,
     # of the best model into a vector
     preds_out <- pred_transforms1[[best_mod]] %>% 
       str_replace_all("[ ]|~", "") %>%  # remove spaces and ~
-      # split based on presence of + 
-      str_split("\\+") %>% 
+      # split based on presence of + (but b/ add constants in some places
+      # don't split + if followed by a digit)
+      str_split("\\+(?!\\d)") %>% 
       unlist() %>% 
       self_name()
     
-    # transformation that took place this step
-
-    if(all(preds_out %in% preds)) {
+    # transformation that took place this step. 
+    # transformation of interactions depends on what transformation
+    # happend to the main term, and is done in the same step
+    # matching single but not double ::, (because e.g. stats::poly() is ok)
+    preds_main <- str_subset(preds, pattern = '(?<!\\:)\\:(?!\\:)', negate = TRUE) # not interaction terms
+    preds_out_main <- str_subset(preds_out, pattern = '(?<!\\:)\\:(?!\\:)', negate = TRUE) # not interaction terms
+    if(all(preds_out_main %in% preds_main)) {
       diff = NA_character_
     } else {
-      diff <- preds_out[!preds_out %in% preds]
+      diff <- preds_out_main[!preds_out_main %in% preds_main]
       if(length(diff) > 1) {
         stop('issue with figuring out which var was transformed')
       }

@@ -37,8 +37,11 @@ render_glm = function(s, inter, sample_group,
       inter = inter,
       sample_group = sample_group
     ),
-    output_file = paste0("05_models_biome-mask_fire-prob_ann_", date, 
-                         stringr::str_replace(s, "_ann", ""),
+    # descriptor,  annf2:ann (annual data), f = fractional cover used, 
+    # 2 = second version where new transformations tested and annuals transformed based on the main effect transformation
+  
+    output_file = paste0("05_models_biome-mask_fire-prob_annf2_", date, 
+                         stringr::str_replace(s, "_annf2", ""),
                          "_g", sample_group, ".html"),
     output_dir = file.path(knit_root_dir, 'scripts/copies')
   )
@@ -47,41 +50,34 @@ render_glm = function(s, inter, sample_group,
 
 # render docs ------------------------------------------------------------
 
-render_glm(s = "_ann",
+render_glm(s = "_annf2",
            inter = NULL,
            sample_group = 1,
            test_run = FALSE)
 
-render_glm(s = "_ann_A-P",
-           inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
+render_glm(s = "_annf2_A-P",
+           inter = c('afgAGB:MAP' = "afgAGB:MAP"),
            sample_group = 1,
            test_run = FALSE)
 
-render_glm(s = "_ann_A-T",
-           inter = c('afgAGB:MAT' = "(afgAGB:MAT)"),
+render_glm(s = "_annf2_A-T",
+           inter = c('afgAGB:MAT' = "afgAGB:MAT"),
            sample_group = 1,
            test_run = FALSE)
 
-render_glm(s = "_ann_A-S",
-           inter = c('afgAGB:prcpPropSum' = "(afgAGB:prcpPropSum)"),
+render_glm(s = "_annf2_A-S",
+           inter = c('afgAGB:prcpPropSum' = "afgAGB:prcpPropSum"),
            sample_group = 1,
            test_run = FALSE)
 
-render_glm(s = "_ann_A-Pr",
-           inter = c('afgAGB:pfgAGB' = "(afgAGB:pfgAGB)"),
+render_glm(s = "_annf2_A-Pr",
+           inter = c('afgAGB:pfgAGB' = "afgAGB:pfgAGB"),
            sample_group = 1,
            test_run = FALSE)
 
-# render_glm(s = "_ann_A-P_A-S", 
-#            inter = c('afgAGB:MAP' = "(afgAGB:MAP)", 
-#                      "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)"),
-#            sample_group = 1, 
-#            test_run = FALSE)
-
-
-for (sample_group in 2:5) {
-  render_glm(s = "_ann_A-P",
-             inter = c('afgAGB:MAP' = "(afgAGB:MAP)"),
+for (sample_group in 2:3) {
+  render_glm(s = "_annf2_A-P",
+             inter = c('afgAGB:MAP' = "afgAGB:MAP"),
              sample_group = sample_group,
              test_run = FALSE)
 }

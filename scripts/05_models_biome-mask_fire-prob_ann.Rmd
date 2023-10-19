@@ -6,8 +6,8 @@ date: "`r lubridate::today()`"
 params: 
   test_run: TRUE
   save_figs: FALSE
-  s: "_ann_A-P_A-S"
-  inter: !r c('afgAGB:MAP' = "(afgAGB:MAP)", "afgAGB:prcpPropSum" = "(afgAGB:prcpPropSum)")
+  s: "_annf2_A-P"
+  inter: !r c('afgAGB:MAP' = "afgAGB:MAP")
   sample_group: 1
 output:
   html_document:
@@ -235,8 +235,7 @@ mods_glm_cwf1 <- glms_iterate_transforms(
   preds = pred_vars_inter, 
   df = df_sample,
   response_var = "cwf_prop", 
-  delta_aic = 10,
-  weights_col = "numYrs")
+  delta_aic = 10)
 
 # not including the last element of the list which is final_formula
 mods_glm_cwf2 <- mods_glm_cwf1[-length(mods_glm_cwf1)]
@@ -425,7 +424,7 @@ mods2save$data_rows <- n
 
 if(!test_run) {
   saveRDS(mods2save, 
-        paste0("models/glm_binomial_models_v2", s, "_", n, "n_g", 
+        paste0("models/glm_binomial_models_v3", s, "_", n, "n_g", 
         sample_group, ".RDS"))
 }
 
