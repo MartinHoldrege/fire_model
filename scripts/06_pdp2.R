@@ -23,13 +23,11 @@ theme_set(theme_classic())
 # the model interactions
 
 sv <- c(
-        # '_ann_5000000n_g1',
-        # '_ann_A-P_5000000n_g1',
-        # '_ann_A-T_5000000n_g1',
-        # '_ann_A-S_5000000n_g1',
-        # '_ann_A-Pr_5000000n_g1',
-        # "_ann_sA-P_entire",
-        "_ann_lA-P_entire" # annuals were log transformed
+        '_annf2_5000000n_g1',
+        '_annf2_A-P_5000000n_g1',
+        '_annf2_A-T_5000000n_g1',
+        '_annf2_A-S_5000000n_g1',
+        '_annf2_A-Pr_5000000n_g1'
         )
 #s <- "_ann_A-P_entire"
 
@@ -51,7 +49,7 @@ train <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
 for (s in sv) {
 
 # main model (fit to the entire dataset)
-v <- 2
+v <- 3
 mod <- readRDS(paste0("models/glm_binomial_models_v",v,
                        s, ".RDS"))
 

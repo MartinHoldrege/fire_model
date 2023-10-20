@@ -50,30 +50,30 @@ render_glm = function(s, inter, sample_group,
 
 # render docs ------------------------------------------------------------
 
-render_glm(s = "_annf2",
-           inter = NULL,
-           sample_group = 1,
-           test_run = FALSE)
+# render_glm(s = "_annf2",
+#            inter = NULL,
+#            sample_group = 1,
+#            test_run = FALSE)
 
 render_glm(s = "_annf2_A-P",
            inter = c('afgAGB:MAP' = "afgAGB:MAP"),
            sample_group = 1,
            test_run = FALSE)
 
-render_glm(s = "_annf2_A-T",
-           inter = c('afgAGB:MAT' = "afgAGB:MAT"),
-           sample_group = 1,
-           test_run = FALSE)
-
-render_glm(s = "_annf2_A-S",
-           inter = c('afgAGB:prcpPropSum' = "afgAGB:prcpPropSum"),
-           sample_group = 1,
-           test_run = FALSE)
-
-render_glm(s = "_annf2_A-Pr",
-           inter = c('afgAGB:pfgAGB' = "afgAGB:pfgAGB"),
-           sample_group = 1,
-           test_run = FALSE)
+# render_glm(s = "_annf2_A-T",
+#            inter = c('afgAGB:MAT' = "afgAGB:MAT"),
+#            sample_group = 1,
+#            test_run = FALSE)
+# 
+# render_glm(s = "_annf2_A-S",
+#            inter = c('afgAGB:prcpPropSum' = "afgAGB:prcpPropSum"),
+#            sample_group = 1,
+#            test_run = FALSE)
+# 
+# render_glm(s = "_annf2_A-Pr",
+#            inter = c('afgAGB:pfgAGB' = "afgAGB:pfgAGB"),
+#            sample_group = 1,
+#            test_run = FALSE)
 
 for (sample_group in 2:3) {
   render_glm(s = "_annf2_A-P",
