@@ -3,8 +3,7 @@
 # I rand through the variable transformation selection with the
 # 05_models_biome-mask_fire-prop_ann.Rmd code 5 times each time using a
 # different random ~1/5 of the data and each time it resulted in the
-# same transformations. Here using those transformation and the bigglm
-# package to a fit a model with those transformation to the entire 
+# same transformations. Here using those transformations to fit a model to the entire 
 # dataset (which has ~25 million observations)
 
 # Author: Martin 
@@ -15,7 +14,6 @@
 # dependencies ------------------------------------------------------------
 
 library(readr)
-library(biglm)
 library(dplyr)
 
 # read in data ------------------------------------------------------------
@@ -24,9 +22,14 @@ library(dplyr)
 df_ann <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
                    show_col_types = FALSE) 
 
-# confirming the model objects all have the same final formula (update as needed)
+# get the formula of the model fit in 05_models_biome-mask_fire-prob_ann.Rmd
+s <- '_annf2_A-P'
+v <- 3
+form <- readRDS(paste0("models/glm_binomial_models_v", v, s, "_5000000n_g1.RDS"))$formula
+
+# examine if models fit two different subsets have the same formula have the same final formula (update as needed)
 if(FALSE) {
-  paths <- list.files("models", pattern = 'glm_binomial_models_v1_ann.*',
+  paths <- list.files("models", pattern = paste0("glm_binomial_models_v", v, s, "_\\d+.*.RDS"),
                       full.names = TRUE)
 
   y <- lapply(paths, function(x) {
@@ -35,16 +38,14 @@ if(FALSE) {
   
   y2 <- y %>% unlist() %>% 
     unname() %>% 
-    str_replace_all(' ', '')
-  all(y2[[1]] == y2)
+    stringr::str_replace_all(' ', '')
+  
+  all(y2[[1]] == y2) # one model fit differently. --going with the 'majority' model, which has a more plausible temperature shape
 }
 
 
 # model fitting -----------------------------------------------------------
 set.seed(1234)
-# hard coding this model (for now)
-# form <- "cwf_prop ~ sqrt(afgAGB) + stats::poly(pfgAGB,2,raw=TRUE) + stats::poly(MAT,2,raw=TRUE) + stats::poly(MAP,2,raw=TRUE) + stats::poly(prcpPropSum,2, raw = TRUE) + (sqrt(afgAGB):MAP)"
-form <- "cwf_prop ~ log10(I(afgAGB + 0.001)) + stats::poly(pfgAGB,2,raw=TRUE) + stats::poly(MAT,2,raw=TRUE) + stats::poly(MAP,2,raw=TRUE) + stats::poly(prcpPropSum,2, raw = TRUE) + log10(I(afgAGB + 0.001)):MAP"
 
 
 m1 <- glm(as.formula(form), family = binomial(link = 'logit'),
@@ -59,5 +60,5 @@ mod2save <- butcher::butcher(m1) # removes some model components so the saved ob
 
 mod2save$formula <- form
 
-saveRDS(mod2save, "models/glm_binomial_models_v2_ann_lA-P_entire.RDS")
+saveRDS(mod2save, paste0("models/glm_binomial_models_v", v, s, "_entire.RDS"))
 

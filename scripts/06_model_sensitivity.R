@@ -24,9 +24,9 @@ theme_set(theme_classic())
 
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-s <- '_ann_A-P_entire'
+s <- '_annf2_A-P_entire'
 
-files_mod <- paste0("models/glm_binomial_models_v1", s, ".RDS")
+files_mod <- paste0("models/glm_binomial_models_v3", s, ".RDS")
 
 # functions ---------------------------------------------------------------
 # functions used here that likel rely on objects in the global environment 
@@ -58,19 +58,10 @@ tm_create_prob_map <- function(r, legend.text.size = 0.55,
 # provides cell numbers
 template <- rast("data_processed/data_publication/cell_nums.tif")
 
-# * burned area ----------------------------------------------------------
-
-# area burned each year, for all sagebrush biome pixels. based on the USGS
-# combined wildland fire dataset
-# file created by the 02_burned_area_per_yr.js script
-ba1 <- read_csv("data_processed/area_burned_by_yr_cwf_30m.csv",
-                show_col_types = FALSE) %>% 
-  select(area_ha, year)
-
 
 # * predictor/response dataframe ------------------------------------------
 
-df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v1.csv')
+df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v2.csv')
 
 # * dataframe -------------------------------------------------------------
 
@@ -78,19 +69,15 @@ df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v1.csv')
 
 # * model objects ---------------------------------------------------------
 
-# (these objects are very large ~2Gb)
-
-# glm models fit to resampled/balanced data
-
+# (these objects are very large ~4Gb)
 
 mod1 <- readRDS(files_mod)
 formula1 <- mod1$formula
 
 # removing , 2, raw = TRUE from formula terms, just to shorten the string
 formula2 <- str_replace_all(formula1, ",[ ]*2[ ]*,[ ]*raw[ ]*=[ ]*TRUE[ ]*", "") %>% 
-  str_replace_all("[ ]*", "") %>% # getting rid of additional spaces
-  # new line so prints on two lines (2nd line is interactions)
-  str_replace_all("poly\\(prcpPropSum\\)", "poly\\(prcpPropSum\\)\n") 
+  str_replace_all("[ ]*", "") # getting rid of additional spaces
+
 names(formula2) <- s
 
 # STOP--this hasn't been updated yet (the new Hmod model object will
@@ -128,9 +115,12 @@ df_avg1 <- summarize_yearly(df_ann2, mean_vars = 'pred')
 # mean prediction, and means of predictor vars
 rasts1 <- fill_raster(df_avg1, template)
 
+# saving for use in other scripts (e.g. plotting predictor vars, and comparing
+# predictions to external datasets)
+writeRaster(rasts1, paste0('data_processed/pred-fire-clim-veg_avg-across-yrs', s, '.tif'),
+            overwrite = TRUE)
 
 # rast_pred_hmod1 <- df2rast(hmod_pred1, empty)
-
 
 
 # * Observed fire occurrence --------------------------------------------------
@@ -269,7 +259,7 @@ png(paste0("figures/maps_fire_prob/cwf_observed_predicted_pub-qual_v6", s,
 dev.off()
 
 # altered preds  ------------------------------------------------------------
-
+pred_vars <- c("MAT", "MAT", 'prcpPropSum', "afgAGB", 'pfgAGB')
 # altering the predictor variables to gauge sensitivity of the model 
 # to changes
 
@@ -279,29 +269,39 @@ alter_names <- c("mat_warm", # mid level amount of warming
                  "map_minus", # reduction in MAP
                  "map_plus", # increase in MAP
                  "prop_minus", # reduction in prcpPropSum
-                 "prop_plus" # increase in prcpPropSum
-                 )
+                 "prop_plus", # increase in prcpPropSum
+                 "afg_plus",
+                 "afg_minus",
+                 "pfg_plus",
+                 "pfg_minus")
 
 dfs_alter1 <- vector('list', length(alter_names))
 for (i in 1:length(dfs_alter1)) {
   dfs_alter1[[i]] <- df_ann2
 }
 names(dfs_alter1) <- alter_names
+# think this list isn't a horrible memory hog because columns that
+# are not changed are only stored once and pointed to from multiple dataframes?
 
 warm <- 2
 hot <- 5
 dfs_alter1$mat_warm$MAT <- df_ann2$MAT + warm
 dfs_alter1$mat_hot$MAT <- df_ann2$MAT + hot
 
-map_change <- 0.2
-dfs_alter1$map_minus$MAP <- df_ann2$MAP*(1-map_change)
-dfs_alter1$map_plus$MAP <- df_ann2$MAP*(1 + map_change)
+mult <- 0.2
+dfs_alter1$map_minus$MAP <- df_ann2$MAP*(1-mult)
+dfs_alter1$map_plus$MAP <- df_ann2$MAP*(1 + mult)
 
-prop_change <- 0.2
-dfs_alter1$prop_minus$prcpPropSum <- df_ann2$prcpPropSum*(1-prop_change)
-dfs_alter1$prop_plus$prcpPropSum <- df_ann2$prcpPropSum*(1+prop_change)
+dfs_alter1$prop_minus$prcpPropSum <- df_ann2$prcpPropSum*(1-mult)
+dfs_alter1$prop_plus$prcpPropSum <- df_ann2$prcpPropSum*(1+mult)
 
+dfs_alter1$afg_minus$afgAGB <- df_ann2$afgAGB*(1-mult)
+dfs_alter1$afg_plus$afgAGB <- df_ann2$afgAGB*(1+mult)
 
+dfs_alter1$pfg_minus$pfgAGB <- df_ann2$pfgAGB*(1-mult)
+dfs_alter1$pfg_plus$pfgAGB <- df_ann2$pfgAGB*(1+mult)
+
+stopifnot(length(dfs_alter1) == length(alter_names)) # check didn't accidentally add elements
 # * predictions -----------------------------------------------------------
 # create predictions for each model and climate scenario
 # then average across years, then convert to a raster
@@ -327,8 +327,6 @@ rasts_alter1 <- map(dfs_alter1, function(df) {
 
 # * burned area -----------------------------------------------------------
 
-plot(area_ha ~ year, data = ba1, type = 'l')
-
 # total area of study area
 study_area <- template
 study_area[!is.na(study_area)] <- 1
@@ -336,24 +334,23 @@ total_area <- calc_exp_ba(study_area)
 total_area
 #824174
 
-# observed mean burned area (accurately calculated based on rasterizing polygons
-# to ~30 m pixels)
-ba_obs <- ba1 %>% 
-  filter(year >=1988) %>% 
-  summarise(area_km2 = mean(area_ha)/100)
-ba_obs
+# observed mean burned area (accurately calculated based on calcuting what
+# fraction of each cell burned, from rasterizing fire polygons to 30m) 
+# and approximate burned area based on designating
+# a pixel burned (1) or not (0)
+ba <- df_ann2 %>% 
+  group_by(year) %>% 
+  summarize(ba_obs = sum(burn_frac),# cells are 1km2
+            ba_obs_approx = sum(nfire_cwf)
+            ) %>% 
+  summarise(ba_obs = mean(ba_obs),
+            ba_obs_approx = mean(ba_obs_approx)) 
+ba
 # 4835.
 
-# observed burned area (based on the coarse ~1x1 km data)
-ba_obs2 <- df_ann2 %>% 
-  # each pixel is now exactly 1 km
-  mutate(ba = nfire_cwf) %>% 
-  group_by(year) %>% 
-  summarize(ba = sum(ba)) %>% 
-  summarize(area_km2 = mean(ba))
-ba_obs2
-# 4104.
-ba_obs2/total_area*100 # observed fire probability
+# observed fire probability
+ba %>% 
+  mutate(across(everything(), \(x) x/total_area*100))
 
 # expected (long term) mean annual burned area (ha) based on the model
 ba_exp <- calc_exp_ba(rasts1[['pred']])
@@ -368,16 +365,22 @@ ba_delta1 <- map_dfr(rasts_alter1, function(x) {
 })
 ba_delta1
 
-
+# df_ann2 %>% 
+#   summarize(across(all_of(pred_vars), sd))
+  
 # observed & predicted figs ------------------------------------------------
 
 delta_titles0 <- c(
-  "mat_warm" = paste0("+", warm, "°C MAT"),
-  "mat_hot" = paste0("+", hot, "°C MAT"),
-  "map_minus" = paste0("-",map_change*100, "% MAP"),
-  "map_plus" = paste0("+",map_change*100, "% MAP"),
-  "prop_minus" = paste0("-",prop_change*100, "% PSP"),
-  "prop_plus" = paste0("+",prop_change*100, "% PSP")
+  "mat_warm" = paste0("+", warm, "°C Temperature"),
+  "mat_hot" = paste0("+", hot, "°C Temperature"),
+  "map_minus" = paste0("-",mult*100, "% Precipitation"),
+  "map_plus" = paste0("+",mult*100, "% Precipitation"),
+  "prop_minus" = paste0("-",mult*100, "% PSP"),
+  "prop_plus" = paste0("+",mult*100, "% PSP"),
+  "afg_minus" = paste0("-",mult*100, "% Annuals"),
+  "afg_plus" = paste0("+",mult*100, "% Annuals"),
+  "pfg_minus" = paste0("-",mult*100, "% Perennials"),
+  "pfg_plus" = paste0("+",mult*100, "% Perennials")
 )
 
 delta_titles <- paste(fig_letters[1:length(delta_titles0)], delta_titles0)
@@ -415,9 +418,12 @@ delta_range <- df_delta1 %>%
             max = max(delta_fire_prob))
 # limits for other panels
 h <- ggplot(df_delta1, aes(x = delta_fire_prob)) +
-  geom_histogram(bins = 100) +
-  geom_vline(data = delta_range, aes(xintercept = min, linetype = "min")) +
-  geom_vline(data = delta_range, aes(xintercept = max, linetype = "max")) +
+  geom_vline(aes(xintercept = 0, linetype = 'Zero change', color = 'Zero change')) +
+  geom_vline(data = delta_range, aes(xintercept = min, linetype = "min",
+                                     color = "min")) +
+  geom_vline(data = delta_range, aes(xintercept = max, linetype = "max",
+                                     color = "max")) +
+  geom_histogram(bins = 100, fill = 'black', boundary = 0) +
   facet_wrap(~title, scales = 'fixed', ncol = 2) +
   annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 0.7) +
   annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf, size = 0.7) +
@@ -427,20 +433,25 @@ h <- ggplot(df_delta1, aes(x = delta_fire_prob)) +
             size = 2.5,
             label.size = NA # remove border around label
             )+
-  scale_linetype_manual(values = c('max' = 3, "min" = 4)) +
+  scale_linetype_manual(values = c('Zero change' = 1, 'max' = 3, "min" = 4),
+                        name = 'Range') +
+  scale_color_manual(values = c('Zero change' = '#bababa', 'max' = '#b2182b', "min" = "#2166ac"),
+                     name = 'Range') +
   labs(x = lab_delta,
        y = 'Count') +
   theme(legend.title = element_blank(),
         strip.placement = "outside",
         strip.text = element_text(hjust = 0),
-        strip.background = element_blank()) 
+        strip.background = element_blank()) +
   # want to avoid e style scientific notation
-  # scale_y_continuous(labels = scales::label_number(scale = 10^(-5), 
-  #                                           # x10^5 
-  #                                          suffix = "x10\U2075"))
+  scale_y_continuous(labels = scales::label_number(scale = 10^(-5),
+                                            # x10^5
+                                           suffix = "x10\U2075"),
+                     breaks = c(0, 2, 4)*10^5
+                     )
 h
-png("figures/histograms/sensitivity_delta_fire-prob_v2.png",
-    height = 5, width = 4, units = 'in', res = 600)
+png(paste0("figures/histograms/sensitivity_delta_fire-prob_v3", s, ".png"),
+    height = 7, width = 5, units = 'in', res = 600)
 h
 dev.off()
 
@@ -455,7 +466,7 @@ legend.text.size <- 0.55
 rasts_alter2 <- rasts_alter1
 
 # make sure elements refer to the same alteration
-stopifnot(names(rasts_alter2) == names(delta_titles))
+stopifnot(sort(names(rasts_alter2)) == sort(names(delta_titles)))
 
 # combining delta rasters for a given model into one raster w/ multiple layers
 # creating one multilayered raster per model
@@ -488,7 +499,6 @@ b1  <- breaks_delta*100
 # labels (for legend)
 l1 <- labels_delta
 
-
 delta_names <- names(delta_titles) %>% 
   self_name()
 
@@ -496,19 +506,17 @@ delta_names <- names(delta_titles) %>%
 hist_l1 <- map(delta_names, function(lyr) {
   r <-  rasts_delta1[[lyr]]*100
   out <- hist_colored(r, palette = cols_delta, palette_breaks = b1,
-               binwidth = 0.1)
+               binwidth = 0.05) +
+    theme(axis.text.x = element_text(size = 5)) +
+    scale_x_continuous(breaks = c(-0.5, 0, 0.5)) +
+    coord_cartesian(xlim = c(-0.5, 0.5))
   out
 })
 
-hist_l2 <- hist_l1
-# restricting axes, so meat of distribution is more visible
-hist_l2[1:2] <- map(hist_l2[1:2], function(g) {
-  g + coord_cartesian(xlim = c(-0.7, 0.7))
-})
 
-hist_l2[3:6] <- map(hist_l2[3:6], function(g) {
-  g + coord_cartesian(xlim = c(-0.7, 0.7))
-})
+hist_l2 <- hist_l1
+
+hist_l1[[1]]
 
 maps_delta1 <-  map(delta_names, function(lyr) {
   r <-  rasts_delta1[[lyr]]*100
@@ -531,7 +539,7 @@ maps_delta1 <-  map(delta_names, function(lyr) {
                # to the values in the grid-cells
                aes(x = x, y = y, fill = cut(values, b1))) +
     basemap_g(bbox = bbox3) +
-    theme(plot.margin = margin(5.5, 0, 0, 0),
+    theme(plot.margin = margin(7, 0, 0, 0),
           legend.position = 'left')+
     scale_fill_manual(na.value = NA,
                       name = lab_delta,
@@ -548,14 +556,15 @@ maps_delta1 <-  map(delta_names, function(lyr) {
 # add histograms on top
 maps_delta2 <- map2(maps_delta1, hist_l2, function(g, h) {
   out <- g +
-    inset_element(h, 0, 0, 0.32, 0.4, align_to = 'plot') 
-  out
+    inset_element(h, -0.05, 0, 0.25, 0.4, align_to = 'plot')
+  out +
+    theme(plot.margin = margin(15, 0, 0, 0))
 })
 
 #maps_delta2[[1]]
 
-png(paste0("figures/maps_sensitivity/delta-prob_clim-vars_v7", s, ".png"), 
-     units = 'in', res = 600, height = 8.5, width = 8)
+png(paste0("figures/maps_sensitivity/delta-prob_all-vars_v2", s, ".png"), 
+     units = 'in', res = 600, height = 11, width = 6)
 wrap_plots(maps_delta2, ncol = 2) +
   plot_layout(guides = 'collect') 
 
@@ -575,8 +584,6 @@ quants <- map(names(rasts_delta1),  function(name) {
 })
 names(quants) <- names(rasts_delta1)
 
-# mean absolute change is larger for mat (both warm and hot) then
-# map or prop changes
 quants
 
 # delta due to hmod -------------------------------------------------------

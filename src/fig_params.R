@@ -44,7 +44,7 @@ cols_prop <- c("#ffeda0","#feb24c", "#f03b20", # reds (from 3-class YlOrRd))
 #breaks_delta0 <- c( 0.001, .005, .01, .02, .05, 0.2) # 2nd version
 
 
-breaks_delta0 <- c( 0.1, .3, .6, 1, 2, 100)/100
+breaks_delta0 <- c( 0.1, .2, .3, 0.5, 1, 100)/100
 breaks_delta <- c(-rev(breaks_delta0), breaks_delta0)
 
 labels_delta <- label_creator(breaks_delta, convert2percent = TRUE)

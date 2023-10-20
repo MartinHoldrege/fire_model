@@ -55,10 +55,11 @@ render_glm = function(s, inter, sample_group,
 #            sample_group = 1,
 #            test_run = FALSE)
 
-render_glm(s = "_annf2_A-P",
-           inter = c('afgAGB:MAP' = "afgAGB:MAP"),
-           sample_group = 1,
-           test_run = FALSE)
+# this is the 'final' model 
+# render_glm(s = "_annf2_A-P",
+#            inter = c('afgAGB:MAP' = "afgAGB:MAP"),
+#            sample_group = 1,
+#            test_run = FALSE)
 
 # render_glm(s = "_annf2_A-T",
 #            inter = c('afgAGB:MAT' = "afgAGB:MAT"),
@@ -75,7 +76,7 @@ render_glm(s = "_annf2_A-P",
 #            sample_group = 1,
 #            test_run = FALSE)
 
-for (sample_group in 2:3) {
+for (sample_group in 4:5) {
   render_glm(s = "_annf2_A-P",
              inter = c('afgAGB:MAP' = "afgAGB:MAP"),
              sample_group = sample_group,

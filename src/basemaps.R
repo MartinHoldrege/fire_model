@@ -58,6 +58,8 @@ basemap <- function(legend.text.size = 0.8,
   out
 }
 
+states_crs <- sf::st_as_sf(spData::us_states) %>% 
+  sf::st_transform(crs)
 
 # basemap for ggplot maps
 basemap_g <- function(bbox = NULL) {
@@ -70,11 +72,10 @@ basemap_g <- function(bbox = NULL) {
   xlim = c(bbox[c('xmin', 'xmax')])
   ylim = c(bbox[c('ymin', 'ymax')])
  
-   states <- st_as_sf(spData::us_states) %>% 
-     sf::st_transform(crs)
+   
   
   list(
-    geom_sf(data = states, fill = NA, color = 'black'),
+    geom_sf(data = states_crs, fill = NA, color = 'black'),
     coord_sf(xlim = xlim,
              ylim = ylim,
              expand = FALSE),
@@ -87,15 +88,17 @@ basemap_g <- function(bbox = NULL) {
 
 # basemap for when putting a histogram on the map (placed on the
 # map off the california coast)
-basemap_hist <- function(add_poly = TRUE, legend.position = c('LEFT', 'bottom')) {
+basemap_hist <- function(add_poly = TRUE, legend.position = c('LEFT', 'bottom'),
+                         bbox) {
   
   # to cover background (SW california), where histogram is going
   poly <- tibble(
-    lon = c(-127, -116),
-    lat = c(33, 35.5)
+    lon = c(-127, -114),
+    lat = c(25, 35)
   ) %>% 
     sf::st_as_sf(coords = c("lon", "lat"), 
              crs = 4326) %>% 
+    sf::st_transform(crs) %>% 
     sf::st_bbox() %>% 
     sf::st_as_sfc()
   
@@ -103,20 +106,20 @@ basemap_hist <- function(add_poly = TRUE, legend.position = c('LEFT', 'bottom'))
   out <- tmap_options( # increase number of pixels plotted
     max.raster = c(plot = 1e10, view = 1e6) 
     )+
-  tm_shape(spData::us_states) +
+  tm_shape(states_crs, bbox = bbox) +
   tm_borders() +
   tm_layout(
     legend.outside = FALSE,
     legend.text.size = 0.6,
     legend.title.size = 0.8,
-    main.title.size = 0.8,
+    main.title.size = 0.7,
     title.position = c("left", "top"),
     legend.height = 1,
     legend.width = 1,
     legend.hist.width = 0.5,
     frame = FALSE,
     legend.position = legend.position,
-    inner.margins=c(.04,.08, .08, .01)) 
+    inner.margins=c(0,0, 0, 0)) 
   
  if(add_poly) {
     out <- out +
@@ -126,5 +129,4 @@ basemap_hist <- function(add_poly = TRUE, legend.position = c('LEFT', 'bottom'))
     
   out
 }
-
 
