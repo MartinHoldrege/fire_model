@@ -47,8 +47,34 @@ render_glm = function(s, inter, sample_group,
   )
 }
 
-
+#' render cross validation code(fit to annual data)
+#'
+#' @param s string that defines the model/interactions
+#' @param test_run is this a test run
+render_cv = function(s, test_run = FALSE) {
+  rmarkdown::render(
+    "scripts/06_cross-validation_env-block_ann.Rmd",
+    knit_root_dir = knit_root_dir,
+    params = list(
+      s = s,
+      test_run = test_run
+    ),
+    # descriptor,  annf2:ann (annual data), f = fractional cover used, 
+    # 2 = second version where new transformations tested and annuals transformed based on the main effect transformation
+    
+    output_file = paste0("06_cross-validation_env-block_", date, s, ".html"),
+    output_dir = file.path(knit_root_dir, 'scripts/copies')
+  )
+}
 # render docs ------------------------------------------------------------
+
+
+# * cv --------------------------------------------------------------------
+
+render_cv(s = '_annf2_A-P_entire')
+
+# * glm -------------------------------------------------------------------
+
 
 # render_glm(s = "_annf2",
 #            inter = NULL,

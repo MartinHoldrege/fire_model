@@ -87,16 +87,17 @@ pdp_all_rf_mods <- function(mod_list, df_train) {
 #'
 #' @param mod model object
 #' @param mod_vars character vector--names of variable in model
+#' @param data data to use for the pdp (providing all rows of the original dataset will be slow)
 #' that want to get average prediction fors
 #'
 #' @return dataframe with value (of x variable), yhat (predicted value)
 #' and pred_var which is the name of the predictor (i.e. values from mod_var)
-create_pdp_df <- function(mod, mod_vars) {
+create_pdp_df <- function(mod, mod_vars, data) {
   df_pdp <- map_dfr(mod_vars, function(var) {
     
     out <- pdp::partial(mod, pred.var = var, plot = FALSE,
                         prob = TRUE, 
-                        train = mod$data # limited data for training
+                        train = data # limited data for training
     )
     names(out) <- c("value", "yhat")
     out$pred_var <- var
