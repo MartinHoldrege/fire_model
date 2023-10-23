@@ -40,8 +40,8 @@ render_glm = function(s, inter, sample_group,
     # descriptor,  annf2:ann (annual data), f = fractional cover used, 
     # 2 = second version where new transformations tested and annuals transformed based on the main effect transformation
   
-    output_file = paste0("05_models_biome-mask_fire-prob_annf2_", date, 
-                         stringr::str_replace(s, "_annf2", ""),
+    output_file = paste0("05_models_biome-mask_fire-prob_annf3_", date, 
+                         stringr::str_replace(s, "_annf3", ""),
                          "_g", sample_group, ".html"),
     output_dir = file.path(knit_root_dir, 'scripts/copies')
   )
@@ -71,15 +71,15 @@ render_cv = function(s, test_run = FALSE) {
 
 # * cv --------------------------------------------------------------------
 
-render_cv(s = '_annf2_A-P_entire')
+# render_cv(s = '_annf2_A-P_entire')
 
 # * glm -------------------------------------------------------------------
 
 
-# render_glm(s = "_annf2",
-#            inter = NULL,
-#            sample_group = 1,
-#            test_run = FALSE)
+render_glm(s = "_annf3",
+           inter = NULL,
+           sample_group = 1,
+           test_run = FALSE)
 
 # this is the 'final' model 
 # render_glm(s = "_annf2_A-P",
@@ -102,12 +102,12 @@ render_cv(s = '_annf2_A-P_entire')
 #            sample_group = 1,
 #            test_run = FALSE)
 
-for (sample_group in 4:5) {
-  render_glm(s = "_annf2_A-P",
-             inter = c('afgAGB:MAP' = "afgAGB:MAP"),
-             sample_group = sample_group,
-             test_run = FALSE)
-}
+# for (sample_group in 4:5) {
+#   render_glm(s = "_annf2_A-P",
+#              inter = c('afgAGB:MAP' = "afgAGB:MAP"),
+#              sample_group = sample_group,
+#              test_run = FALSE)
+# }
 
 
 

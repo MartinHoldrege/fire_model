@@ -157,6 +157,14 @@ predict_across_avg <- function(mod, pred_vars, df, mult = 0) {
 
 transform_funs <- list()
 
+add_constant_string <- function(x) {
+  # adding only a small ammount to prcpPropSum so that wouldn't run into
+  # problems if got a 0. But for annuals (and other variables) want all the log transformations
+  # to be positive (and a less sharp bend) so adding 1 instead. 
+  out <- ifelse('prcpPropSum' == x, paste0(x,  "+0.001"), paste0(x, "+1"))
+  paste0('I(', out, ')')
+}
+
 transform_funs$convert_sqrt <- function(x) {
   p <- paste0("sqrt(", x, ")")
   list(main = p, # transformation for main term
@@ -171,7 +179,8 @@ transform_funs$convert_sqrt <- function(x) {
 # adding small constant so not taking log of 0 (this is a problem
 # for about 300k afg observations)
 transform_funs$convert_log10 <- function(x) {
-  p <- paste0("log10(I(", x, "+ 0.001))")
+  x <- add_constant_string(x)
+  p <- paste0("log10(", x, ")")
   list(main = p,
        inter = p) 
 }
@@ -191,11 +200,11 @@ transform_funs$convert_poly2sqrt <- function(x) {
 }
 
 transform_funs$convert_poly2log10 <- function(x) {
-  p <- paste0("stats::poly(I(log10(I(", x, "+ 0.001))),2, raw = TRUE)")
+  x <- add_constant_string(x)
+  p <- paste0("stats::poly(I(log10(", x, ")),2, raw = TRUE)")
   list(main = p,
-       inter = paste0("log10(I(", x, "+ 0.001))")) 
+       inter = paste0("log10(", x, ")")) 
 }
-
 
 
 # # spline with two degrees of freedom (1 would linear)
@@ -221,7 +230,7 @@ transform_funs$convert_poly2log10 <- function(x) {
 #' @return vector where each element returned is a string, that can be used as 
 #' the right hand side of a model formula. One additional element is transformed
 #' @example 
-#' preds <- c('a', 'b', 'a:b')
+#' preds <- c('afgAGB', 'prcpPropSum', 'afgAGB:prcpPropSum')
 #' names(preds) <- preds
 #' transform_preds(preds) # the interaction term is also transformed, depending on the function
 #' transform_preds(c(a = 'a', b = 'b', `a:b` = '(a:b)'))
