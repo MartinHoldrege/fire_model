@@ -9,7 +9,7 @@ source("src/general_functions.R")
 source("src/fig_params.R")
 source("src/modeling_functions.R")
 library(tidyverse)
-
+theme_set(theme_classic())
 # reading in data ---------------------------------------------------------
 
 # burn occurrence determined from fraction burned
@@ -18,18 +18,13 @@ df_ann1 <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
 
 set.seed(123)
 df_test <- df_ann1 %>% 
-  slice_sample(n = 3e6)
+  slice_sample(n = 1e7)
 
-sv <- c("_ann_sA-P_entire", "_ann_lA-P_entire")
-v <- 2
+sv <- c("_annf3_A-P_entire")
 
 for(s in sv) {
   print(s)
-mod <- readRDS(paste0("models/glm_binomial_models_v", v, s, ".RDS"))
-if (v ==2) {
-  s <- stringr::str_replace(s, 'ann', 'annf')
-}
-
+mod <- readRDS(paste0("models/glm_binomial_models_v3", s, ".RDS"))
 
 # params ------------------------------------------------------------------
 
@@ -106,12 +101,42 @@ pred_glm1_deciles_filt <- predvars2deciles( pred_glm1,
                                             filter_var = TRUE,
                                             filter_vars = pred_vars) 
 
-pdf(paste0("figures/quantile_plots/quantile_plot_filtered_v3", s, '.pdf'),
-    height = 10, width = 5)
+df_l1 <- pred_glm1_deciles_filt %>% 
+  dplyr::filter(name %in% c("afgAGB", "pfgAGB")) %>% 
+  split(., .$name, drop = TRUE)
 
-print(decile_dotplot_filtered_pq(pred_glm1_deciles_filt, xvars = clim_vars)) 
-print(decile_dotplot_filtered_pq(pred_glm1_deciles_filt))
+# list of lists, 
+df_l2 <- map(df_l1, function(df) split(df, df$filter_var))
 
+# one list element for veg var and filter var
+df_l3 <- flatten_rename(df_l2)
+
+inset_l1 <- map(df_l3, create_inset_filt)
+
+l <- 0.01 # left
+b <- c(0.18, 0.515, 0.85) + 0.02 #bottom
+w <- 0.36 # width
+h <- 0.11 #height
+
+# letters of insets correspond to the panels they belong in
+A <- inset_element(inset_l1$afgAGB_MAT, l, b[3], l + w, b[3] + h)
+B <- inset_element(inset_l1$pfgAGB_MAT, l, b[3], l + w, b[3] + h)
+C <- inset_element(inset_l1$afgAGB_MAP, l, b[2], l + w, b[2] + h)
+D <- inset_element(inset_l1$pfgAGB_MAP, l, b[2], l + w, b[2] + h)
+E <- inset_element(inset_l1$afgAGB_prcpPropSum, l, b[1], l + w, b[1] + h)
+f <- inset_element(inset_l1$pfgAGB_prcpPropSum, l, b[1], l + w, b[1] + h)
+
+g2 <- pred_glm1_deciles_filt %>% 
+  filter(filter_var %in% clim_vars) %>% 
+  decile_dotplot_filtered_pq2(insets_left = list(A, C, E),
+                              insets_right = list(B, D, f),
+                              ylim = c(0, 4))
+g2
+# add insets
+
+png(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v3",
+           s, ".png"), units = "in", res = 600, width = 8, height = 8)
+print(g2)
 dev.off()
 
 }

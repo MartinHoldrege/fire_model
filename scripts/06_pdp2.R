@@ -22,14 +22,8 @@ theme_set(theme_classic())
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 
-sv <- c(
-        '_annf2_5000000n_g1',
-        '_annf2_A-P_5000000n_g1',
-        '_annf2_A-T_5000000n_g1',
-        '_annf2_A-S_5000000n_g1',
-        '_annf2_A-Pr_5000000n_g1'
+sv <- c('_annf3_A-P_entire'
         )
-#s <- "_ann_A-P_entire"
 
 # quantiles to fix interacting terms at
 probs_list <- list(c(0.2, 0.8),

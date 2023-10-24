@@ -4,8 +4,8 @@ subtitle: "Based on annual fire data"
 author: "Martin Holdrege"
 date: "`r lubridate::today()`"
 params:
-  test_run: TRUE
-  s: '_annf2_A-P_entire'
+  test_run: FALSE
+  s: '_annf3_A-P_entire'
 output:
   html_document:
     toc: true
@@ -49,6 +49,7 @@ print(params)
 test_run <- params$test_run # runs code on data subset, for testing
 s <- params$s
 
+n_pdp <- 1e5
 ```
 
 
@@ -194,10 +195,13 @@ if (test_run) {
   df_ann3 <- df_ann2
 }
 
-# small dataset used for creating pdp plots (so code isn't too small)
+# small dataset used for creating pdp plots (so code isn't too slow)
 train_pdp <- df_ann3 %>% 
-  slice_sample(n = 1e5) %>% 
+  slice_sample(n = n_pdp) %>% 
   select(all_of(pred_vars))
+
+dfs_test_pdp1 <- map(dfs_test1, \(x) slice_sample(x[pred_vars], n = n_pdp)) # samples of the test datasets (for making pdp plots)
+dfs_train_pdp1 <- map(dfs_train1, \(x) slice_sample(x[pred_vars], n = n_pdp)) # samples of the training datasets (for making pdp plots)
 ```
 
 
@@ -264,6 +268,9 @@ variable, with other variables held at their mean.
 lookup_var <- var2lab(x = NULL, units_md = TRUE)
 
 mods_train2 <- c(mods_train1, list('biome-wide' = mod1))
+dfs_train_pdp2 <- c(dfs_train_pdp1, 
+                    list('biome-wide' = slice_sample(df_ann3[pred_vars],
+                                                     n = n_pdp)))
 
 letter_df <- tibble(
   letter = fig_letters[1:length(lookup_var)],
@@ -275,9 +282,10 @@ letter_df <- tibble(
 ```
 
 ```{r create_pdp_df, cache = FALSE, eval= !test_run}
-df_pdp_by_fold1 <- map_dfr(mods_train2, create_pdp_df, data = train_pdp,
-                   mod_vars = names(lookup_var),
-                   .id = 'fold')
+df_pdp_by_fold1 <- map2_dfr(mods_train2, dfs_train_pdp2, function(mod, df) {
+  create_pdp_df(mod = mod, mod_vars = names(lookup_var), data = df)
+},
+.id = 'fold')
 
 ```
 
@@ -301,7 +309,7 @@ g2 <- ggplot(df_pdp_by_fold2, aes(value, yhat*100)) +
     expand_limits(y = 3) +
   labs(y = lab_fireProbPerc)+
   scale_color_manual(values = c(cols_fold2, 'biome-wide' = 'black'), 
-                     name = "Fold")
+                     name = "Fold left out")
 g2
 jpeg(paste0("figures/pdp/cv_pdp_v1", s, ".jpeg"), units = "in", res = 600,
      width = 6.8, height = 4)
@@ -503,10 +511,10 @@ Creating partial dependence plots of the model fit to each fold
 
 ```{r pdp_best}
 
-df_pdp_mod_fold1 <- map_dfr(mods_test1, create_pdp_df, 
-                                 data = train_pdp,
-                   mod_vars = names(lookup_var),
-                   .id = 'fold')
+df_pdp_mod_fold1 <- map2_dfr(mods_test1, dfs_test_pdp1, function(mod, df) {
+  create_pdp_df(mod = mod, mod_vars = names(lookup_var), data = df)
+},
+.id = 'fold')
 
 ```
 
@@ -527,6 +535,9 @@ g2 <- ggplot(df_pdp_mod_fold1, aes(value, yhat*100)) +
                      name = "Fold model fit to")
 
 g2
+
+g2 +
+  coord_cartesian(ylim = c(0, 3))
 ```
 
 # session info
@@ -543,14 +554,5 @@ Packages etc.
 sessionInfo()
 
 ```
-
-
-
-
-
-
-
-
-
 
 

@@ -8,11 +8,17 @@
 # Smith et al 2022 (Random forest model, great basin dataset)
 # Short et al 2023 (FSim sagebrush dataset)
 
+
+# params ------------------------------------------------------------------
+
+s <- '_annf3_A-P_entire'
+
 # dependencies ------------------------------------------------------------
 
 library(terra)
-source("scripts/04_create_biome-mask_dataframe_byNfire.R")
+library(tidyverse)
 source("src/general_functions.R")
+theme_set(theme_classic())
 
 # read in data ------------------------------------------------------------
 
@@ -23,15 +29,12 @@ source("src/general_functions.R")
 cell_nums <- rast("data_processed/data_publication/cell_nums.tif")
 
 
-# * model object ----------------------------------------------------------
+# * model predictions------------------------------------------------------
 
-# model '4b'
-mod <- readRDS("models/glm_binomial_models_byNFire_v2_bin20_cwf_A-P_A2-T2_A-Pr.RDS")$paint_cwf
-
-
-# * dataframe ---------------------------------------------------------------
-# dataframe with 1 observation per grid-cell
-data1 <- dfs_byNFire3$paint
+# model predictions from this study
+# tif created in 05_model_sensitivity.R
+r_pred <- rast(paste0('data_processed/pred-fire-clim-veg_avg-across-yrs', 
+                    s, '.tif'))[['pred']]
 
 
 # * FSim ------------------------------------------------------------------
@@ -116,7 +119,9 @@ df_pastick <- get_values(lyr = 1, r = pastick2) %>%
 # predicted fire probability ----------------------------------------------
 
 # predicted fire probability (from our model)
-pred <- predict_cell_avg(mod, newdata = data1, type = 'response')
+pred <- get_values(lyr = 'pred', r = r_pred) %>% 
+  rename(pred = value) %>% 
+  select(-lyr)
 
 
 # compare to others -------------------------------------------------------
@@ -129,11 +134,11 @@ data2 <- pred %>%
 
 cor(data2$pred, data2$fsim, use = "complete.obs")
 cor(data2$pred, data2$smith, use = "complete.obs")
-# 0.74
+# 0.804
 cor(data2$pred, data2$short, use = "complete.obs")
-# 0.64
+# 0.68
 cor(data2$pred, data2$pastick, use = "complete.obs")
-# 0.76
+# 0.822
 cor(data2$fsim, data2$smith, use = "complete.obs")
 cor(data2$fsim, data2$short, use = "complete.obs")
 
@@ -150,11 +155,12 @@ range <- range(c(data2$pred, data2$fsim), na.rm = TRUE)*100
 xlab <- "Wildfire probability (%, this manuscript)"
 
 set.seed(123)
-png("figures/comparison_with_fsim_v1.png",
+df_sample <- data2 %>% 
+  sample_n(1*10^5)
+png(paste0("figures/comparison_with_fsim_v2", s, ".png"),
     width = 4, height = 4, units = "in", res = 600)
-data2 %>% 
-  sample_n(1*10^5) %>% 
-  ggplot(aes(pred*100, fsim*100)) +
+
+ggplot(df_sample, aes(pred*100, fsim*100)) +
   geom_point(alpha = 0.05, size = 0.5) +
   coord_cartesian(xlim = range, ylim = range) +
   geom_smooth(method = 'lm') +
@@ -163,10 +169,7 @@ data2 %>%
        y = "Wildfire probability (%, FSim)")
 dev.off()
 
-set.seed(123)
-df_sample <- data2 %>% 
-  sample_n(1*10^5)
-png("figures/comparison_with_smith_v1.png",
+png(paste0("figures/comparison_with_smith_v2", s, ".png"),
     width = 4, height = 4, units = "in", res = 600)
 
   ggplot(df_sample, aes(pred*100, smith)) +
@@ -175,7 +178,7 @@ png("figures/comparison_with_smith_v1.png",
        y = "Relative wildfire probability (Smith et al. 2022)")
 dev.off()
 
-png("figures/comparison_with_short2023_v1.png",
+png(paste0("figures/comparison_with_short2023_v2", s, ".png"),
     width = 4, height = 4, units = "in", res = 600)
 
 ggplot(df_sample, aes(pred*100, short*100)) +
@@ -186,7 +189,7 @@ ggplot(df_sample, aes(pred*100, short*100)) +
   geom_abline(slope = 1)
 dev.off()
 
-png("figures/comparison_with_pastick_v1.png",
+png(paste0("figures/comparison_with_pastick_v2", s, ".png"),
     width = 4, height = 4, units = "in", res = 600)
 
 ggplot(df_sample, aes(pred*100, pastick)) +

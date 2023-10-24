@@ -16,7 +16,11 @@ https://data-nifc.opendata.arcgis.com/datasets/nifc::interagency-fire-perimeter-
 
 # Models
 
-naming:
+Model used for the first submission:
+
+glm_binomial_models_byNFire_v2_bin20_cwf_A-P_A2-T2_A-Pr.RDS
+
+subsequent naming:
 
 `_ann_` in the file name means the first set of models where annual data
 was used (3 year means for each year instead of means across the whole time period)
@@ -31,3 +35,5 @@ were removed because they're never used (and to reduce computation)
 `_annf3_` The constant added to log10 transformations was changed stay as 0.001 for PSP but 1 for all
 other variables (mostly so transform wasn't so aggressive for very tiny amounts of annuals, and perennials,
 impact is incosequintial for other variables)
+
+final model suffix: `_annf3_A-P_entire`

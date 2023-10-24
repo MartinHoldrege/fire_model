@@ -71,18 +71,19 @@ render_cv = function(s, test_run = FALSE) {
 
 # * cv --------------------------------------------------------------------
 
-# render_cv(s = '_annf2_A-P_entire')
+render_cv(s = '_annf3_A-P_entire',
+          test_run = TRUE)
 
 # * glm -------------------------------------------------------------------
 
 
-render_glm(s = "_annf3",
-           inter = NULL,
-           sample_group = 1,
-           test_run = FALSE)
+# render_glm(s = "_annf3",
+#            inter = NULL,
+#            sample_group = 1,
+#            test_run = FALSE)
 
 # this is the 'final' model 
-# render_glm(s = "_annf2_A-P",
+# render_glm(s = "_annf3_A-P",
 #            inter = c('afgAGB:MAP' = "afgAGB:MAP"),
 #            sample_group = 1,
 #            test_run = FALSE)

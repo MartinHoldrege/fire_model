@@ -11,20 +11,21 @@
 # this script is useful because it reads in the rasters used below
 # and dataframes to predict on (note this is not the 
 # data used to fit the byNfire model)
+library(tidyverse)
 source("src/basemaps.R")
 source("src/fig_params.R")
 source("src/general_functions.R")
 library(RColorBrewer)
 library(stars)
 library(terra)
-library(tidyverse)
+
 theme_set(theme_classic())
 
 # params ------------------------------------------------------------------
 
 # string vector, part of the name of the model, usually identifying
 # the model interactions
-s <- '_annf2_A-P_entire'
+s <- '_annf3_A-P_entire'
 
 files_mod <- paste0("models/glm_binomial_models_v3", s, ".RDS")
 
