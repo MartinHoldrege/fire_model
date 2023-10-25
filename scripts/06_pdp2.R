@@ -31,14 +31,21 @@ probs <- c(0.2, 0.8)
 pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 var_prop <- c('cwf_prop')
 
-n_pdp <- 1e6# number of data points to use for pdp plots
+n_pdp <- 1e5 # number of data points to use for pdp plots
 
-n_quant <-  3e7 # number of data points to use for quantile plots
+n_quant <-  3e7 # number of data points to use for quantile plots (if > 2.5*10^7 then using entire dataset)
 
+# save quantile and pdp plots to file?
+save_quant <- FALSE
+save_pdp <- TRUE
 # lookup table
 lookup_var <- var2lab(x = NULL, units_md = TRUE)
 mod_vars <- names(lookup_var)
 names(mod_vars) <- mod_vars
+
+lookup_var_h <- var2lab(x = NULL, units_md = TRUE, include_hmod = TRUE)
+mod_vars_h <- names(lookup_var_h)
+names(mod_vars_h) <- mod_vars_h
 
 # read in data ------------------------------------------------------------
 
@@ -48,10 +55,12 @@ df_ann1 <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
 # * read in model objects ---------------------------------------------------
 
 # main model (fit to the entire dataset)
-v <- 3
-mod <- readRDS(paste0("models/glm_binomial_models_v",v,
+
+mod <- readRDS(paste0("models/glm_binomial_models_v3",
                        s, ".RDS"))
 
+hmod <- readRDS(paste0("models/glm_binomial_models_v3_hmod",
+                       s, ".RDS"))
 # subsample data ----------------------------------------------------------
 set.seed(123)
 df4pdp <- df_ann1 %>% 
@@ -152,11 +161,12 @@ g2 <- pred_glm1_deciles_filt %>%
 g2
 # add insets
 
+if(save_quant){
 png(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v3",
            s, ".png"), units = "in", res = 600, width = 8, height = 8)
 print(g2)
 dev.off()
-
+}
 # * quantile plot ---------------------------------------------------------
 
 # Binning predictor variables into deciles (actually percentiles) and looking at the mean
@@ -180,10 +190,12 @@ g <- decile_dotplot_pq(pred_glm1_deciles) +
 # obs/pred inset
 g2 <- add_dotplot_inset(g, pred_glm1_deciles)
 
+if(save_quant){
 png(paste0("figures/quantile_plots/quantile_plot_v5", s,  ".png"), 
     units = "in", res = 600, width = 5.5, height = 3.5 )
 print(g2)
 dev.off()
+}
 
 # create pdp --------------------------------------------------------------
 
@@ -270,25 +282,46 @@ df_pdp1 <- map(c(dfs_pdp, dfs_inter1), function(df) {
                            x_value  - 273.15, # k to c  
                            x_value
                            ))
-  
-df_pdp2 <- df_pdp1 %>% 
-  mutate(name = lookup_var[variable],
-         name = factor(name, levels = unique(name)))
 
-
-  
-# for rug plot 
-deciles <- train1 %>% 
-  select(all_of(names(lookup_var))) %>% 
-  map(quantile, probs = seq(0, 1, 0.1)) %>% 
-  bind_cols() %>% 
-  mutate(MAT = MAT - 273.15 # k to c
-  ) %>% 
-  pivot_longer(cols = everything(), 
-               names_to = "variable",
-               values_to = "decile") %>% 
-  mutate(name = lookup_var[variable],
+df_pdp1 <- df_pdp1 %>% 
+  left_join(x_lims, by = c("variable" = "name")) %>% 
+  filter(x_value >= min, x_value <= max) %>% 
+  select(-min, -max)
+# renaming variables for plotting
+n <- length(unique(df_pdp1$inter_var)) -1
+df_pdp2 <-df_pdp1 %>% 
+  mutate(inter_level = str_extract(inter_var, '(high)|(low)'),
+         inter_level = str_to_title(inter_level),
+         inter_var2 = str_extract(inter_var, "[[:alpha:]]+(?=_)"),
+         # hack b/ var2lab() only accepts pred vars (not 'none')
+         inter_var2 = ifelse(inter_var == 'none', 'MAT', inter_var2),
+         inter_var2 = var2lab(inter_var2),
+         inter_name = paste(inter_level, inter_var2),
+         inter_name = ifelse(inter_var == 'none', 'Mean prediction', inter_name)) %>% 
+  arrange(inter_var2) %>% 
+  mutate(inter_name = factor(inter_name, levels = unique(inter_name)),
+         inter_name = fct_relevel(inter_name, 'Mean prediction',
+                                  after = n),
+         name = lookup_var[variable],
          name = factor(name, levels = unique(name))) %>% 
+  select(-inter_var2, -inter_level, -inter_var) %>% 
+  rename(inter_var = inter_name)
+
+
+
+# for rug plot 
+deciles_h <- df_ann1 %>% 
+  select(all_of(names(lookup_var_h))) %>% 
+  map(quantile, probs = seq(0, 1, 0.1), na.rm = TRUE) %>% 
+  map2(., names(.), function(x, name) {
+    tibble(variable = name,
+           decile = x,
+           percentile_name = names(x))
+  }) %>% 
+  bind_rows() %>% 
+  mutate(name = lookup_var_h[variable],
+         name = factor(name, levels = unique(name)),
+         decile = ifelse(variable == 'MAT', decile - 273.15, decile)) %>% 
   group_by(variable) %>% 
   # don't want to plot the first and last deciles (i.e. min/max values)
   # b/ they stretch the xlims to areas with very little data
@@ -296,6 +329,8 @@ deciles <- train1 %>%
          decile != min(decile))
   
 
+deciles <- deciles_h %>% 
+  filter(variable != 'hmod')
 
 letter_df <- tibble(
   letter = fig_letters[1:length(mod_vars)],
@@ -305,7 +340,7 @@ letter_df <- tibble(
 )
 
 
-base_pdp <- function(limit_x = FALSE, scales = 'free_x') {
+base_pdp <- function(scales = 'free_x') {
   out <- list(
     facet_wrap(~name, scales = scales, strip.position = "bottom"),
     theme(strip.text = element_markdown(),
@@ -314,7 +349,7 @@ base_pdp <- function(limit_x = FALSE, scales = 'free_x') {
           strip.background = element_blank()),
     labs(y = "Annual fire probability (%)"),
     sec_axis_fri(), # adding second axis (fire return interval)
-    x_lims_ggh4x
+    annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf, size = 1)
 )
   
   out
@@ -322,32 +357,141 @@ base_pdp <- function(limit_x = FALSE, scales = 'free_x') {
 
 
 g <- ggplot(df_pdp2, aes(x_value, yhat*100)) +
-  geom_line(aes(color = inter_var, linetype = inter_var)) +
-  geom_rug(data = deciles, aes(x = decile, y = NULL), sides = 'b') +
+  geom_line(aes(color = inter_var, linetype = inter_var, linewidth = inter_var)) +
+  geom_rug(data = deciles, aes(x = decile, y = NULL,
+                               alpha = percentile_name %in% c('20%', '80%')), sides = 'b') +
   geom_text(data = letter_df, aes(label = letter),
             hjust = -0.8,
             vjust = 1) +
   # if limit_axes is true, then dataset was already filtered,
   # so additional limits should not be set
   base_pdp() +
-  scale_color_manual(values = c('#006837', '#66bd63',
-                                '#2166ac', '#92c5de',
-                                '#b2182b', '#f4a582',
-                                'black',
-                                '#66c2a5', '#abdda4',
-                                '#8e0152', '#de77ae'
-                                
-  )) +
-  #scale_linetype_manual(values = c(rep(c(1,2), 3), 1, rep(c(1,2), 2))) +
-  labs(caption = paste('percentiles used:', paste0(probs*100, "%", collapse = ', '))) 
+  scale_color_manual(values = c(rep('#fb9a99', 2),
+                                rep('#1f78b4', 2),
+                                rep('#a6cee3', 2),
+                                rep('#b2df8a', 2),
+                                rep('#33a02c', 2),
+                                'black'),
+                     name = 'legend') +
+  scale_linetype_manual(values = c(rep(c(1,2), n/2), 1),
+                        name = 'legend') +
+  #scale_linewidth_continuous(range = c(0.5, 1))+
+  guides(alpha = 'none') +
+  theme(legend.title = element_blank())+
+  # scale_linewidth_manual(values = c(rep(0.5, n), 2),
+  #                        name = 'legend') +
+  scale_discrete_manual('linewidth', values = c(rep(0.5, n), 1),
+                        name = 'legend') +
+  scale_discrete_manual('alpha', values = c(0.4, 1))
 g
 
+
+if(save_pdp){
 png(paste0("figures/pdp/pdp_high-low_", v, s, ".png"),
     units = "in", res = 600,  width = 8, height = 5)
 print(g)
 dev.off()
+}
   
 
 
+# pdp for hmod ------------------------------------------------------------
+# model that includes human modification
 
+dfs_pdp_h <- map(mod_vars_h, function(var) {
+  out <- pdp::partial(hmod, pred.var = var, plot = FALSE,
+                      prob = TRUE, train = train1,
+                      parallel = FALSE)
+  out$inter_var <- 'none'
+  out
+}) 
+
+dfs_pdp_h$MAT$MAT <- dfs_pdp_h$MAT$MAT - 273.15 # k to c
+df_pdp1_h <- map(dfs_pdp_h, function(df) {
+  var_name <- names(df)[1]
+  
+  out <- as_tibble(df)
+  names(out) <- c("x_value", "yhat", 'inter_var')
+  out$variable <- var_name
+  out
+}) %>% 
+  bind_rows() 
+
+
+df_pdp2_h <- df_pdp1_h %>% 
+  mutate(name = lookup_var_h[variable],
+         name = factor(name, levels = unique(name))) %>% 
+  left_join(x_lims, by = c("variable" = "name")) %>% 
+  filter(x_value >= min | is.na(min), x_value <= max | is.na(max)) %>% 
+  select(-min, -max)
+
+letter_df_h <- tibble(
+  letter = fig_letters[1:length(mod_vars_h)],
+  name = factor(lookup_var_h),
+  x_value = -Inf,
+  yhat = Inf
+)
+
+g <- ggplot(df_pdp2_h, aes(x_value, yhat*100)) +
+  geom_line(aes(color = 'Model with human modification',
+                linetype = 'Model with human modification')) +
+  geom_rug(data = deciles_h, aes(x = decile, y = NULL), sides = 'b') +
+  geom_text(data = letter_df_h, aes(label = letter),
+            hjust = -0.8,
+            vjust = 1) +
+  geom_line(data = df_pdp2 %>% filter(inter_var == 'Mean prediction'), 
+            aes(color = "Original model",
+                                linetype = "Original model")) +
+  theme(legend.title = element_blank(),
+        legend.position = "top") +
+  scale_color_manual(values = c("black", "blue"), name = 'name') +
+  scale_linetype_manual(values = c(1, 2), name = 'name')+
+  base_pdp()
+  
+g
+  
+png(paste0("figures/pdp/pdp_pub-qual_v3_hmod", s, ".png"), units = "in", res = 600,
+    width = 6, height = 3.5)
+print(g)
+dev.off()
+
+
+
+# find maxima -------------------------------------------------------------
+# values of the predictor variable for which the probability (from the pdp)
+# is hightest
+
+df_pdp2 %>% 
+  filter(inter_var == 'Mean prediction') %>% 
+  group_by(variable) %>% 
+  filter(yhat == max(yhat))
+
+# x_value    yhat variable    inter_var       name                                linewidth
+# <dbl>   <dbl> <chr>       <fct>           <fct>                                   <dbl>
+# 1  19.5    0.00661 MAT         Mean prediction Temperature (°C)                            1
+# 2 487.     0.00661 MAP         Mean prediction Precitation (mm)                            1
+# 3   0.0574 0.00845 prcpPropSum Mean prediction PSP (proportion)                            1
+# 4 102.     0.0170  afgAGB      Mean prediction Annual biomass (g/m<sup>2</sup>)            1
+# 5  46.3    0.00612 pfgAGB      Mean prediction Perennial biomass (g/m<sup>2</sup>)         1
+
+# output rounded coefficients ----------------------------------------------
+
+if (FALSE){ # butchered model object currently don't allow this code to run
+  # (must remove axe_call() from butcher to keep this functionality)
+# useful for copy and pasting into manuscript
+coef_df <-  map_dfr(list(HMod = hmod, main = mod), function(x) {
+  out <- summary(x) %>% 
+    .$coefficients %>% 
+    as_tibble() %>% 
+    mutate(variable = names(x$coefficients),
+           Estimate = map_chr(Estimate, format,scientific = F, digits = 4),
+           `Std. Error` = map_chr(`Std. Error`, format,scientific = F, digits = 3),
+           `z value` =  map_chr(`z value`, format,scientific = F, digits = 3))
+  out
+},
+.id = "model")
+
+ write_csv(coef_df, "models/models_coefs_glm", s, ".csv")
+
+}
  

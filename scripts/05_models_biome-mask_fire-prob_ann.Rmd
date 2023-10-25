@@ -82,6 +82,10 @@ df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v2.csv',
 
 if(!hmod) {
   df_ann1$hmod <- NULL
+} else {
+  # hmod column has a number of NAs
+  df_ann1 <- df_ann1 %>% 
+    tidyr::drop_na()
 }
 ```
 
