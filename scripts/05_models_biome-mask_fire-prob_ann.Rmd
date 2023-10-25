@@ -6,6 +6,7 @@ date: "`r lubridate::today()`"
 params: 
   test_run: TRUE
   save_figs: FALSE
+  hmod: FALSE
   s: "_annf2_A-P"
   inter: !r c('afgAGB:MAP' = "afgAGB:MAP")
   sample_group: 1
@@ -35,6 +36,7 @@ print(params)
 # set to true if want to run for a limited number of rows (i.e. for code testing)
 test_run <- params$test_run
 save_figs <- params$save_figs
+hmod <- params$hmod # whether to include human modification in the model
 # by changing the sample_group the model can be fit to a completely different set of rows
 sample_group <- params$sample_group 
 # _ann defines this model as being built on annual data
@@ -43,6 +45,10 @@ s <- params$s # string to paste to file names e.g., that defines the interaction
 fit_sample <- TRUE # fit model to a sample of the data
 n_train <- 5e6 # sample size of the training data
 n_test <- 1e6 # sample size of the testing data (if this is too big the decile dotplot code throws memory errors)
+
+if(hmod & !stringr::str_detect(s, 'hmod')) {
+  s <- paste0('_hmod', s)
+}
 ```
 
 
@@ -73,6 +79,10 @@ more correctly determin
 ```{r}
 df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v2.csv',
                     progress = FALSE, show_col_types = FALSE)
+
+if(!hmod) {
+  df_ann1$hmod <- NULL
+}
 ```
 
 
@@ -94,6 +104,9 @@ For now, not doing any resampling
 ```{r}
 set.seed(1234)
 pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
+if(hmod) {
+  pred_vars <- c(pred_vars, 'hmod')
+}
 names(pred_vars) <- pred_vars
 # so that herbAGB is in the final dataframes
 pred_vars2 <- pred_vars
@@ -343,9 +356,12 @@ Publication quality quantile plot
 # publication quality version
 g <- decile_dotplot_pq(pred_glm1_deciles)
 
+if(!hmod) {
 # obs/pred inset
 g2 <- add_dotplot_inset(g, pred_glm1_deciles)
-
+} else {
+  g2 <- g
+}
 g2
 
 if(save_figs) {

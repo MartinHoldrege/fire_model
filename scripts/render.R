@@ -26,7 +26,8 @@ knit_root_dir <- getwd() # project directory
 #' @param test_run is this a test run
 #' @param save_figs show some figs created in the script be saved externally
 render_glm = function(s, inter, sample_group,
-                      test_run = FALSE, save_figs = FALSE) {
+                      test_run = FALSE, save_figs = FALSE,
+                      hmod = FALSE) {
   rmarkdown::render(
     "scripts/05_models_biome-mask_fire-prob_ann.Rmd",
     knit_root_dir = knit_root_dir,
@@ -34,6 +35,7 @@ render_glm = function(s, inter, sample_group,
       test_run = test_run,
       save_figs = save_figs,
       s = s,
+      hmod = hmod,
       inter = inter,
       sample_group = sample_group
     ),
@@ -71,8 +73,8 @@ render_cv = function(s, test_run = FALSE) {
 
 # * cv --------------------------------------------------------------------
 
-render_cv(s = '_annf3_A-P_entire',
-          test_run = TRUE)
+# render_cv(s = '_annf3_A-P_entire',
+#           test_run = TRUE)
 
 # * glm -------------------------------------------------------------------
 
@@ -87,6 +89,12 @@ render_cv(s = '_annf3_A-P_entire',
 #            inter = c('afgAGB:MAP' = "afgAGB:MAP"),
 #            sample_group = 1,
 #            test_run = FALSE)
+
+render_glm(s = "_hmod_annf3_A-P",
+           inter = c('afgAGB:MAP' = "afgAGB:MAP"),
+           sample_group = 1,
+           test_run = FALSE,
+           hmod = TRUE)
 
 # render_glm(s = "_annf2_A-T",
 #            inter = c('afgAGB:MAT' = "afgAGB:MAT"),

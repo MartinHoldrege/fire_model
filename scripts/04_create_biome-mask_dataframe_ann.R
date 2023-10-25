@@ -238,7 +238,7 @@ df_ann2_hmod <- df_ann2 %>%
 
 # write out data ----------------------------------------------------------
 
-write_csv(df_ann2, 'data_processed/fire-clim-veg_3yrAvg_v2.csv')
+write_csv(df_ann2_hmod, 'data_processed/fire-clim-veg_3yrAvg_v2.csv')
 # write_csv(df_ann2_hmod, 'data_processed/fire-clim-veg-hmod_3yrAvg_v1.csv')
 
 # descriptive stats -------------------------------------------------------
