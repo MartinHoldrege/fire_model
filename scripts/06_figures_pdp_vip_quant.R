@@ -31,7 +31,8 @@ probs <- c(0.2, 0.8)
 pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 var_prop <- c('cwf_prop')
 
-n_pdp <- 1e5 # number of data points to use for pdp plots
+# memory heavy script so smaller samples may be needed depending on computer
+n_pdp <- 1e5 # number of data points to use for pdp plots (I can run at 1e6)
 
 n_quant <-  3e7 # number of data points to use for quantile plots (if > 2.5*10^7 then using entire dataset)
 
@@ -69,6 +70,45 @@ df4pdp <- df_ann1 %>%
 df4quant <- df_ann1 %>% 
   slice_sample(n = n_quant)
 
+
+# variable importance -----------------------------------------------------
+
+g <- vip(mod, num_features = 17)
+
+lookup <- c("stats::poly(I(log10(I(afgAGB + 1))), 2, raw = TRUE)1" = 'log(afgAGB + 1)', 
+  "stats::poly(I(log10(I(afgAGB + 1))), 2, raw = TRUE)2" = 'log(afgAGB + 1)^2', 
+  "stats::poly(I(sqrt(pfgAGB)), 2, raw = TRUE)1" ='sqrt(pfgAGB)', 
+  "stats::poly(I(sqrt(pfgAGB)), 2, raw = TRUE)2" = 'pfgAGB',
+  "MAT" = 'MAT',
+  "stats::poly(I(log10(I(MAP + 1))), 2, raw = TRUE)1" = 'log(MAP + 1)', 
+  "stats::poly(I(log10(I(MAP + 1))), 2, raw = TRUE)2" = 'log(MAP + 1)^2', 
+  "stats::poly(I(log10(I(prcpPropSum + 0.001))), 2, raw = TRUE)1" = 'log(prcpPropSum + 0.001)', 
+  "stats::poly(I(log10(I(prcpPropSum + 0.001))), 2, raw = TRUE)2" = 'log(prcpPropSum + 0.001)^2',
+  "log10(I(afgAGB + 1)):log10(I(MAP + 1))" = 'log(afgAGB + 1):log(MAP + 1)',
+  "stats::poly(I(log10(I(hmod + 1))), 2, raw = TRUE)1" = 'log(Hmod + 1)',
+  "stats::poly(I(log10(I(hmod + 1))), 2, raw = TRUE)2" = 'log(Hmod + 1)^2',
+  '(Intercept)' = 'Intercept'
+  )
+
+string_rename_vars <- function(x) {
+  x %>% 
+    str_replace_all("prcpPropSum", "PSP") %>% 
+    str_replace_all("afgAGB", "AFG") %>% 
+    str_replace_all("pfgAGB", "PFG") %>% 
+    str_replace_all('MAT', "T") %>% 
+    str_replace_all("MAP", 'P')
+}
+g$data$Variable <- lookup[g$data$Variable] %>% 
+  # renaming based on updated acronyms used the paper
+  string_rename_vars()
+
+# figure for appendix
+jpeg(paste0('figures/vip_v3_glm', s, '.jpeg'), 
+     width = 3, height = 3, units = 'in', res = 600)
+print(g)
+dev.off()
+
+
 # Quantile plots ----------------------------------------------------------
 
 # *model predictions -------------------------------------------------------
@@ -84,6 +124,8 @@ predict_by_response <- function(mod, df) {
 }
 
 pred_glm1 <- predict_by_response(mod, df4quant)
+pred_glm_h1 <- predict_by_response(hmod, df4quant) %>% 
+  filter(!is.na(hmod))
 
 var_prop_pred <- paste0(var_prop, "_pred")
 response_vars <- c(var_prop, var_prop_pred)
@@ -162,6 +204,7 @@ g2
 # add insets
 
 if(save_quant){
+# figure 5
 png(paste0("figures/quantile_plots/quantile_plot_filtered_insets_v3",
            s, ".png"), units = "in", res = 600, width = 8, height = 8)
 print(g2)
@@ -172,29 +215,46 @@ dev.off()
 # Binning predictor variables into deciles (actually percentiles) and looking at the mean
 # predicted probability for each percentile. The use of the word deciles
 # is just a legacy thing (they started out being actual deciles)
-# 
-# Then predicting on an identical dataset but with warming
 
 
-
-pred_glm1_deciles <- predvars2deciles(pred_glm1,
+pred_deciles <- predvars2deciles(pred_glm1,
                                       response_vars = response_vars,
                                       pred_vars = pred_vars)
 
 # Publication quality quantile plot
 
 # publication quality version
-g <- decile_dotplot_pq(pred_glm1_deciles) +
+g <- decile_dotplot_pq(pred_deciles) +
   x_lims_ggh4x
 
 # obs/pred inset
-g2 <- add_dotplot_inset(g, pred_glm1_deciles)
+g2 <- add_dotplot_inset(g, pred_deciles)
 
 if(save_quant){
+  # figure 4
 png(paste0("figures/quantile_plots/quantile_plot_v5", s,  ".png"), 
     units = "in", res = 600, width = 5.5, height = 3.5 )
 print(g2)
 dev.off()
+}
+
+
+# ** for hmod model -------------------------------------------------------
+  
+pred_deciles <- predvars2deciles(pred_glm_h1,
+                                      response_vars = response_vars,
+                                      pred_vars = c(pred_vars, 'hmod'))
+
+
+g <- decile_dotplot_pq(pred_deciles)
+
+
+if(save_quant){
+  # figure for appendix
+  png(paste0("figures/quantile_plots/quantile_plot_v5_hmod", s,  ".png"), 
+      units = "in", res = 600, width = 5.5, height = 3.5 )
+  g
+  dev.off()
 }
 
 # create pdp --------------------------------------------------------------
@@ -366,11 +426,11 @@ g <- ggplot(df_pdp2, aes(x_value, yhat*100)) +
   # if limit_axes is true, then dataset was already filtered,
   # so additional limits should not be set
   base_pdp() +
-  scale_color_manual(values = c(rep('#fb9a99', 2),
-                                rep('#1f78b4', 2),
-                                rep('#a6cee3', 2),
-                                rep('#b2df8a', 2),
-                                rep('#33a02c', 2),
+  scale_color_manual(values = c(rep('#b2182b', 2),
+                                rep('#2166ac', 2),
+                                rep('#67a9cf', 2),
+                                rep('#4daf4a', 2),
+                                rep('#ef8a62', 2),
                                 'black'),
                      name = 'legend') +
   scale_linetype_manual(values = c(rep(c(1,2), n/2), 1),
@@ -380,13 +440,14 @@ g <- ggplot(df_pdp2, aes(x_value, yhat*100)) +
   theme(legend.title = element_blank())+
   # scale_linewidth_manual(values = c(rep(0.5, n), 2),
   #                        name = 'legend') +
-  scale_discrete_manual('linewidth', values = c(rep(0.5, n), 1),
+  scale_discrete_manual('linewidth', values = c(rep(0.7, n), 1.2),
                         name = 'legend') +
   scale_discrete_manual('alpha', values = c(0.4, 1))
 g
 
 
 if(save_pdp){
+  # figure 3
 png(paste0("figures/pdp/pdp_high-low_", v, s, ".png"),
     units = "in", res = 600,  width = 8, height = 5)
 print(g)
@@ -449,12 +510,13 @@ g <- ggplot(df_pdp2_h, aes(x_value, yhat*100)) +
   base_pdp()
   
 g
-  
+if(save_pdp){  
+  # figure for appendix
 png(paste0("figures/pdp/pdp_pub-qual_v3_hmod", s, ".png"), units = "in", res = 600,
     width = 6, height = 3.5)
 print(g)
 dev.off()
-
+}
 
 
 # find maxima -------------------------------------------------------------
@@ -476,22 +538,22 @@ df_pdp2 %>%
 
 # output rounded coefficients ----------------------------------------------
 
-if (FALSE){ # butchered model object currently don't allow this code to run
-  # (must remove axe_call() from butcher to keep this functionality)
+
 # useful for copy and pasting into manuscript
-coef_df <-  map_dfr(list(HMod = hmod, main = mod), function(x) {
+coef_df <-  map_dfr(list(main = mod, HMod = hmod), function(x) {
   out <- summary(x) %>% 
     .$coefficients %>% 
     as_tibble() %>% 
     mutate(variable = names(x$coefficients),
            Estimate = map_chr(Estimate, format,scientific = F, digits = 4),
            `Std. Error` = map_chr(`Std. Error`, format,scientific = F, digits = 3),
-           `z value` =  map_chr(`z value`, format,scientific = F, digits = 3))
+           `z value` =  map_chr(`z value`, format,scientific = F, digits = 3),
+           variable_name = lookup[variable],
+           variable_name = string_rename_vars(variable_name))
   out
 },
 .id = "model")
 
- write_csv(coef_df, "models/models_coefs_glm", s, ".csv")
+# table for appendix
+write_csv(coef_df, paste0("models/models_coefs_glm", s, ".csv"))
 
-}
- 
