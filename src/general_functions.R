@@ -217,7 +217,7 @@ var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
   # Including units that are written using markdown formating
   lookup_md <- c(
     "MAT" = "Temperature (\u00b0C)",
-    "MAP" = "Precitation (mm)",
+    "MAP" = "Precipitation (mm)",
     "prcpPropSum" = "PSP (proportion)",
     "afgAGB" = "Annual biomass (g/m<sup>2</sup>)",
     "pfgAGB" = "Perennial biomass (g/m<sup>2</sup>)"
@@ -225,7 +225,7 @@ var2lab <- function(x = NULL, units_md = FALSE, add_letters = FALSE,
   
   lookup_name_only <- c(
     "MAT" = "Temperature",
-    "MAP" = "Precitation",
+    "MAP" = "Precipitation",
     "prcpPropSum" = "PSP",
     "afgAGB" = "Annual biomass",
     "pfgAGB" = "Perennial biomass"
