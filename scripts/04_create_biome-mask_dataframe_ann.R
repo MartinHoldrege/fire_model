@@ -153,6 +153,7 @@ diff <- abs(cum_burn - total_burn)
 index <- which(diff == min(diff))
 target_frac <- x1[index]
 target_frac
+# 0.4697266
 sum(x1[x1 > target_frac] > 0) # this should be quite close to total_burn
 
 

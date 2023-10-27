@@ -81,8 +81,6 @@ formula2 <- str_replace_all(formula1, ",[ ]*2[ ]*,[ ]*raw[ ]*=[ ]*TRUE[ ]*", "")
 
 names(formula2) <- s
 
-# STOP--this hasn't been updated yet (the new Hmod model object will
-# be needed)
 # model that includes hmod (human modification) as an additional
 # predictor variable (object created in
 # 05.5_model_entire-dataset.R)
@@ -329,8 +327,10 @@ study_area <- template
 study_area[!is.na(study_area)] <- 1
 total_area <- calc_exp_ba(study_area)
 total_area
-#824174
+ # 782322 (this is an overestime by 1, b/ one pixel is missing a value)
 
+length(unique(df_ann1$cell_num)) # this should be equal to the total study area (b/ pixels are 1km^2)
+# 782321
 # observed mean burned area (accurately calculated based on calcuting what
 # fraction of each cell burned, from rasterizing fire polygons to 30m) 
 # and approximate burned area based on designating
@@ -343,20 +343,23 @@ ba <- df_ann2 %>%
   summarise(ba_obs = mean(ba_obs),
             ba_obs_approx = mean(ba_obs_approx)) 
 ba
-# 4835.
+# ba_obs ba_obs_approx
+#  3941.         3938.
 
 # observed fire probability
 ba %>% 
   mutate(across(everything(), \(x) x/total_area*100))
+# ba_obs ba_obs_approx
+# 0.504         0.503
 
 # expected (long term) mean annual burned area (ha) based on the model
 ba_exp <- calc_exp_ba(rasts1[['pred']])
 ba_exp
-# 4374
+# 3938
 ba_exp/total_area*100 # average modelled fire probability
+# 0.503
 
 # change in burned area with climate perturbations
-
 ba_delta1 <- map_dfr(rasts_alter1, function(x) {
   calc_exp_ba(x$delta)
 })
