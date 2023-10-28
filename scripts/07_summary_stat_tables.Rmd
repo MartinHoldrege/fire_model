@@ -1,0 +1,100 @@
+---
+title: "Summary stats"
+output: html_document
+date: "`r lubridate::today()`"
+---
+
+Various summary stats used in methods etc descriptions
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,
+                      message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(terra)
+library(knitr)
+source('src/general_functions.R')
+```
+
+Parameters 
+
+```{r}
+s <- '_annf3_A-P_entire'
+```
+
+Read in data
+
+```{r}
+df_ann1 <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv")
+# model of cell level averages
+
+# tif created in 05_model_sensitivity.R
+rast1 <- rast(paste0('data_processed/pred-fire-clim-veg_avg-across-yrs', 
+                    s, '.tif'))
+```
+
+# Climate summary
+
+Mean climate variables (i.e., data is already pixel level means)
+```{r}
+clim_vars <- c('MAT', 'MAP', "prcpPropSum")
+df_clim <- as.data.frame(rast1[[clim_vars]])
+
+df_clim %>% 
+  mutate(MAT = MAT - 273.15) %>% 
+  summarise(across(everything(), .fns = list(mean = mean, min = min, max = max))) %>% 
+  pivot_longer(
+    cols = everything(),
+  names_to = c("climate_var", "summary_stat"),
+  names_pattern = "(.*)_(.*)",
+  values_to = "values"
+  ) %>% 
+  kable(digits = 3)
+```
+
+# Predictor variable summary
+
+These are summary of 3 year running averages
+
+```{r}
+
+summary1 <- df_ann1 %>% 
+  select(all_of(clim_vars), afgAGB, pfgAGB) %>% 
+  mutate(MAT = MAT - 273.15) %>% 
+  summarise(across(everything(), .fns = list(mean = mean, 
+                                             minimum = min,
+                                             `1st percentile` = \(x) quantile(x, 0.01),
+                                             `20th percentile` = \(x) quantile(x, 0.2),
+                                             median = median,
+                                             `80th percentile` = \(x) quantile(x, 0.8),
+                                             `99th percentile` = \(x) quantile(x, 0.99),
+                                             maximum = max
+                                             ))) %>% 
+  pivot_longer(
+    cols = everything(),
+  names_to = c("predictor_var", "summary_stat"),
+  names_pattern = "(.*)_(.*)",
+  values_to = "values"
+  )
+  
+summary2 <- summary1 %>% 
+  mutate(predictor_var = var2lab(predictor_var)) %>% 
+  pivot_wider(names_from = 'predictor_var',
+              values_from = 'values')
+
+summary3 <- summary2 %>% 
+  mutate(Temperature = round(Temperature, 1),
+         Precipitation = round(Precipitation, 1),
+         PSP = round(PSP, 3),
+         `Annual biomass` = round(`Annual biomass`, 2),
+         `Perennial biomass` = round(`Perennial biomass`, 2)
+         )
+summary3
+
+write_csv(summary3, 'data_processed/summary_stats_pred_vars_3yravg.csv')
+summary3 %>% 
+  kable()
+```
+

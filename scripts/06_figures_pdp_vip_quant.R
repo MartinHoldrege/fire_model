@@ -34,10 +34,12 @@ var_prop <- c('cwf_prop')
 # memory heavy script so smaller samples may be needed depending on computer
 n_pdp <- 1e5 # number of data points to use for pdp plots (I can run at 1e6)
 
+# note--on a 32 gb memory machine this just barely runs using the full dataset
+# (otherwise just subsample down to a couple million points)
 n_quant <-  3e7 # number of data points to use for quantile plots (if > 2.5*10^7 then using entire dataset)
 
 # save quantile and pdp plots to file?
-save_quant <- FALSE
+save_quant <- TRUE
 save_pdp <- TRUE
 # lookup table
 lookup_var <- var2lab(x = NULL, units_md = TRUE)
@@ -51,7 +53,10 @@ names(mod_vars_h) <- mod_vars_h
 # read in data ------------------------------------------------------------
 
 df_ann1 <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
-                  show_col_types = FALSE)
+                  show_col_types = FALSE) %>% 
+  # removing excess rows for memory saving
+  select(-matches('burn_frac'), -matches('nfire_cwf_centroid'),
+         -matches("nfire_cwf"), -matches('weight'))
 
 # * read in model objects ---------------------------------------------------
 
@@ -60,15 +65,19 @@ df_ann1 <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
 mod <- readRDS(paste0("models/glm_binomial_models_v3",
                        s, ".RDS"))
 
-hmod <- readRDS(paste0("models/glm_binomial_models_v3_hmod",
-                       s, ".RDS"))
+# reading in hmod later b/ summarizing for filtered quantile plot uses so much memory
+
 # subsample data ----------------------------------------------------------
 set.seed(123)
 df4pdp <- df_ann1 %>% 
   slice_sample(n = n_pdp)
 
-df4quant <- df_ann1 %>% 
-  slice_sample(n = n_quant)
+df4quant <- if(n_quant >= nrow(df_ann1)) {
+  df_ann1
+} else {
+  df_ann1 %>% 
+    slice_sample(n = n_quant)
+}
 
 
 # variable importance -----------------------------------------------------
@@ -124,8 +133,7 @@ predict_by_response <- function(mod, df) {
 }
 
 pred_glm1 <- predict_by_response(mod, df4quant)
-pred_glm_h1 <- predict_by_response(hmod, df4quant) %>% 
-  filter(!is.na(hmod))
+
 
 var_prop_pred <- paste0(var_prop, "_pred")
 response_vars <- c(var_prop, var_prop_pred)
@@ -154,6 +162,8 @@ x_lims <- pred_glm1_deciles_filt %>%
             max = max(mean_value)) %>% 
   mutate(max = ifelse(name == 'prcpPropSum', max, ceiling(max)))
 
+saveRDS(x_lims, 'data_processed/x_lims_for_quant_plots.RDS')
+
 x_lims_l <- split(x_lims, x_lims$name) %>% 
   map(., function(df) {
     c(df$min, df$max)
@@ -168,7 +178,7 @@ x_lims_ggh4x <- ggh4x::facetted_pos_scales(
            )
 )
 
-# ~~~ end xlimit objections ~~~
+# ~~~ end xlimit objects ~~~
 
 df_l1 <- pred_glm1_deciles_filt %>% 
   dplyr::filter(name %in% c("afgAGB", "pfgAGB")) %>% 
@@ -200,7 +210,7 @@ g2 <- pred_glm1_deciles_filt %>%
   decile_dotplot_filtered_pq2(insets_left = list(A, C, E),
                               insets_right = list(B, D, f),
                               ylim = c(0, 4))
-g2
+#g2
 # add insets
 
 if(save_quant){
@@ -241,6 +251,12 @@ dev.off()
 
 # ** for hmod model -------------------------------------------------------
   
+hmod <- readRDS(paste0("models/glm_binomial_models_v3_hmod",
+                       s, ".RDS"))
+
+pred_glm_h1 <- predict_by_response(hmod, df4quant) %>% 
+  filter(!is.na(hmod))
+
 pred_deciles <- predvars2deciles(pred_glm_h1,
                                       response_vars = response_vars,
                                       pred_vars = c(pred_vars, 'hmod'))
@@ -253,7 +269,7 @@ if(save_quant){
   # figure for appendix
   png(paste0("figures/quantile_plots/quantile_plot_v5_hmod", s,  ".png"), 
       units = "in", res = 600, width = 5.5, height = 3.5 )
-  g
+  print(g)
   dev.off()
 }
 

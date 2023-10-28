@@ -634,10 +634,8 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
     #lazy_dt() %>% 
     nest() %>% 
     # empirical cdf
-    mutate(cdf = map(data, function(df) ecdf(df$value)),
-           # calculate the percentile of each data point based on the ecdf
-           percentile = map2(data, cdf, function(df, f) f(df$value))) %>% 
-    select(-cdf) %>% 
+    # calculate the percentile of each data point based on the ecdf
+    mutate(percentile = map(data, function(df) ecdf(df$value)(df$value))) %>% 
     # as_tibble() %>% 
     unnest(cols = c("data", "percentile")) %>% 
     group_by(across(all_of(group_vars))) %>% 
@@ -691,7 +689,7 @@ longdf2deciles <- function(df, response_vars, filter_var = FALSE,
 predvars2deciles <- function(df, response_vars, pred_vars,
                              filter_var = FALSE,
                              filter_vars = c('MAT', 'MAP', 'prcpPropSum'),
-                             weighted_mean = TRUE,
+                             weighted_mean = FALSE,
                              add_mid = FALSE,
                              cut_points = seq(0, 1, 0.01)) {
   
