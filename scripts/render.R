@@ -73,8 +73,8 @@ render_cv = function(s, test_run = FALSE) {
 
 # * cv --------------------------------------------------------------------
 
-# render_cv(s = '_annf3_A-P_entire',
-#           test_run = TRUE)
+render_cv(s = '_annf3_A-P_entire',
+          test_run = TRUE)
 
 # * glm -------------------------------------------------------------------
 
@@ -90,11 +90,11 @@ render_cv = function(s, test_run = FALSE) {
 #            sample_group = 1,
 #            test_run = FALSE)
 
-render_glm(s = "_hmod_annf3_A-P",
-           inter = c('afgAGB:MAP' = "afgAGB:MAP"),
-           sample_group = 1,
-           test_run = FALSE,
-           hmod = TRUE)
+# render_glm(s = "_hmod_annf3_A-P",
+#            inter = c('afgAGB:MAP' = "afgAGB:MAP"),
+#            sample_group = 1,
+#            test_run = FALSE,
+#            hmod = TRUE)
 
 # render_glm(s = "_annf2_A-T",
 #            inter = c('afgAGB:MAT' = "afgAGB:MAT"),

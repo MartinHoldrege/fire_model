@@ -4,7 +4,7 @@ subtitle: "Based on annual fire data"
 author: "Martin Holdrege"
 date: "`r lubridate::today()`"
 params:
-  test_run: FALSE
+  test_run: TRUE
   s: '_annf3_A-P_entire'
 output:
   html_document:
@@ -26,19 +26,16 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE,
 
 
 ```{r, message = FALSE, warning = FALSE}
-# set option so resampled datasets created here reproduces earlier runs of this code with dplyr 1.0.10
-#source("scripts/04_create_biome-mask_dataframe_byNFire.R")
-source("src/resample_functions.R")
-source("src/modeling_functions.R")
-source("src/general_functions.R")
-source("src/basemaps.R")
-source("src/fig_params.R")
 library(blockCV) # for creating environmental blocks
 library(sf)
 library(knitr)
 library(tidyverse)
 library(stars)
 library(terra)
+source("src/modeling_functions.R")
+source("src/general_functions.R")
+source("src/basemaps.R")
+source("src/fig_params.R")
 theme_set(theme_classic())
 ```
 
@@ -59,18 +56,20 @@ Read in model object (for the formula)
 
 ```{r}
 path_mod <- paste0("models/glm_binomial_models_v3", s, ".RDS")
-mod1 <- readRDS(path_mod)
+mod1 <- butcher::butcher(readRDS(path_mod)) # to save memory
 ```
 
 Reading in predictor vars
 
 ```{r}
 df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v2.csv',
-                    progress = FALSE, show_col_types = FALSE)
+                    progress = FALSE, show_col_types = FALSE)%>% 
+  # removing excess rows for memory saving
+  select(-matches('burn_frac'), -matches('nfire_cwf_centroid'),
+         -matches('weight'))
 
 df_ann2 <- df_ann1 %>% 
-  select(cell_num, pfgAGB, afgAGB, nfire_cwf, cwf_prop, MAP, MAT, prcpPropSum,
-         weight)
+  select(cell_num, pfgAGB, afgAGB, nfire_cwf, cwf_prop, MAP, MAT, prcpPropSum)
 ```
 
 Template (cell number) raster
@@ -92,7 +91,7 @@ summarize_pred_response <- function(df) {
          across(matches("cwf_prop"),
                         .fns = function(x) x*100)) %>% 
     summarise(across(c(MAT, MAP, prcpPropSum, afgAGB, pfgAGB, matches("cwf_prop")),
-                  .fns = weighted.mean))
+                  .fns = mean))
   out
 }
 ```
@@ -104,7 +103,7 @@ summarize_pred_response <- function(df) {
 Combine climate data into a single raster for use in blockCV::envBlock(),
 and create an sf object of fake datapoints so that function will work. 
 
-```{r}
+```{r blocks}
 # average climate conditions across all the years 
 df_clim_avg <- df_ann1 %>% 
   summarize_yearly(weighted_vars = c("MAT", "MAP", "prcpPropSum"),
@@ -225,12 +224,12 @@ g <- ggplot() +
                     na.translate = FALSE) 
 g
 
-
+if(!test_run){
 png("figures/cv/folds_map_v1.png",width = 5, height = 4, units = 'in',
        res = 600)
 g
 dev.off()
-
+}
 ```
 
 
@@ -239,7 +238,7 @@ dev.off()
 All models have the same formula. But are fit to data where one
 block of data is held out. (i.e. each model fit to ~4/5 of the data)
 
-```{r}
+```{r fit_models}
 form1 <- as.formula(mod1$formula)
 
 # mods fit to 4/5 of the data
@@ -264,7 +263,7 @@ These are true PDP plots--an earlier version of this code created
 variable, with other variables held at their mean. 
 
 
-```{r}
+```{r }
 lookup_var <- var2lab(x = NULL, units_md = TRUE)
 
 mods_train2 <- c(mods_train1, list('biome-wide' = mod1))
@@ -311,11 +310,12 @@ g2 <- ggplot(df_pdp_by_fold2, aes(value, yhat*100)) +
   scale_color_manual(values = c(cols_fold2, 'biome-wide' = 'black'), 
                      name = "Fold left out")
 g2
+if(!test_run){
 jpeg(paste0("figures/pdp/cv_pdp_v1", s, ".jpeg"), units = "in", res = 600,
      width = 6.8, height = 4)
   g2
 dev.off()
-
+}
 ```
 
 ## Summary stats
@@ -356,32 +356,7 @@ df_ann3_fold %>%
         digits = digits[-1]) 
 ```
 
-Descriptive stats for each fold, including the out of bag predictions
-Note unlike in the section above 'describe folds' these descriptions here
-are of the balanced (resampled) data
 
-```{r}
-df_test2 <- bind_rows(dfs_test2, .id = 'fold') %>% 
-  # these are the cross validation predictions
-  rename(cwf_prop_pred_cv = cwf_prop_pred)
-
-df_test2$cwf_prop_pred_main <- predict(mods_train2$`biome-wide`, 
-                                          newdata = df_test2,
-                                          type = "response")
-
-df_test2  %>% 
-  group_by(fold) %>% 
-  summarize_pred_response() %>%  
-  kable(caption = "Summary of variables by fold (balanced data)",
-        digits = digits)
-
-df_test2  %>% 
-  ungroup() %>% 
-  #select(-cwf_prop_pred_cv) %>% 
-  summarize_pred_response() %>%  
-  kable(caption = "Summary of variables (biome-wide) (balanced data)",
-        digits = digits[-1])
-```
 
 ## size
 
@@ -396,7 +371,6 @@ df_ann3_fold %>%
   summarize(fold_size = n()) %>% 
   kable(caption = "Number of observations per fold")
 
-
 ```
 
 
@@ -404,7 +378,7 @@ df_ann3_fold %>%
 
 ### Deciles
 
-```{r fig.width = 5, fig.height = 3.5 }
+```{r quantile_plots, fig.width = 5, fig.height = 3.5 }
 
 pred_test_deciles1 <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
                  response_vars = response_vars)
@@ -424,7 +398,7 @@ map2(pred_test_deciles1, names(pred_test_deciles1), function(df, fold) {
 
 Predictions are made by models fit to the other folds
 
-```{r}
+```{r filtered_quantile}
 pred_test_deciles_filt <- map(dfs_test2, predvars2deciles, pred_vars = pred_vars,
                  response_vars = response_vars,
                  filter_var = TRUE)
@@ -437,10 +411,12 @@ g_filt <- map2(pred_test_deciles_filt, names(pred_test_deciles_filt), function(d
     patchwork::plot_annotation(subtitle = paste0("Predictions on ", fold, 
                            " (model fit to other folds)"))
   
+  if(!test_run){
   jpeg(paste0("figures/quantile_plots/cv_quantile_plots_filt_", fold, s, 
               ".jpeg"), units = "in", res = 600,width = 7, height = 6 )
     print(g) 
   dev.off()
+  }
   g
 })
 
@@ -454,7 +430,7 @@ cross validation)
 
 ```{r fig.height = 10, fig.width = 5}
 
-pred_test_deciles_filt_main <- df_test2 %>%
+pred_test_deciles_filt_main <- df_ann3_fold %>%
   rename(cwf_prop_pred = cwf_prop_pred_main) %>% 
   split(., .$fold) %>% 
   map(predvars2deciles, pred_vars = pred_vars,
@@ -496,7 +472,7 @@ to get code on model selection at each fold
 
 # model fitting
 
-```{r}
+```{r one_mod_per_fold}
 # mods fit to 4/5 of the data
 mods_test1 <- map(dfs_test1, function(df) {
   butcher::butcher(glm(form1, family = 'binomial', data = df))
