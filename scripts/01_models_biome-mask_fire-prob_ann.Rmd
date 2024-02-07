@@ -4,10 +4,10 @@ subtitle: "Annual (3 year running average) predictor data"
 author: "Martin Holdrege"
 date: "`r lubridate::today()`"
 params: 
-  test_run: TRUE
-  save_figs: FALSE
+  test_run: FALSE
+  save_figs: TRUE
   hmod: FALSE
-  s: "_annf2_A-P"
+  s: "_annf3_A-P"
   inter: !r c('afgAGB:MAP' = "afgAGB:MAP")
   sample_group: 1
 output:
@@ -36,7 +36,7 @@ print(params)
 # set to true if want to run for a limited number of rows (i.e. for code testing)
 test_run <- params$test_run
 save_figs <- params$save_figs
-hmod <- params$hmod # whether to include human modification in the model
+hmod <- params$hmod # whether to include human modification in the model (main model did not include hmod, but model in appendix did)
 # by changing the sample_group the model can be fit to a completely different set of rows
 sample_group <- params$sample_group 
 # _ann defines this model as being built on annual data
@@ -73,11 +73,10 @@ Data compiled in the `04_create_biom-mask_dataframe_ann.R` script
 
 This version two of the dataframe defines a cell has having burned
 if ~47% of that cell burned (as opposed to just the centroid). This 
-preserves the correct total area burned, and also should reduce noise, by 
-more correctly determin
+preserves the correct total area burned, and also should reduce noise
 
 ```{r}
-df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v2.csv',
+df_ann1 <- read_csv('data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv',
                     progress = FALSE, show_col_types = FALSE)
 
 if(!hmod) {

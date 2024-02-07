@@ -19,13 +19,13 @@ library(dplyr)
 # read in data ------------------------------------------------------------
 
 # burn occurrence determined from fraction burned
-df_ann <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
+df_ann <- read_csv("data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv",
                    show_col_types = FALSE) 
 
 # get the formula of the model fit in 05_models_biome-mask_fire-prob_ann.Rmd
 
-# s <- '_annf3_A-P' # run this for The main model
-s <- '_hmod_annf3_A-P' # run this for the model that includes human modification
+s <- '_annf3_A-P' # run this for The main model
+# s <- '_hmod_annf3_A-P' # run this for the model that includes human modification
 v <- 3
 form <- readRDS(paste0("models/glm_binomial_models_v", v, s, "_5000000n_g1.RDS"))$formula
 

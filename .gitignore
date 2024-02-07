@@ -20,7 +20,7 @@
 # folders
 paper/*
 data_raw/*
-data_processed/*
+# data_processed/*
 
 # figures
 *.png

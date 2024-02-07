@@ -70,57 +70,19 @@ render_cv = function(s, test_run = FALSE) {
 }
 # render docs ------------------------------------------------------------
 
+# * glm -------------------------------------------------------------------
+
+# this is the 'final' model 
+render_glm(s = "_annf3_A-P",
+           inter = c('afgAGB:MAP' = "afgAGB:MAP"),
+           sample_group = 1,
+           test_run = FALSE)
 
 # * cv --------------------------------------------------------------------
 
-render_cv(s = '_annf3_A-P_entire',
-          test_run = TRUE)
-
-# * glm -------------------------------------------------------------------
-
-
-# render_glm(s = "_annf3",
-#            inter = NULL,
-#            sample_group = 1,
-#            test_run = FALSE)
-
-# this is the 'final' model 
-# render_glm(s = "_annf3_A-P",
-#            inter = c('afgAGB:MAP' = "afgAGB:MAP"),
-#            sample_group = 1,
-#            test_run = FALSE)
-
-# render_glm(s = "_hmod_annf3_A-P",
-#            inter = c('afgAGB:MAP' = "afgAGB:MAP"),
-#            sample_group = 1,
-#            test_run = FALSE,
-#            hmod = TRUE)
-
-# render_glm(s = "_annf2_A-T",
-#            inter = c('afgAGB:MAT' = "afgAGB:MAT"),
-#            sample_group = 1,
-#            test_run = FALSE)
-# 
-# render_glm(s = "_annf2_A-S",
-#            inter = c('afgAGB:prcpPropSum' = "afgAGB:prcpPropSum"),
-#            sample_group = 1,
-#            test_run = FALSE)
-# 
-# render_glm(s = "_annf2_A-Pr",
-#            inter = c('afgAGB:pfgAGB' = "afgAGB:pfgAGB"),
-#            sample_group = 1,
-#            test_run = FALSE)
-
-# for (sample_group in 4:5) {
-#   render_glm(s = "_annf2_A-P",
-#              inter = c('afgAGB:MAP' = "afgAGB:MAP"),
-#              sample_group = sample_group,
-#              test_run = FALSE)
-# }
-
-
-
-
+# this can only be run after (02_model_entire-dataset.R)
+# render_cv(s = '_annf3_A-P_entire',
+#           test_run = FALSE)
 
 
 

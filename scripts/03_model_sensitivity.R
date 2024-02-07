@@ -57,12 +57,12 @@ tm_create_prob_map <- function(r, legend.text.size = 0.55,
 
 # * raster template ---------------------------------------------------------
 # provides cell numbers
-template <- rast("data_processed/data_publication/cell_nums.tif")
+template <- rast("data_processed/data_publication/cell_number_ids.tif")
 
 
 # * predictor/response dataframe ------------------------------------------
 
-df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v2.csv')
+df_ann1 <- read_csv('data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv')
 
 # * dataframe -------------------------------------------------------------
 

@@ -62,7 +62,7 @@ mod1 <- butcher::butcher(readRDS(path_mod)) # to save memory
 Reading in predictor vars
 
 ```{r}
-df_ann1 <- read_csv('data_processed/fire-clim-veg_3yrAvg_v2.csv',
+df_ann1 <- read_csv('data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv',
                     progress = FALSE, show_col_types = FALSE)%>% 
   # removing excess rows for memory saving
   select(-matches('burn_frac'), -matches('nfire_cwf_centroid'),
@@ -75,7 +75,7 @@ df_ann2 <- df_ann1 %>%
 Template (cell number) raster
 
 ```{r}
-template <- rast("data_processed/data_publication/cell_nums.tif")
+template <- rast("data_processed/data_publication/cell_number_ids.tif")
 ```
 
 

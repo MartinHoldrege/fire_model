@@ -6,7 +6,9 @@ Earthengine and R code can be found the the scripts folder.
 
 # Data
 
-Data will be made available on ScienceBase
+Data used in this analysis is available on ScienceBase:
+
+Holdrege, M.C., Schlaepfer, D.R., and Bradford, J.B., 2024, Observed wildfire frequency, modeled wildfire probability, climate, and fine fuels across the big sagebrush region in the western United States: U.S. Geological Survey data release, https://doi.org/10.5066/P9EFC6YC.
 
 ## `data_raw` folder
 
