@@ -43,21 +43,14 @@ folder.
 All scripts use relative paths. Open the `fire_model.Rproj` file in with rstudio to correctly
 set the working directory.
 
-Then run `scripts/main.R` scripts. This script runs all the other scripts, 
-and creates model objects and figures that are placed into the `models` and
-`figures` folders (and folders therein), respectively. Note that this will take a few hours to run. 
-Note that this cript renders a couple rmarkdown files, the result html files
-are put in the `scripts/copies` folder. 
-
-Alternatively you can run the individual scripts one by one. 
-Scripts are numbered sequentially, scripts with lower numbered prefixes need to 
-be run first because they create files that are read in by subsequent scripts.
+Scripts are numbered, and scripts with higher numbers rely on output from scripts
+with lower numbers. You can run the individual scripts one by one, since some
+scripts are very memory intensive, consider restarting R, or clearing the environment
+prior to running the next. 
 
 ### Descriptions of individuals scripts
 
-`main.R`: runs all the other scripts. Takes hours to run. Adjustments to individual
-scripts may be necessary if you don't have enough memory. Analyses were done using
-a machine with 32 Gb of memory. 
+
 
 `01_models_biome-mask_fire-prob_ann.Rmd`: Goes through model selection
 to find the best transformations for each variable. Does this on a sample of 5 million observations.
@@ -66,12 +59,12 @@ to find the best transformations for each variable. Does this on a sample of 5 m
 `01_models_biome-mask_fire-prob_ann.Rmd` script, and fits the model to the entire dataset. 
 
 `03_cross-validation_env-block_ann.rmd`: Does cross validation by separately fitting
-the model to individual environmental folds. Very memory intensive, as currently coded (right now commented
-out in `main.R` so that `main.R` is less likely to run into memory issues. 
+the model to individual environmental folds. Does not create any files needed by 
+downstream scripts. 
 
 `03_model_sensitivity.R`: Creates figures showing model sensitivity to adjustments in
 the predictor variables, also creates a .tif file of mean predictor (and predicted) values
-which is read in by subsequent scripts. Creates Fig 6 in the manuscript. 
+which is read in by subsequent scripts. Creates Fig 2 and Fig 6 in the manuscript. 
 
 `04_figures_pdp_vip_quant.R`: Creates Figures 3-5, in the manuscript which are
 partial dependence plots, 'quantile' plots, and 'filtered quantile' plots. 
@@ -80,6 +73,11 @@ Also creates a variable importance plots. This script is memory intensive.
 `04_maps_pred-vars_pub-qual.R`: Creates map of means of predictor variables (Fig. 1 in manuscript)
 
 `04_summary_stat_tables.Rmd`: Creates tables of summary statistics. 
+
+`main.R`: runs all the other scripts. However, currently not all figures
+are properly saved when running this script (instead of running the individual
+scripts). Note this script is useful to see how to automatically render the
+rmarkdown files using specified input parameters. 
 
 ### Folders
 
