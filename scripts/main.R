@@ -1,12 +1,11 @@
-# Purpose: run all scripts in succession so that objects are created that are needed
-# by the next script. This fits the model and creates all the main figures in the manuscript (Holdrege et al. (2024) Fire Ecology)
-# Here we render rmarkdown files, and changing input params as desired. 
-# Rmarkdown files are then saved in scripts/copies
+# Purpose: Optional script
+# run all scripts in succession. Note--this script is useful for rendering
+# the markdown files, if modified you can then render the markdowns using 
+# different input parameters. sourceing the other r scripts, as is done here
+# doesn't seem to work well for creating the figures (something with how
+# graphics are written, in those cases running the scripts individually on their
+# own is better). 
 
-# Note I'm sourcing the scripts in temporary environments so there aren't
-# problems with what packages are loaded (scripts were developed to be run 
-# as stand alone (assuming that the necessary files, created by previous scripts,
-# are available))
 
 # Started: October 12, 2023
 
@@ -98,13 +97,12 @@ render_glm(s = "_annf3_A-P",
 # 01_models_biome-mask_fire-prob_ann.Rmd file and knit it
 
 # fit model to the entire data set ----------------------------------------
-tmpEnv <- new.env()
 
 # fits the model formula determined in the previous step to the entire 
 # dataset, and puts the model objects in models/
 
-source('scripts/02_model_entire-dataset.R', local = tmpEnv) 
-rm(list = ls(envir = tmpEnv), envir = tmpEnv)
+source('scripts/02_model_entire-dataset.R') 
+rm(list = ls())
 
 # cv --------------------------------------------------------------------
 # conduct cross validation
@@ -119,25 +117,23 @@ rm(list = ls(envir = tmpEnv), envir = tmpEnv)
 
 
 # model sensitivity  ----------------------------------------------------
-tmpEnv <- new.env()
+
 
 # does analysis of model sensitivity (to perturbations in predictions)
 # creates maps (for appendix) and histograms (Figure 6), also creates a tiff of average predictor
 # values that is used in downstream scripts
 
-source('scripts/03_model_sensitivity.R', local = tmpEnv) 
-rm(list = ls(envir = tmpEnv), envir = tmpEnv)
-
+source('scripts/03_model_sensitivity.R') 
+rm(list = ls())
 # map of predictor variables ------------------------------------------
 
-tmpEnv <- new.env()
+
 # creates Figure 1 in the manuscript 
-source('scripts/04_maps_pred-vars_pub-qual.R', local = tmpEnv) 
-rm(list = ls(envir = tmpEnv), envir = tmpEnv)
+source('scripts/04_maps_pred-vars_pub-qual.R') 
+rm(list = ls())
 
 # pdp and quantile figs ------------------------------------------
 
-tmpEnv <- new.env()
 
 # This script creates (among others) Figs 3, 4, & 5 in the manuscript
 # (partial dependence plots, 'quantile' plots and 'filtered quantile' plots)
@@ -145,9 +141,8 @@ tmpEnv <- new.env()
 
 # adjust the n_pdp and n_quant parameters in this script to change how 
 # large of subsamples of the data figures are based on. 
-source('scripts/04_figures_pdp_vip_quant.R', local = tmpEnv) 
-rm(list = ls(envir = tmpEnv), envir = tmpEnv)
-
+source('scripts/04_figures_pdp_vip_quant.R') 
+rm(list = ls())
 
 # summary statistics ------------------------------------------------------
 # rmarkdown doc that calculates summary statistics used in various places

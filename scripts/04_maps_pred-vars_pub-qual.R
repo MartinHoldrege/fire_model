@@ -2,13 +2,14 @@
 
 # dependencies ------------------------------------------------------------
 
-source('src/basemaps.R')
-source("src/fig_params.R")
-source("src/general_functions.R")
+
 library(RColorBrewer)
 library(sf)
 library(terra)
 library(tidyverse)
+source('src/basemaps.R')
+source("src/fig_params.R")
+source("src/general_functions.R")
 
 # load raster --------------------------------------------------------
 
