@@ -9,10 +9,10 @@ presented in Holdrege et al. (2024) "Wildfire probability estimated from recent 
 
 ## Scripts
 
-R code can be found the the `/scripts` folder (functions are stored in the `/src` folder)
+R code can be found in the `/scripts` folder (functions are stored in the `/src` folder)
 
-Note: all .Rmd documents are written to use the projected directory as the working
-directory. If you're trying to knit one of the documents and it's now working, in rstudio click the down arrow next to 'knit' then 'knit directory' and select 'project directory')
+Note: all .Rmd documents are written to use the project directory as the working
+directory. If you're trying to knit one of the documents and it's not working, in rstudio click the down arrow next to 'knit' then 'knit directory' and select 'project directory')
 
 ## Data
 
@@ -32,14 +32,15 @@ The two data files are:
 
 `Wildfire_Climate_Biomass_Data.csv` which includes columns for fire occurrence,
 and climate and vegetation predictor variables (see the data release for detailed 
-metadata).
+metadata). Note this data file also includes the predicted wildfire probability (which is predicted by 
+the model created in the `02_model_entire-dataset.R` script)
 
 Put those two files (with names unchanged) in the `/data_processed/data_publication`
 folder. 
 
 ## Run the code
 
-All scripts use relative paths. Open the `fire_model.Rproj` file to correctly
+All scripts use relative paths. Open the `fire_model.Rproj` file in with rstudio to correctly
 set the working directory.
 
 Then run `scripts/main.R` scripts. This script runs all the other scripts, 
@@ -65,7 +66,8 @@ to find the best transformations for each variable. Does this on a sample of 5 m
 `01_models_biome-mask_fire-prob_ann.Rmd` script, and fits the model to the entire dataset. 
 
 `03_cross-validation_env-block_ann.rmd`: Does cross validation by separately fitting
-the model to individual environmental folds. Very memory intensive, as currently coded. 
+the model to individual environmental folds. Very memory intensive, as currently coded (right now commented
+out in `main.R` so that `main.R` is less likely to run into memory issues. 
 
 `03_model_sensitivity.R`: Creates figures showing model sensitivity to adjustments in
 the predictor variables, also creates a .tif file of mean predictor (and predicted) values
