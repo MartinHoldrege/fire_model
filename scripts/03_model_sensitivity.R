@@ -367,6 +367,8 @@ length(unique(df_ann1$cell_num)) # this should be equal to the total study area 
 # ba_exp <- calc_exp_ba(rasts1[['pred']])
 # ba_exp
 # # 3938
+
+ba_exp <- 3938 
 # ba_exp/total_area*100 # average modelled fire probability
 # # 0.503
 # 

@@ -109,8 +109,13 @@ rm(list = ls(envir = tmpEnv), envir = tmpEnv)
 # cv --------------------------------------------------------------------
 # conduct cross validation
 # this can only be run after (02_model_entire-dataset.R)
-render_cv(s = '_annf3_A-P_entire',
-          test_run = FALSE)
+# note the cross validation code is very memory intensive, just to test the code
+# on a subset of the data set test_run to TRUE, I'm 
+# commenting out this line of code here, because it is not critical for 
+# reproducing the main results. 
+
+# render_cv(s = '_annf3_A-P_entire',
+#           test_run = FALSE)
 
 
 # model sensitivity  ----------------------------------------------------
@@ -153,3 +158,4 @@ rmarkdown::render(
   knit_root_dir = getwd(),
   output_file = "04_summary_stat_tables.html",
   output_dir = file.path(getwd(), 'scripts/copies'))
+

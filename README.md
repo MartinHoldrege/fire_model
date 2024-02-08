@@ -1,6 +1,6 @@
 # fire_model
 
-Determining the relationship (i.e., fitting a GLM) between wildfire and  annual forb and grass biomass, perennial forb and grass biomass, mean  temperature, annual precipitation, proportion summer precipitation. Using data from across the sagebrush biome. Predictor variables are three year running running averages. 
+This repository includes code for determining the relationship (i.e., fitting a GLM) between wildfire and  annual forb and grass biomass, perennial forb and grass biomass, mean  temperature, annual precipitation, proportion summer precipitation. Using data from across the sagebrush biome. Predictor variables are three year running running averages. 
 
 This repository contains the scripts necessary to reproduce the main figures and results
 presented in Holdrege et al. (2024) "Wildfire probability estimated from recent climate and fine fuels across the big sagebrush region", published in Fire Ecology.
@@ -8,6 +8,7 @@ presented in Holdrege et al. (2024) "Wildfire probability estimated from recent 
 # Overview
 
 ## Scripts
+
 R code can be found the the `/scripts` folder (functions are stored in the `/src` folder)
 
 Note: all .Rmd documents are written to use the projected directory as the working
@@ -23,12 +24,11 @@ Holdrege, M.C., Schlaepfer, D.R., and Bradford, J.B., 2024, Observed wildfire fr
 
 ## Download data
 
-First, two data files to be downloaded from https://doi.org/10.5066/P9EFC6YC. 
+First, two data files should be downloaded from https://doi.org/10.5066/P9EFC6YC. 
 
 The two data files are:
 
 `cell_numbers_ids.tif` (a raster providing cell numbers that match the tabular data)
-
 
 `Wildfire_Climate_Biomass_Data.csv` which includes columns for fire occurrence,
 and climate and vegetation predictor variables (see the data release for detailed 
@@ -39,12 +39,14 @@ folder.
 
 ## Run the code
 
-All scripts have relative paths. Open the `fire_model.Rproj` file to correctly
+All scripts use relative paths. Open the `fire_model.Rproj` file to correctly
 set the working directory.
 
 Then run `scripts/main.R` scripts. This script runs all the other scripts, 
 and creates model objects and figures that are placed into the `models` and
 `figures` folders (and folders therein), respectively. Note that this will take a few hours to run. 
+Note that this cript renders a couple rmarkdown files, the result html files
+are put in the `scripts/copies` folder. 
 
 Alternatively you can run the individual scripts one by one. 
 Scripts are numbered sequentially, scripts with lower numbered prefixes need to 
@@ -62,8 +64,8 @@ to find the best transformations for each variable. Does this on a sample of 5 m
 `02_model_entire-dataset.R`: Uses the model formula determined by the
 `01_models_biome-mask_fire-prob_ann.Rmd` script, and fits the model to the entire dataset. 
 
-`03_cross-validation_env-block_ann.rmd`: Does cross validation by seperately fitting
-the model to individual environmental folds. 
+`03_cross-validation_env-block_ann.rmd`: Does cross validation by separately fitting
+the model to individual environmental folds. Very memory intensive, as currently coded. 
 
 `03_model_sensitivity.R`: Creates figures showing model sensitivity to adjustments in
 the predictor variables, also creates a .tif file of mean predictor (and predicted) values
@@ -77,6 +79,10 @@ Also creates a variable importance plots. This script is memory intensive.
 
 `04_summary_stat_tables.Rmd`: Creates tables of summary statistics. 
 
+### Folders
+
+This repository contains multiple empty folders (i.e., `models`, and `/figures` and folders
+therein), which are where the scripts put output. 
 
 ## Session information
 

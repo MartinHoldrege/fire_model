@@ -12,7 +12,7 @@ library(tidyverse)
 
 # load raster --------------------------------------------------------
 
-s <- '_annf2_A-P_entire'
+s <- '_annf3_A-P_entire'
 # This raster contains layers that are averages across years for all the 
 # predictor variables (it also includes predicted fire probability, which
 # is not used here). This tif is created in 03_model_sensitivity.R

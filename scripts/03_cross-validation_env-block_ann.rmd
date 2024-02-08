@@ -484,7 +484,7 @@ mods_test1 <- map(dfs_test1, function(df) {
 
 Creating partial dependence plots of the model fit to each fold
 
-```{r pdp_best}
+```{r pdp_best, eval = FALSE}
 
 df_pdp_mod_fold1 <- map2_dfr(mods_test1, dfs_test_pdp1, function(mod, df) {
   create_pdp_df(mod = mod, mod_vars = names(lookup_var), data = df)
@@ -493,7 +493,7 @@ df_pdp_mod_fold1 <- map2_dfr(mods_test1, dfs_test_pdp1, function(mod, df) {
 
 ```
 
-```{r fig.height = 3.5, fig.width = 6.8}
+```{r fig.height = 3.5, fig.width = 6.8, eval = FALSE}
 df_pdp_mod_fold1 <- df_pdp_mod_fold1 %>% 
   mutate(pred_var_name = var2lab(pred_var, units_md = TRUE))
 
