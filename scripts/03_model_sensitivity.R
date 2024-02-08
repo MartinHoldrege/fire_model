@@ -26,6 +26,9 @@ theme_set(theme_classic())
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 s <- '_annf3_A-P_entire'
+run_hmod <- FALSE # whether to also run the code for the model fit also using
+# human modification as a predictor variable (note--that object will have
+# to have been alread created in 02_model_entire-dataset)
 
 files_mod <- paste0("models/glm_binomial_models_v3", s, ".RDS")
 
@@ -62,7 +65,7 @@ template <- rast("data_processed/data_publication/cell_number_ids.tif")
 
 # * predictor/response dataframe ------------------------------------------
 
-df_ann1 <- read_csv('data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv')
+df_ann1 <- read_main_csv()
 
 # * dataframe -------------------------------------------------------------
 
@@ -85,6 +88,7 @@ names(formula2) <- s
 # predictor variable (object created in
 # 05.5_model_entire-dataset.R)
 
+if (run_hmod) {
 hmod1 <- butcher::butcher(readRDS(
   paste0("models/glm_binomial_models_v3_hmod", s, ".RDS")))
 
@@ -93,7 +97,7 @@ hmod1 <- butcher::butcher(readRDS(
 
 hmod1$formula
 mod1$formula
-
+}
 
 # predicted fire probability ----------------------------------------------
 
@@ -104,10 +108,17 @@ df_ann2 <- df_ann1
 # regardless of whether there was a fire--otherwise you have multiple
 # predictions per pixel which is a bit harder to deal with
 df_ann2$pred <- predict(mod1, newdata = df_ann2, type = "response")
-df_ann2$pred_h <- predict(hmod1, newdata = df_ann2, type = "response")
-df_avg1 <- summarize_yearly(df_ann2, mean_vars = c('pred', 'pred_h'),
-                            # hmod has some NAs so predictions have some NAs
-                            na.rm =TRUE)
+
+if (run_hmod) {
+  df_ann2$pred_h <- predict(hmod1, newdata = df_ann2, type = "response")
+  df_avg1 <- summarize_yearly(df_ann2, mean_vars = c('pred', 'pred_h'),
+                              # hmod has some NAs so predictions have some NAs
+                              na.rm =TRUE)
+} else {
+  df_avg1 <- summarize_yearly(df_ann2, mean_vars = c('pred'),
+                              na.rm =TRUE)
+}
+
 
 # raster layers included observed fire occurence,
 # mean prediction, and means of predictor vars
@@ -335,35 +346,35 @@ length(unique(df_ann1$cell_num)) # this should be equal to the total study area 
 # fraction of each cell burned, from rasterizing fire polygons to 30m) 
 # and approximate burned area based on designating
 # a pixel burned (1) or not (0)
-ba <- df_ann2 %>% 
-  group_by(year) %>% 
-  summarize(ba_obs = sum(burn_frac),# cells are 1km2
-            ba_obs_approx = sum(nfire_cwf)
-            ) %>% 
-  summarise(ba_obs = mean(ba_obs),
-            ba_obs_approx = mean(ba_obs_approx)) 
-ba
-# ba_obs ba_obs_approx
-#  3941.         3938.
-
-# observed fire probability
-ba %>% 
-  mutate(across(everything(), \(x) x/total_area*100))
-# ba_obs ba_obs_approx
-# 0.504         0.503
-
-# expected (long term) mean annual burned area (ha) based on the model
-ba_exp <- calc_exp_ba(rasts1[['pred']])
-ba_exp
-# 3938
-ba_exp/total_area*100 # average modelled fire probability
-# 0.503
-
-# change in burned area with climate perturbations
+# ba <- df_ann2 %>% 
+#   group_by(year) %>% 
+#   summarize(ba_obs = sum(burn_frac),# cells are 1km2
+#             ba_obs_approx = sum(nfire_cwf)
+#             ) %>% 
+#   summarise(ba_obs = mean(ba_obs),
+#             ba_obs_approx = mean(ba_obs_approx)) 
+# ba
+# # ba_obs ba_obs_approx
+# #  3941.         3938.
+# 
+# # observed fire probability
+# ba %>% 
+#   mutate(across(everything(), \(x) x/total_area*100))
+# # ba_obs ba_obs_approx
+# # 0.504         0.503
+# 
+# # expected (long term) mean annual burned area (ha) based on the model
+# ba_exp <- calc_exp_ba(rasts1[['pred']])
+# ba_exp
+# # 3938
+# ba_exp/total_area*100 # average modelled fire probability
+# # 0.503
+# 
+# # change in burned area with climate perturbations
 ba_delta1 <- map_dfr(rasts_alter1, function(x) {
   calc_exp_ba(x$delta)
 })
-ba_delta1
+# ba_delta1
 
 # df_ann2 %>% 
 #   summarize(across(all_of(pred_vars), sd))
@@ -594,36 +605,39 @@ quants
 # model to compare (i.e. make sure calculating delta from model
 # with all the same terms in it (but without hmod))
 
+if (run_hmod) {
+  hmod_delta <- rasts1[["pred_h"]] - rasts1[["pred"]]
+  
+  x <- values(hmod_delta) %>% as.vector()
+  hist(x, breaks = 100, xlim = c(-0.01, 0.01))
+  
+  
+  tm_hmod <- tm_create_prob_map(rasts1[["pred_h"]],
+                                main.title = paste(fig_letters[1], "Predicted probability (%)",
+                                                   '\nfor model including human modification'),
+                                main.title.size = 0.8,
+                                legend.title.size = 0.6)
+  
+  tm_hmod_delta <- tm_shape(hmod_delta*100, bbox = bbox) +
+    tm_raster(title = lab_delta,
+              breaks = b1,
+              labels = l1,
+              palette = cols_delta,
+              midpoint = 0) +
+    basemap(legend.text.size = legend.text.size,
+            legend.title.size = 0.6) +
+    tm_layout(main.title = paste(fig_letters[2],
+                                 "Change in fire probability relative to model",
+                                 "\nwithout human modification"),
+              main.title.size = 0.8)
+  
+  
+  # figure in appendix
+  jpeg(paste0("figures/maps_fire_prob/cwf_hmod_predicted_v3", s, ".jpeg"), units = 'in', res = 600,
+       height = 2.8, width = 7)
+  tmap_arrange(tm_hmod, tm_hmod_delta, nrow = 1)
+  dev.off()
+  
+}
 
-hmod_delta <- rasts1[["pred_h"]] - rasts1[["pred"]]
-
-x <- values(hmod_delta) %>% as.vector()
-hist(x, breaks = 100, xlim = c(-0.01, 0.01))
-
-
-tm_hmod <- tm_create_prob_map(rasts1[["pred_h"]],
-                              main.title = paste(fig_letters[1], "Predicted probability (%)",
-                                                 '\nfor model including human modification'),
-                              main.title.size = 0.8,
-                              legend.title.size = 0.6)
-
-tm_hmod_delta <- tm_shape(hmod_delta*100, bbox = bbox) +
-  tm_raster(title = lab_delta,
-            breaks = b1,
-            labels = l1,
-            palette = cols_delta,
-            midpoint = 0) +
-  basemap(legend.text.size = legend.text.size,
-          legend.title.size = 0.6) +
-  tm_layout(main.title = paste(fig_letters[2],
-                               "Change in fire probability relative to model",
-                               "\nwithout human modification"),
-            main.title.size = 0.8)
-
-
-# figure in appendix
-jpeg(paste0("figures/maps_fire_prob/cwf_hmod_predicted_v3", s, ".jpeg"), units = 'in', res = 600,
-     height = 2.8, width = 7)
-tmap_arrange(tm_hmod, tm_hmod_delta, nrow = 1)
-dev.off()
 

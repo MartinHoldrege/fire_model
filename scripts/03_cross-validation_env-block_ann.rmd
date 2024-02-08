@@ -4,7 +4,7 @@ subtitle: "Based on annual fire data"
 author: "Martin Holdrege"
 date: "`r lubridate::today()`"
 params:
-  test_run: TRUE
+  test_run: FALSE
   s: '_annf3_A-P_entire'
 output:
   html_document:
@@ -62,8 +62,7 @@ mod1 <- butcher::butcher(readRDS(path_mod)) # to save memory
 Reading in predictor vars
 
 ```{r}
-df_ann1 <- read_csv('data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv',
-                    progress = FALSE, show_col_types = FALSE)%>% 
+df_ann1 <- read_main_csv() %>% 
   # removing excess rows for memory saving
   select(-matches('burn_frac'), -matches('nfire_cwf_centroid'),
          -matches('weight'))

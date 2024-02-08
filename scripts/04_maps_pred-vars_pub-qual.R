@@ -1,4 +1,4 @@
-
+# creates fig 1 in the manuscript
 
 # dependencies ------------------------------------------------------------
 
@@ -15,7 +15,7 @@ library(tidyverse)
 s <- '_annf2_A-P_entire'
 # This raster contains layers that are averages across years for all the 
 # predictor variables (it also includes predicted fire probability, which
-# is not used here). This tif is created in 06_model_sensitivity.R
+# is not used here). This tif is created in 03_model_sensitivity.R
 r0 <- rast(paste0('data_processed/pred-fire-clim-veg_avg-across-yrs', s, '.tif'))
 
 

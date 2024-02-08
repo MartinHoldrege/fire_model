@@ -15,12 +15,11 @@
 
 library(readr)
 library(dplyr)
-
+source('src/general_functions.R')
 # read in data ------------------------------------------------------------
 
 # burn occurrence determined from fraction burned
-df_ann <- read_csv("data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv",
-                   show_col_types = FALSE) 
+df_ann <- read_main_csv()
 
 # get the formula of the model fit in 05_models_biome-mask_fire-prob_ann.Rmd
 

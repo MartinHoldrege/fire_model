@@ -27,10 +27,10 @@ s <- '_annf3_A-P_entire'
 Read in data
 
 ```{r}
-df_ann1 <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv")
+df_ann1 <- read_main_csv()
 # model of cell level averages
 
-# tif created in 05_model_sensitivity.R
+# tif created in 03_model_sensitivity.R
 rast1 <- rast(paste0('data_processed/pred-fire-clim-veg_avg-across-yrs', 
                     s, '.tif'))
 ```

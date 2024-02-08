@@ -76,8 +76,7 @@ if ~47% of that cell burned (as opposed to just the centroid). This
 preserves the correct total area burned, and also should reduce noise
 
 ```{r}
-df_ann1 <- read_csv('data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv',
-                    progress = FALSE, show_col_types = FALSE)
+df_ann1 <- read_main_csv()
 
 if(!hmod) {
   df_ann1$hmod <- NULL

@@ -7,6 +7,21 @@ library(patchwork)
 library(dtplyr)
 # misc. -------------------------------------------------------------------
 
+# function to read in the main csv file (available to download from sciencebase,
+# https://doi.org/10.5066/P9EFC6YC)
+# and change column names so that they work with legacy code
+read_main_csv <- function(path = "data_processed/data_publication/Wildfire_Climate_Biomass_Data.csv") {
+  df1 <- read_csv(path, progress = FALSE, show_col_types = FALSE)
+  out <- df1 %>% 
+    # changing the data frame for legacy reasons (code compatability)
+    rename(nfire_cwf = nfire) %>% 
+    mutate(numYrs = 1, 
+           cwf_prop = nfire_cwf/numYrs, 
+           weight = 1 # each grid cell has the same area, and represents 1 year of data (so all equal weight)
+    ) %>% 
+    select(-predicted_prob) # this is the fire probability predicted by the model, not needed to here (b/ code in this repo recreates those values)
+  out
+}
 
 #' calculate yearly fire probability
 #'

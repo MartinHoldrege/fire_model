@@ -5,7 +5,9 @@
 # Purpose--create partial dependence plots that show multiple
 # lines for a given variable, e.g. also show the annuals trend when
 # MAP is fixed at it's 80th or 20th percentile
-
+# also create 'quantile plots'
+# This script creates (among others) Figs 3, 4, & 5 in the manuscript
+# Note this is a very memory intensive script
 
 # dependencies ------------------------------------------------------------
 
@@ -20,6 +22,7 @@ theme_set(theme_classic())
 
 # params ------------------------------------------------------------------
 
+run_hmod <- FALSE # also run code for model fit w/ human modification as a predictor
 # string vector, part of the name of the model, usually identifying
 # the model interactions
 
@@ -32,11 +35,13 @@ pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 var_prop <- c('cwf_prop')
 
 # memory heavy script so smaller samples may be needed depending on computer
-n_pdp <- 1e5 # number of data points to use for pdp plots (I can run at 1e6)
+
+# 
+n_pdp <- 1e5 # number of data points to use for pdp plots (for manuscript used 1e6)
 
 # note--on a 32 gb memory machine this just barely runs using the full dataset
 # (otherwise just subsample down to a couple million points)
-n_quant <-  3e7 # number of data points to use for quantile plots (if > 2.5*10^7 then using entire dataset)
+n_quant <-  1e6 # number of data points to use for quantile plots (if > 2.5*10^7 then using entire dataset, for manuscript i used 3e7)
 
 # save quantile and pdp plots to file?
 save_quant <- TRUE
@@ -52,8 +57,7 @@ names(mod_vars_h) <- mod_vars_h
 
 # read in data ------------------------------------------------------------
 
-df_ann1 <- read_csv("data_processed/fire-clim-veg_3yrAvg_v2.csv",
-                  show_col_types = FALSE) %>% 
+df_ann1 <- read_main_csv() %>% 
   # removing excess rows for memory saving
   select(-matches('burn_frac'), -matches('nfire_cwf_centroid'),
          -matches("nfire_cwf"), -matches('weight'))
@@ -250,7 +254,8 @@ dev.off()
 
 
 # ** for hmod model -------------------------------------------------------
-  
+
+if(run_hmod){
 hmod <- readRDS(paste0("models/glm_binomial_models_v3_hmod",
                        s, ".RDS"))
 
@@ -272,7 +277,7 @@ if(save_quant){
   print(g)
   dev.off()
 }
-
+}
 # create pdp --------------------------------------------------------------
 
 
@@ -474,7 +479,7 @@ dev.off()
 
 # pdp for hmod ------------------------------------------------------------
 # model that includes human modification
-
+if(run_hmod){
 dfs_pdp_h <- map(mod_vars_h, function(var) {
   out <- pdp::partial(hmod, pred.var = var, plot = FALSE,
                       prob = TRUE, train = train1,
@@ -534,7 +539,7 @@ print(g)
 dev.off()
 }
 
-
+}
 # find maxima -------------------------------------------------------------
 # values of the predictor variable for which the probability (from the pdp)
 # is hightest
@@ -555,8 +560,13 @@ df_pdp2 %>%
 # output rounded coefficients ----------------------------------------------
 
 
-# useful for copy and pasting into manuscript
-coef_df <-  map_dfr(list(main = mod, HMod = hmod), function(x) {
+# useful for copy and pasting into manuscript appendix
+if(run_hmod) {
+  tmp <- list(main = mod, HMod = hmod)
+} else {
+  tmp <- list('main' = mod)
+}
+coef_df <-  map_dfr(tmp, function(x) {
   out <- summary(x) %>% 
     .$coefficients %>% 
     as_tibble() %>% 
