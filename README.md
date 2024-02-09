@@ -1,4 +1,6 @@
-# fire_model
+# wildfire model
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10637599.svg)](https://doi.org/10.5281/zenodo.10637599)
 
 This repository includes code for determining the relationship (i.e., fitting a GLM) between wildfire and  annual forb and grass biomass, perennial forb and grass biomass, mean  temperature, annual precipitation, proportion summer precipitation. Using data from across the sagebrush biome. Predictor variables are three year running running averages. 
 
