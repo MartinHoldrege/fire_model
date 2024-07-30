@@ -461,9 +461,7 @@ filter_by_climate <- function(df, add_mid = FALSE,
   low <- 0.2
   high <- 0.8
   
-  # creating total herbacious biomass category
-  df$herbAGB <- df$afgAGB + df$pfgAGB
-  
+
   names(filter_vars) <- filter_vars
   stopifnot(filter_vars %in% names(df))
   
@@ -528,19 +526,20 @@ filter_by_climate <- function(df, add_mid = FALSE,
 predvars2long <- function(df, response_vars, 
                           pred_vars = c("afgAGB", "pfgAGB", "MAT", "MAP", 
                                         "prcpPropSum"),
-                          filter_var = FALSE) {
+                          filter_var = FALSE,
+                          add_herbAGB = FALSE) {
   
-  stopifnot(c('afgAGB', 'pfgAGB') %in% names(df))
-  
-  new_pred_vars <- c(pred_vars)
+    new_pred_vars <-  pred_vars
   # creating total herbacious biomass category
-  if(!'herbAGB'%in% pred_vars) {
-    df$herbAGB <- df$afgAGB + df$pfgAGB
-    new_pred_vars <- c(new_pred_vars, 'herbAGB')
+  if(add_herbAGB) {
+      if(!'herbAGB'%in% pred_vars) {
+      stopifnot(c('afgAGB', 'pfgAGB') %in% names(df))
+      df$herbAGB <- df$afgAGB + df$pfgAGB
+      new_pred_vars <- c(new_pred_vars, 'herbAGB')
+    }
   }
 
-  new_pred_vars <- c(pred_vars, 'herbAGB')
-  
+
   select_cols <- c(new_pred_vars, response_vars)
   
   if(filter_var) {
@@ -941,28 +940,36 @@ add_dotplot_inset <- function(g, df, add_smooth = FALSE, ...) {
 #' @param title plot title
 #' @param size size of points
 #' @param ylab string--y axis label
-decile_dotplot_filtered <- function(yvar, df, method = NULL, ylab = 'fire probability (per year)',
+decile_dotplot_filtered <- function(yvar, df, ylab = 'fire probability (per year)',
                            add_smooth = FALSE,
                            title = NULL,
                            size = 0.75,
                            subtitle = NULL) {
   # all_of() seems to break down if yvar has name different than the values
   yvar <- unname(yvar) 
+  # want this function to work even if there are no '._pred' columns
+  tmp <- c(yvar, paste0(yvar, "_pred"))
+  pivot_cols <- tmp[tmp%in% names(df)]
   df2 <- df %>% 
-    filter(name %in% c("afgAGB", "pfgAGB", "herbAGB")) %>% 
+    #filter(name %in% c("afgAGB", "pfgAGB", "herbAGB")) %>% 
     select(name, filter_var, percentile_category, decile, mean_value,
-           all_of(yvar), all_of(paste0(yvar, "_pred"))) %>% 
-    pivot_longer(cols = all_of(c(yvar, paste0(yvar, "_pred"))),
+           all_of(pivot_cols)) %>% 
+    pivot_longer(cols = all_of(pivot_cols),
                  names_to = 'source',
                  values_to = 'probability') %>% 
     mutate(source = ifelse(str_detect(source, "_pred$"),
                            "predicted", "observed"),
            percentile_category = paste0(percentile_category, " (", source, ")"))
   
-  if(is.null(subtitle) & !is.null(method)) {
-    subtitle <- paste0('y variable is ', yvar, " (", method, " method)")
+  n_cols <- length(unique(df2$percentile_category))
+  color_endices <- if(n_cols == 2) {
+    c(1, 3)
+  } else if(n_cols == 4) {
+    1:4
+  } else {
+    error('incorrect number of percentile categories')
   }
-  
+
 
   g <- ggplot(df2, aes(x = mean_value, y = probability)) +
     geom_point(aes(color = percentile_category,
@@ -981,9 +988,9 @@ decile_dotplot_filtered <- function(yvar, df, method = NULL, ylab = 'fire probab
     # different colors for each combination of percentile and observed vs predicted,
     # shapes are observed (circles) vs predicted (triangles)
     scale_colour_manual(name = 'percentile_category',
-                        values = c("#f03b20","#feb24c", "#0570b0", "#74a9cf"))+
+                        values = c("#f03b20","#feb24c", "#0570b0", "#74a9cf")[color_endices])+
     scale_shape_manual(name = 'percentile_category',
-                       values = c(19, 17, 19, 17))
+                       values = c(19, 17, 19, 17)[color_endices])
   if(add_smooth) {
     g <- g +
       geom_smooth(aes(color = percentile_category),
@@ -1015,8 +1022,11 @@ decile_dotplot_filtered_pq <- function(df,
   yvar <- "cwf_prop"
   
   # convert k to c
-  df[df$name == "MAT", ]$mean_value <- 
-    df[df$name == "MAT", ]$mean_value - 273.15
+  # convert k to c
+  if(max(df[df$name == "MAT", ]$mean_value) > 150) {
+    df[df$name == "MAT", ]$mean_value <- df[df$name  == "MAT", ]$mean_value - 273.15
+  }
+  
   df2 <- df %>% 
     filter(name %in% xvars) %>% 
     select(name, filter_var, percentile_category, decile, mean_value,
