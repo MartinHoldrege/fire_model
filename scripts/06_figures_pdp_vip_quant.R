@@ -32,7 +32,7 @@ pred_vars <- c("afgAGB", "pfgAGB", "MAT", "MAP", "prcpPropSum")
 var_prop <- c('cwf_prop')
 
 # memory heavy script so smaller samples may be needed depending on computer
-n_pdp <- 1e5 # number of data points to use for pdp plots (I can run at 1e6)
+n_pdp <- 1e6 # number of data points to use for pdp plots (I can run at 1e6)
 
 # note--on a 32 gb memory machine this just barely runs using the full dataset
 # (otherwise just subsample down to a couple million points)
@@ -383,7 +383,7 @@ df_pdp2 <-df_pdp1 %>%
   select(-inter_var2, -inter_level, -inter_var) %>% 
   rename(inter_var = inter_name)
 
-
+saveRDS(df_pdp2, 'data_processed/df_pdp2.rds') # for use in other scripts
 
 # for rug plot 
 deciles_h <- df_ann1 %>% 
