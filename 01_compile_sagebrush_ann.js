@@ -17,7 +17,7 @@ Data is masked to the extent of the sagebrush biome
 // User defined variables -------------------------------------
 
 // whether to run the code the exports the files
-var run = false; 
+var run = true; 
 // date range
 var startYear = 1986;
 //var startYear = 2016; // short time period for testing
@@ -36,6 +36,8 @@ var path = 'projects/usgs-gee-drylandecohydrology/assets/cheatgrass_fire/';
 // functions
 // fire data 
 var f= require("users/mholdrege/cheatgrass_fire:scripts/01_compile_fire_data.js");
+
+var fns = require("users/mholdrege/cheatgrass_fire:src/ee_functions.js");
 
 // Mask of the sagebrush region
 var m = require("users/mholdrege/cheatgrass_fire:scripts/00_biome_mask.js");
@@ -162,7 +164,7 @@ var maskString = '_sagebrush-biome-mask_v2';
 
 // sagebrush biome mask
 Export.image.toDrive({
-  image: bioM3AvgImage.toFloat(),
+  image: sageM3AvgImage.toFloat(),
   description: 'RCMAPV6_sagebrush-cover_' + startYear + '-' + endYear + '_3yrAvg_' + resolution + 'm' + maskString,
   folder: 'cheatgrass_fire',
   maxPixels: 1e13, 
